@@ -1,12 +1,12 @@
 # CorridorRig
 
-Real-time markerless motion capture for **Blender**: a webcam streams full-body SMPL-X poses onto your character while a physical encoder rig drives world position and rotation. Born from a proof of concept by **Dean of Corridor Digital**, rebuilt in the open with clean architecture.
+Real-time markerless motion capture for **Blender**: a webcam streams full-body SMPL-X poses onto your character while a physical encoder rig drives world position and rotation. Built in collaboration with **Corridor Digital**.
 
-Free and open source, developed in public from day one — community contributions are part of the plan.
+Free and open source.
 
 ## Status
 
-**Early development — no releases yet.** This repository is a from-scratch rewrite of a working proof of concept. The POC proved the pipeline (webcam to SMPL-X pose in the Blender viewport in real time); the rewrite makes it tested, layered, and contributable. See the [PRD](doc/product/PRD.md) for scope and roadmap.
+**Early development — no releases yet.** See the [PRD](doc/product/PRD.md) for scope and roadmap.
 
 ## What it is
 
@@ -66,11 +66,11 @@ Full detail in the [PRD](doc/product/PRD.md).
 
 ## Contributing
 
-The repo is public during development precisely so the community can help. Until a CONTRIBUTING.md lands: read [AGENTS.md](AGENTS.md) and [ARCHITECTURE.md](ARCHITECTURE.md) first, open an issue before large changes, and never commit model files or weights — the gitignore and CI guard this, and license-clean history is a hard rule.
+Until a CONTRIBUTING.md lands: read [AGENTS.md](AGENTS.md) and [ARCHITECTURE.md](ARCHITECTURE.md) first, open an issue before large changes, and never commit model files or weights — the gitignore and CI guard this, and license-clean history is a hard rule.
 
 ## Acknowledgements
 
-- **Dean / Corridor Digital** — original proof of concept and the production use case driving this
+- **Dean / Corridor Digital** — concept and the production use case driving this
 - **[PEAR](https://wujh2001.github.io/PEAR/)** (Wu et al., IDEA) — the pose-estimation backbone
 - **[Fast SAM 3D Body](https://github.com/yangtiming/Fast-SAM-3D-Body)** (Yang et al.) — roadmap engine backend
 - **[Meshcapade / MPI SMPL Blender addon](https://github.com/Meshcapade/SMPL_blender_addon)** — the addon lineage the POC started from

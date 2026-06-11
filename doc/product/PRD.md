@@ -7,7 +7,7 @@ Owner: alexandremendoncaalvaro
 
 ## Product
 
-CorridorRig is a free, open-source Blender plugin that gives animators real-time markerless motion capture from a webcam (PEAR pose estimation) combined with a physical Arduino encoder rig for world position and rotation. It is the clean-architecture rewrite of Dean's (Corridor Digital) proof of concept, developed in public from day one so the Blender community can contribute.
+CorridorRig is a free, open-source Blender plugin that gives animators real-time markerless motion capture from a webcam (PEAR pose estimation) combined with a physical Arduino encoder rig for world position and rotation. It is the clean-architecture rewrite of Dean's (Corridor Digital) proof of concept, developed privately by Ale and Dean for now, with a public open-source release once the MVP is solid.
 
 ## Target User
 
@@ -28,7 +28,7 @@ Today, a Blender animator who wants believable body animation must hand-keyframe
 * Full POC feature parity with zero reproduced POC bugs: live webcam streaming, record-live-mocap, single timed capture, photo upload, batch folder processing, Arduino rig input with per-axis mapping, SMPL-X model and shape management, pose import.
 * Live mocap performance: pose applied in the viewport at 30 FPS with under 100 ms capture-to-viewport latency on an RTX-class GPU.
 * Clean-machine setup completes in one documented installer pass in 15 minutes or less, including environment build.
-* License-clean public repository from the first commit: no model files or weights ever in git history; addon code GPL-compatible; rewrite carries no code from the GPL POC fork.
+* License-clean repository from the first commit: no model files or weights ever in git history, so the repo can go public without history rewrite; addon code GPL-compatible; rewrite carries no code from the GPL POC fork.
 * Codebase a community contributor can enter: hexagonal layers per ARCHITECTURE.md, domain logic testable without Blender or a GPU, quality gates green on main.
 
 ## Non-goals
@@ -63,6 +63,7 @@ MVP — full POC parity, one vertical architecture:
 
 Next:
 
+* Public release — repo goes public, contribution docs land, backend and licensing verified for announcement.
 * Fast-SAM-3D-Body engine adapter, including the MHR-to-SMPL feedforward conversion (Dean's open problem; upstream is MIT).
 * Animation import (.npz AMASS) and FBX/Alembic export — advertised by the POC README but dead code in the POC.
 * Linux support for the engine bridge.
@@ -77,7 +78,7 @@ Later:
 
 * SMPL-X model files are MPI research-licensed: users obtain them directly from MPI/Meshcapade after accepting terms; the product only documents expected local paths. Commercial production use of the models (including Corridor's own) requires a Meshcapade commercial license — independent of the plugin's own license.
 * Addon code links Blender's Python API and must be GPL-compatible; plan is GPL-3.0 for the addon.
-* Public repository from day one: git history is permanent, so licensed binaries and secrets must be blocked by gitignore and CI scan, not cleaned up after the fact.
+* Repository is private during early development but must stay publishable at all times: git history is permanent, so licensed binaries and secrets are blocked by gitignore and CI scan from the first commit, never cleaned up after the fact.
 * Runtime requires an NVIDIA CUDA GPU; CPU-only operation is out of scope (PEAR inference is CUDA-bound).
 * Blender 4.2 LTS minimum, per AGENTS.md.
 
@@ -87,6 +88,7 @@ Later:
 * PEAR upstream license terms (code at Pixel-Talk/PEAR and weights at BestWJH/PEAR_models) — verify redistribution and commercial-use terms before the public announcement names PEAR as the backend.
 * Commercial SMPL-X (Meshcapade) license for Corridor's production use — who obtains it and when.
 * Repository home for the public repo — Corridor org, Dean's account, or Ale's account.
+* Go-public criteria — what gates the flip from private to public (MVP parity done? CI green? PEAR license verified? contribution docs ready?).
 * Parity checklist canonical source — first MVP spec must enumerate it from the POC's registered operators, not its README (README advertises dead features).
 
 ## Related
