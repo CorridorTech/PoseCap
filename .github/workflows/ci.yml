@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  quality:
+    name: gates (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - name: Sync workspace (locked)
+        run: uv sync --locked
+      - name: Lint
+        run: uv run ruff check .
+      - name: Format
+        run: uv run ruff format --check .
+      - name: Types
+        run: uv run pyright
+      - name: Layer dependency rule (ADR-0001)
+        run: uv run lint-imports
+      - name: Tests + coverage gate
+        run: uv run pytest -q --cov=corridorrig_core --cov=corridorrig_contracts --cov-fail-under=90
+
+  licensed-binaries:
+    name: licensed-binary scan (PRD metric)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: No licensed model binaries in the tree
+        run: git ls-files -z | xargs -0 python tools/check_licensed_binaries.py
+
+  audit:
+    name: dependency audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: Export locked requirements
+        run: uv export --format requirements.txt --no-emit-workspace -o requirements-audit.txt
+      - name: pip-audit
+        run: uvx pip-audit -r requirements-audit.txt
