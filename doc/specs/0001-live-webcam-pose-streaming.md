@@ -1,6 +1,6 @@
 # Spec 0001: Live webcam pose streaming
 
-**Status:** draft
+**Status:** accepted
 **Created:** 2026-06-11
 **Owner:** alexandremendoncaalvaro
 

@@ -1,6 +1,6 @@
 # ADR-0001: Adopt hexagonal architecture with an enforced dependency rule
 
-**Status:** proposed
+**Status:** accepted
 **Date:** 2026-06-11
 **Deciders:** Ale (alexandremendoncaalvaro), Dean (Corridor Digital)
 

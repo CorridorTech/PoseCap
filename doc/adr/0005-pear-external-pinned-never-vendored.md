@@ -1,6 +1,6 @@
 # ADR-0005: Keep upstream PEAR external and pinned, never vendored
 
-**Status:** proposed
+**Status:** accepted
 **Date:** 2026-06-11
 **Deciders:** Ale (alexandremendoncaalvaro), Dean (Corridor Digital)
 

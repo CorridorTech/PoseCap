@@ -1,6 +1,6 @@
 # ADR-0004: uv workspace with build-time vendoring into the extension wheel
 
-**Status:** proposed
+**Status:** accepted
 **Date:** 2026-06-11
 **Deciders:** Ale (alexandremendoncaalvaro), Dean (Corridor Digital)
 

@@ -1,6 +1,6 @@
 # ADR-0006: License split — GPL-3.0 addon, Apache-2.0 everything else
 
-**Status:** proposed
+**Status:** accepted
 **Date:** 2026-06-11
 **Deciders:** Ale (alexandremendoncaalvaro), Dean (Corridor Digital)
 

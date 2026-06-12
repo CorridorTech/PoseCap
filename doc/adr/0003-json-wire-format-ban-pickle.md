@@ -1,6 +1,6 @@
 # ADR-0003: Use JSON for all IPC and pose files; ban pickle
 
-**Status:** proposed
+**Status:** accepted
 **Date:** 2026-06-11
 **Deciders:** Ale (alexandremendoncaalvaro), Dean (Corridor Digital)
 

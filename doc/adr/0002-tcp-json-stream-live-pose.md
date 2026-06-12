@@ -1,6 +1,6 @@
 # ADR-0002: Stream live pose over localhost TCP instead of file polling
 
-**Status:** proposed
+**Status:** accepted
 **Date:** 2026-06-11
 **Deciders:** Ale (alexandremendoncaalvaro), Dean (Corridor Digital)
 
