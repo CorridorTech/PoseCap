@@ -21,7 +21,7 @@ Primary: Blender animators who need fast, cheap body mocap without suits, marker
 
 ## Problem
 
-Today, a Blender animator who wants believable body animation must hand-keyframe it, buy a mocap suit, or round-trip through external mocap software. Dean's POC proved a webcam plus a consumer GPU can stream SMPL-X poses straight onto a Blender rig in real time — but the POC is unmaintainable vibe-coded glue: no tests, copy-pasted pipelines, Windows hacks inline everywhere, known data-loss bugs (keyframe wipes on stream restart), and license-encumbered lineage. Without this rewrite, the capability dies with the prototype.
+Today, a Blender animator who wants believable body animation must hand-keyframe it, buy a mocap suit, or round-trip through external mocap software. Dean's POC proved a webcam plus a consumer GPU can stream SMPL-X poses straight onto a Blender armature in real time — but the POC is unmaintainable vibe-coded glue: no tests, copy-pasted pipelines, Windows hacks inline everywhere, known data-loss bugs (keyframe wipes on stream restart), and license-encumbered lineage. Without this rewrite, the capability dies with the prototype.
 
 ## Goals
 

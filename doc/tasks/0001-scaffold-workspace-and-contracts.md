@@ -17,7 +17,7 @@ Verifiable conditions. Each as a checkbox so progress is point-editable.
 
 - [x] `uv sync` succeeds from a clean checkout; `uv.lock` committed.
 - [x] Workspace members `contracts/`, `core/`, `engine/` exist, each with its own `pyproject.toml`; root `pyproject.toml` declares the workspace.
-- [x] `contracts/` defines typed schemas + JSON line codecs for: pose frame (schema_version, seq, captured_at, status ok|no_person, global_orient[3], body_pose[21][3], left_hand_pose[15][3], right_hand_pose[15][3], jaw_pose[3], betas[10], expression[10], transl[3]), job status, and serial frame. Decode validates and raises typed errors on malformed input.
+- [x] `contracts/` defines typed schemas + JSON line codecs for: pose frame (schema_version, seq, captured_at, status ok|no_person, global_orient[3], body_pose[21][3], left_hand_pose[15][3], right_hand_pose[15][3], jaw_pose[3], betas[10], expression[10], transl[3]) and job status. Decode validates and raises typed errors on malformed input. (Originally also a serial frame codec — dropped at product review; see Notes 2026-06-12.)
 - [x] Golden JSON fixtures pin the pose-frame schema; round-trip encode/decode tests pass.
 - [x] `uv run ruff check`, `uv run ruff format --check`, `uv run pyright` (strict on contracts), and `uv run lint-imports` all pass.
 - [x] import-linter contracts encode ADR-0001: `contracts/` stdlib-only; `core/` may import stdlib, numpy, `contracts/` only.
@@ -50,6 +50,10 @@ Naming: the plan step said `encode_line()`/`decode_line()`; shipped names are `e
 Two-axis review (WORKFLOW §10) ran on the branch: 1 Standards Blocker (encoder accepted status/pose-inconsistent frames — fixed with an invariant guard plus two tests), 2 Standards Concerns (job-state dual representation deduplicated; test helpers converted to pytest fixtures), docstring notes addressed. Spec axis: zero blockers, no scope creep, no missing AC.
 
 Re-check confirmed all four findings resolved; verdict "ship as-is". Final gates: pytest 29/29, ruff clean, pyright 0 errors, import-linter 2/2 kept. Task closed; merge happens via the branch PR. Carry-over note for task 0003: `_require_status` in codec.py still uses an if-chain — apply the frozenset pattern if that file is touched again.
+
+### 2026-06-12
+
+Product review dropped the Arduino hardware input from scope; the serial frame codec this task shipped left `contracts/` with it (`parse_serial_line`, `SerialDecodeError`, its tests — removed in commit f260d5a, recorded in the ADR-0001/0006 amendments). The AC line above is edited to match; pose-frame and job-status codecs are unaffected.
 
 ## Definition of Done
 

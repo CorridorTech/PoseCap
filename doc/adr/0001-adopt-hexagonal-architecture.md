@@ -22,7 +22,7 @@ We will structure the system as hexagonal (ports and adapters) with five layers 
 
 ## Amendment (2026-06-12)
 
-The `firmware/` layer was removed at product review: the Arduino encoder hardware was specific to Dean's own setup and is dropped from the product (PRD Non-goals). The structure is now four layers — `contracts/`, `core/`, `addon/`, `engine/` — under the same inward-only dependency rule. `serial` remains on the forbidden-import list for `contracts/` and `core/` as a guard. ARCHITECTURE.md reflects the four-layer structure.
+The `firmware/` layer was removed at product review: the Arduino encoder hardware was specific to Dean's own setup and is dropped from the product (PRD Non-goals). The structure is now four layers — `contracts/`, `core/`, `addon/`, `engine/` — under the same inward-only dependency rule. `serial` remains on the forbidden-import list for `contracts/` and `core/` as a guard. Mentions of `firmware/` and the five-layer count in the Context, Decision, and Consequences above are historical. ARCHITECTURE.md reflects the four-layer structure.
 
 ## Alternatives Considered
 

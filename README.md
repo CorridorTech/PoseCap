@@ -10,7 +10,7 @@ Free and open source.
 
 ## What it is
 
-Three components, one pipeline:
+Two components, one pipeline:
 
 - **Blender extension** — panels and operators inside Blender: start/stop the live stream, record mocap to the timeline, capture single poses, manage SMPL-X body models.
 - **Engine bridge** — a separate GPU process wrapping the [PEAR](https://github.com/Pixel-Talk/PEAR) pose-estimation model (single image in, SMPL-X parameters out, real-time rates). Streams poses to Blender over a local socket.
@@ -33,19 +33,19 @@ RTX 20 series and older CUDA GPUs are untested and unsupported. Linux support fo
 
 ## How it works
 
-Two processes plus optional hardware, joined by explicit contracts:
+Two processes, joined by explicit contracts:
 
 1. The engine bridge captures webcam frames, runs YOLO person detection plus PEAR's ViT-based mesh recovery on the GPU, and streams SMPL-X pose parameters as JSON over a localhost TCP socket.
 2. The Blender extension consumes the stream on a background thread and applies poses on the main thread at up to 30 FPS — without wiping your existing keyframes.
 3. Poses apply pelvis-locked: monocular depth estimation cannot recover trustworthy world position, so world translation stays out until a solid software approach lands (camera tracking is the leading candidate — see the roadmap).
 
-Step-by-step diagrams for every flow (live streaming, capture jobs, hardware input, install) live in [doc/workflows.md](doc/workflows.md); binding structure lives in [ARCHITECTURE.md](ARCHITECTURE.md).
+Step-by-step diagrams for every flow (live streaming, capture jobs, install) live in [doc/workflows.md](doc/workflows.md); binding structure lives in [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## Body models and licensing
 
 SMPL-X body model files are **not included** and never will be — they are licensed by the Max Planck Institute (research) and [Meshcapade](https://meshcapade.com) (commercial). You download them yourself after accepting their terms; the plugin documents where to put them. Using the models in commercial production requires a commercial license from Meshcapade regardless of this plugin being free.
 
-Plugin license: GPL-3.0 planned for the Blender extension (required for Blender API linkage); final split tracked in the [PRD open questions](doc/product/PRD.md).
+Plugin license: GPL-3.0 for the Blender extension (required for Blender API linkage), Apache-2.0 for the contracts, core, and engine-bridge libraries — decided in [ADR-0006](doc/adr/0006-license-split-gpl-addon-apache-libraries.md).
 
 ## Roadmap
 
