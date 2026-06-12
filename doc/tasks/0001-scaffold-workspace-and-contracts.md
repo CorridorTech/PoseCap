@@ -1,6 +1,6 @@
 # Task 0001: Scaffold uv workspace, contracts package, and tooling
 
-**Status:** proposed
+**Status:** in-progress
 **Created:** 2026-06-11
 **Owner:** alexandremendoncaalvaro
 **Execution:** AFK
@@ -15,31 +15,35 @@ Every other SPEC-0001 task depends on this one: the workspace layout (ADR-0004),
 
 Verifiable conditions. Each as a checkbox so progress is point-editable.
 
-- [ ] `uv sync` succeeds from a clean checkout; `uv.lock` committed.
-- [ ] Workspace members `contracts/`, `core/`, `engine/` exist, each with its own `pyproject.toml`; root `pyproject.toml` declares the workspace.
-- [ ] `contracts/` defines typed schemas + JSON line codecs for: pose frame (schema_version, seq, captured_at, status ok|no_person, global_orient[3], body_pose[21][3], left_hand_pose[15][3], right_hand_pose[15][3], jaw_pose[3], betas[10], expression[10], transl[3]), job status, and serial frame. Decode validates and raises typed errors on malformed input.
-- [ ] Golden JSON fixtures pin the pose-frame schema; round-trip encode/decode tests pass.
-- [ ] `uv run ruff check`, `uv run ruff format --check`, `uv run pyright` (strict on contracts), and `uv run lint-imports` all pass.
-- [ ] import-linter contracts encode ADR-0001: `contracts/` stdlib-only; `core/` may import stdlib, numpy, `contracts/` only.
-- [ ] `.gitattributes` with `* text=auto eol=lf` lands; fresh clone produces no CRLF warnings.
-- [ ] AGENTS.md "Entry points" TODO updated to the real tree.
+- [x] `uv sync` succeeds from a clean checkout; `uv.lock` committed.
+- [x] Workspace members `contracts/`, `core/`, `engine/` exist, each with its own `pyproject.toml`; root `pyproject.toml` declares the workspace.
+- [x] `contracts/` defines typed schemas + JSON line codecs for: pose frame (schema_version, seq, captured_at, status ok|no_person, global_orient[3], body_pose[21][3], left_hand_pose[15][3], right_hand_pose[15][3], jaw_pose[3], betas[10], expression[10], transl[3]), job status, and serial frame. Decode validates and raises typed errors on malformed input.
+- [x] Golden JSON fixtures pin the pose-frame schema; round-trip encode/decode tests pass.
+- [x] `uv run ruff check`, `uv run ruff format --check`, `uv run pyright` (strict on contracts), and `uv run lint-imports` all pass.
+- [x] import-linter contracts encode ADR-0001: `contracts/` stdlib-only; `core/` may import stdlib, numpy, `contracts/` only.
+- [x] `.gitattributes` with `* text=auto eol=lf` lands; fresh clone produces no CRLF warnings.
+- [x] AGENTS.md "Entry points" TODO updated to the real tree.
 
 ## Plan
 
 Concrete sequential steps. Each as a checkbox. Reference file paths where applicable.
 
-- [ ] Add `.gitattributes` at repo root.
-- [ ] Root `pyproject.toml`: `[tool.uv.workspace]` members `contracts`, `core`, `engine`; shared `[tool.ruff]`, `[tool.pyright]`, `[tool.importlinter]` config per GUIDELINES §7.
-- [ ] `contracts/pyproject.toml` + `contracts/src/corridorrig_contracts/` — frame dataclasses, `encode_line()`/`decode_line()` (compact separators, JSONDecodeError → typed error).
-- [ ] `core/pyproject.toml` + `core/src/corridorrig_core/` — package skeleton and `PoseStream` port placeholder (math lands in task 0002).
-- [ ] `engine/pyproject.toml` + `engine/src/corridorrig_engine/` — package skeleton.
-- [ ] `tests/contracts/` — round-trip tests + `fixtures/*.json` golden files.
+- [x] Add `.gitattributes` at repo root.
+- [x] Root `pyproject.toml`: `[tool.uv.workspace]` members `contracts`, `core`, `engine`; shared `[tool.ruff]`, `[tool.pyright]`, `[tool.importlinter]` config per GUIDELINES §7.
+- [x] `contracts/pyproject.toml` + `contracts/src/corridorrig_contracts/` — frame dataclasses, `encode_line()`/`decode_line()` (compact separators, JSONDecodeError → typed error).
+- [x] `core/pyproject.toml` + `core/src/corridorrig_core/` — package skeleton and `PoseStream` port placeholder (math lands in task 0002).
+- [x] `engine/pyproject.toml` + `engine/src/corridorrig_engine/` — package skeleton.
+- [x] `tests/contracts/` — round-trip tests + `fixtures/*.json` golden files.
 - [ ] Run the full gate locally; commit via /ad-commit (`build:` + `test:` concerns split).
-- [ ] Update AGENTS.md entry-points line.
+- [x] Update AGENTS.md entry-points line.
 
 ## Notes
 
 Append-only log. Date each entry. Never rewrite past entries.
+
+### 2026-06-11
+
+Scaffold implemented on `feat/task-0001-scaffold`. Gates green: ruff clean, format clean, pyright 0 errors (strict on contracts/core), import-linter 2/2 contracts kept, pytest 27/27. Golden fixtures generated from the canonical encoder (sorted keys, compact separators) and pinned byte-for-byte by tests. Frame schema groups SMPL-X arrays in a nested `pose` object, present iff `status` is "ok" — explicit no-person frames per SPEC-0001 R11. `py.typed` markers added so pyright treats workspace packages as typed. Root LICENSE = Apache-2.0 per ADR-0006; the GPL-3.0 addon license lands with task 0004. Pending: fresh-context review (DoD), then status done.
 
 ## Definition of Done
 

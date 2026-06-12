@@ -5,7 +5,7 @@
 Clean rewrite of Corridor Digital's "Human Input Device" proof of concept: a Blender plugin that drives SMPL-X body models from live webcam pose estimation (PEAR engine) plus a physical Arduino encoder rig supplying world position/rotation. The POC at `C:\Dev\CorridorRig-Original` is read-only reference; this repo replaces it with a tested, layered implementation covering the full pipeline (addon, engine bridge, firmware, installers). Hard constraint: SMPL-X model assets carry the MPI research (non-commercial) license — never commit or redistribute them; the repo is private now but goes public later, so git history must stay license-clean from the first commit (no licensed binary ever committed, even briefly). Commercial production use of the models requires a Meshcapade license, independent of the plugin's own license.
 
 **Stack:** Python 3.11 (addon runs in Blender's bundled interpreter; engine bridge in a uv-managed venv), Blender >= 4.2 LTS (bpy, extension platform), PyTorch + PEAR pose-estimation engine (CUDA required at runtime), pyserial, Arduino C++ (Wire/I2C).
-**Entry points:** <TODO: not yet scaffolded — see Repository Layout for the planned tree>
+**Entry points:** uv workspace packages `contracts/`, `core/`, `engine/` (src layout, `corridorrig_*` import names). Engine CLI lands with task 0003; the Blender extension lands with task 0004.
 
 ## Setup, Build, Test
 
@@ -23,7 +23,7 @@ uv run ruff format .
 uv run pyright
 ```
 
-<TODO: pyproject.toml not yet scaffolded — first implementation task>
+Quality gates run as: `uv run ruff check .`, `uv run ruff format --check .`, `uv run pyright`, `uv run lint-imports`, `uv run pytest`.
 
 Addon code executes inside Blender's bundled Python: stdlib + `bpy`/`mathutils`/`numpy` only; third-party deps must be vendored in the extension wheel, never uv-installed.
 
