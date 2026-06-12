@@ -1,6 +1,6 @@
 # Task 0001: Scaffold uv workspace, contracts package, and tooling
 
-**Status:** proposed
+**Status:** done
 **Created:** 2026-06-11
 **Owner:** alexandremendoncaalvaro
 **Execution:** AFK
@@ -15,37 +15,51 @@ Every other SPEC-0001 task depends on this one: the workspace layout (ADR-0004),
 
 Verifiable conditions. Each as a checkbox so progress is point-editable.
 
-- [ ] `uv sync` succeeds from a clean checkout; `uv.lock` committed.
-- [ ] Workspace members `contracts/`, `core/`, `engine/` exist, each with its own `pyproject.toml`; root `pyproject.toml` declares the workspace.
-- [ ] `contracts/` defines typed schemas + JSON line codecs for: pose frame (schema_version, seq, captured_at, status ok|no_person, global_orient[3], body_pose[21][3], left_hand_pose[15][3], right_hand_pose[15][3], jaw_pose[3], betas[10], expression[10], transl[3]), job status, and serial frame. Decode validates and raises typed errors on malformed input.
-- [ ] Golden JSON fixtures pin the pose-frame schema; round-trip encode/decode tests pass.
-- [ ] `uv run ruff check`, `uv run ruff format --check`, `uv run pyright` (strict on contracts), and `uv run lint-imports` all pass.
-- [ ] import-linter contracts encode ADR-0001: `contracts/` stdlib-only; `core/` may import stdlib, numpy, `contracts/` only.
-- [ ] `.gitattributes` with `* text=auto eol=lf` lands; fresh clone produces no CRLF warnings.
-- [ ] AGENTS.md "Entry points" TODO updated to the real tree.
+- [x] `uv sync` succeeds from a clean checkout; `uv.lock` committed.
+- [x] Workspace members `contracts/`, `core/`, `engine/` exist, each with its own `pyproject.toml`; root `pyproject.toml` declares the workspace.
+- [x] `contracts/` defines typed schemas + JSON line codecs for: pose frame (schema_version, seq, captured_at, status ok|no_person, global_orient[3], body_pose[21][3], left_hand_pose[15][3], right_hand_pose[15][3], jaw_pose[3], betas[10], expression[10], transl[3]) and job status. Decode validates and raises typed errors on malformed input. (Originally also a serial frame codec — dropped at product review; see Notes 2026-06-12.)
+- [x] Golden JSON fixtures pin the pose-frame schema; round-trip encode/decode tests pass.
+- [x] `uv run ruff check`, `uv run ruff format --check`, `uv run pyright` (strict on contracts), and `uv run lint-imports` all pass.
+- [x] import-linter contracts encode ADR-0001: `contracts/` stdlib-only; `core/` may import stdlib, numpy, `contracts/` only.
+- [x] `.gitattributes` with `* text=auto eol=lf` lands; fresh clone produces no CRLF warnings.
+- [x] AGENTS.md "Entry points" TODO updated to the real tree.
 
 ## Plan
 
 Concrete sequential steps. Each as a checkbox. Reference file paths where applicable.
 
-- [ ] Add `.gitattributes` at repo root.
-- [ ] Root `pyproject.toml`: `[tool.uv.workspace]` members `contracts`, `core`, `engine`; shared `[tool.ruff]`, `[tool.pyright]`, `[tool.importlinter]` config per GUIDELINES §7.
-- [ ] `contracts/pyproject.toml` + `contracts/src/corridorrig_contracts/` — frame dataclasses, `encode_line()`/`decode_line()` (compact separators, JSONDecodeError → typed error).
-- [ ] `core/pyproject.toml` + `core/src/corridorrig_core/` — package skeleton and `PoseStream` port placeholder (math lands in task 0002).
-- [ ] `engine/pyproject.toml` + `engine/src/corridorrig_engine/` — package skeleton.
-- [ ] `tests/contracts/` — round-trip tests + `fixtures/*.json` golden files.
-- [ ] Run the full gate locally; commit via /ad-commit (`build:` + `test:` concerns split).
-- [ ] Update AGENTS.md entry-points line.
+- [x] Add `.gitattributes` at repo root.
+- [x] Root `pyproject.toml`: `[tool.uv.workspace]` members `contracts`, `core`, `engine`; shared `[tool.ruff]`, `[tool.pyright]`, `[tool.importlinter]` config per GUIDELINES §7.
+- [x] `contracts/pyproject.toml` + `contracts/src/posecap_contracts/` — frame dataclasses, `encode_line()`/`decode_line()` (compact separators, JSONDecodeError → typed error).
+- [x] `core/pyproject.toml` + `core/src/posecap_core/` — package skeleton and `PoseStream` port placeholder (math lands in task 0002).
+- [x] `engine/pyproject.toml` + `engine/src/posecap_engine/` — package skeleton.
+- [x] `tests/contracts/` — round-trip tests + `fixtures/*.json` golden files.
+- [x] Run the full gate locally; commit via /ad-commit (`build:` + `test:` concerns split).
+- [x] Update AGENTS.md entry-points line.
 
 ## Notes
 
 Append-only log. Date each entry. Never rewrite past entries.
 
+### 2026-06-11
+
+Scaffold implemented on `feat/task-0001-scaffold`. Gates green: ruff clean, format clean, pyright 0 errors (strict on contracts/core), import-linter 2/2 contracts kept, pytest 27/27. Golden fixtures generated from the canonical encoder (sorted keys, compact separators) and pinned byte-for-byte by tests. Frame schema groups SMPL-X arrays in a nested `pose` object, present iff `status` is "ok" — explicit no-person frames per SPEC-0001 R11. `py.typed` markers added so pyright treats workspace packages as typed. Root LICENSE = Apache-2.0 per ADR-0006; the GPL-3.0 addon license lands with task 0004. Pending: fresh-context review (DoD), then status done.
+
+Naming: the plan step said `encode_line()`/`decode_line()`; shipped names are `encode_pose_frame()`/`decode_pose_frame()` (clearer once job-status and serial codecs joined the package). Flagged by the spec-axis review; recorded here instead of rewriting the plan step.
+
+Two-axis review (WORKFLOW §10) ran on the branch: 1 Standards Blocker (encoder accepted status/pose-inconsistent frames — fixed with an invariant guard plus two tests), 2 Standards Concerns (job-state dual representation deduplicated; test helpers converted to pytest fixtures), docstring notes addressed. Spec axis: zero blockers, no scope creep, no missing AC.
+
+Re-check confirmed all four findings resolved; verdict "ship as-is". Final gates: pytest 29/29, ruff clean, pyright 0 errors, import-linter 2/2 kept. Task closed; merge happens via the branch PR. Carry-over note for task 0003: `_require_status` in codec.py still uses an if-chain — apply the frozenset pattern if that file is touched again.
+
+### 2026-06-12
+
+Product review dropped the Arduino hardware input from scope; the serial frame codec this task shipped left `contracts/` with it (`parse_serial_line`, `SerialDecodeError`, its tests — removed in commit f260d5a, recorded in the ADR-0001/0006 amendments). The AC line above is edited to match; pose-frame and job-status codecs are unaffected.
+
 ## Definition of Done
 
 All Acceptance Criteria checked, plus:
 
-- [ ] Local tests pass (or N/A documented in Notes)
-- [ ] Code review completed (human or fresh-context reviewer per WORKFLOW §10)
-- [ ] No orphan `TODO`/`FIXME` introduced
-- [ ] Status updated to `done` and Notes log closes the task
+- [x] Local tests pass (or N/A documented in Notes)
+- [x] Code review completed (human or fresh-context reviewer per WORKFLOW §10)
+- [x] No orphan `TODO`/`FIXME` introduced
+- [x] Status updated to `done` and Notes log closes the task

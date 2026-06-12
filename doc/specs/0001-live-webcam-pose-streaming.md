@@ -1,6 +1,6 @@
 # Spec 0001: Live webcam pose streaming
 
-**Status:** draft
+**Status:** accepted
 **Created:** 2026-06-11
 **Owner:** alexandremendoncaalvaro
 
@@ -13,7 +13,7 @@ Inherits from [PRD](../product/PRD.md): target user (Blender animators; Corridor
 ## User Scenarios
 
 - **Scenario 1: Start streaming**
-  - Given the engine environment is installed, an SMPL-X rig is spawned, and a webcam is connected
+  - Given the engine environment is installed, an SMPL-X armature is spawned, and a webcam is connected
   - When the user selects a camera device and clicks Start Stream
   - Then the engine process launches, the UI passes through Starting into Streaming, and the armature follows the performer in the viewport — without modifying any existing keyframes
 
@@ -97,8 +97,8 @@ Definitional. Per-criterion progress tracking lives in per-Spec tasks, not here.
 ## Out of Scope
 
 - Photo upload, batch processing, folder watcher (separate specs; Next tier for unproven paths per PRD).
-- Arduino hardware rig input (separate spec; composes with this stream but ships independently).
-- Face, jaw, expression application; root translation from the AI engine (hardware rig owns world transform).
+- Arduino hardware input — dropped from the product entirely at product review; no separate spec will exist (supersession note under Open Questions).
+- Face, jaw, expression application; root translation from the AI engine (world position is a Later roadmap problem — software camera tracking).
 - Multi-camera estimation, non-PEAR backends, Linux support.
 - Legacy POC `.pkl` import (pose-import spec territory; converter is a PRD Next candidate).
 
@@ -107,6 +107,8 @@ Definitional. Per-criterion progress tracking lives in per-Spec tasks, not here.
 - TCP port strategy: fixed default with handshake fallback, OS-assigned port reported through a startup handshake file, or scan-and-bind? Small enough for a spec-time decision before implementation; may warrant a short ADR if it shapes the contracts schema.
 - Recording density when inference rate diverges from scene FPS: insert per streamed frame or resample to scene frames? Needs a decision with a test during implementation.
 - Cross-process latency measurement: clock source for capture-vs-apply timestamps on one machine (wall clock both sides vs handshake-established offset). Instrumentation design detail; resolve in the implementing task.
+
+  Update at product review: the Arduino hardware input was dropped from the product entirely (Dean's call — too specific to his setup). The Out of Scope line about a separate Arduino spec is superseded: no such spec will exist, and the "hardware rig owns world transform" note no longer applies — world position is now a Later roadmap problem (candidate: camera tracking). This spec's own requirements are unaffected; poses were always pelvis-locked here.
 
 ## Related
 

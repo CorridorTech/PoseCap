@@ -1,0 +1,41 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-added-large-files
+        args: [--maxkb=5000]
+      - id: detect-private-key
+  - repo: local
+    hooks:
+      - id: ruff-check
+        name: ruff check
+        entry: uv run ruff check --force-exclude
+        language: system
+        types: [python]
+      - id: ruff-format
+        name: ruff format check
+        entry: uv run ruff format --check --force-exclude
+        language: system
+        types: [python]
+      - id: licensed-binaries
+        name: block licensed model binaries
+        entry: uv run python tools/check_licensed_binaries.py
+        language: system
+      - id: pyright
+        name: pyright
+        entry: uv run pyright
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
+      - id: pytest
+        name: pytest (default tags)
+        entry: uv run pytest -q
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
+      - id: import-linter
+        name: import-linter
+        entry: uv run lint-imports
+        language: system
+        pass_filenames: false
+        stages: [pre-push]

@@ -15,7 +15,7 @@ The engine side reuses the POC's verified inference loop (`PEAR/live_webcam.py:1
 
 Verifiable conditions. Each as a checkbox so progress is point-editable.
 
-- [ ] `uv run corridorrig-engine devices` prints a JSON device list usable by the addon dropdown.
+- [ ] `uv run posecap-engine devices` prints a JSON device list usable by the addon dropdown.
 - [ ] Live mode serves schema-valid NDJSON pose frames at inference rate; "no person" produces explicit status frames, not silence.
 - [ ] Integration test against recorded fixture frames (no live camera) validates frames against the golden schema; `gpu` tag skips cleanly without CUDA.
 - [ ] Engine exits within 5 seconds of parent-PID death and on stream-socket disconnect (decision between the two recorded in Notes).
@@ -27,11 +27,11 @@ Verifiable conditions. Each as a checkbox so progress is point-editable.
 
 Concrete sequential steps. Each as a checkbox. Reference file paths where applicable.
 
-- [ ] `engine/src/corridorrig_engine/capture.py` — webcam open/read (no CAP_DSHOW), device enumeration.
-- [ ] `engine/src/corridorrig_engine/pear_adapter.py` — model load (pinned), detect+infer+Rodrigues, reusing POC loop structure.
-- [ ] `engine/src/corridorrig_engine/stream_server.py` — TCP server, NDJSON frames via contracts codec, single-client lifecycle.
-- [ ] `engine/src/corridorrig_engine/watchdog.py` — parent-PID + disconnect liveness (platform adapter).
-- [ ] `engine/src/corridorrig_engine/cli.py` — `devices` and `live` entry points.
+- [ ] `engine/src/posecap_engine/capture.py` — webcam open/read (no CAP_DSHOW), device enumeration.
+- [ ] `engine/src/posecap_engine/pear_adapter.py` — model load (pinned), detect+infer+Rodrigues, reusing POC loop structure.
+- [ ] `engine/src/posecap_engine/stream_server.py` — TCP server, NDJSON frames via contracts codec, single-client lifecycle.
+- [ ] `engine/src/posecap_engine/watchdog.py` — parent-PID + disconnect liveness (platform adapter).
+- [ ] `engine/src/posecap_engine/cli.py` — `devices` and `live` entry points.
 - [ ] Resolve port strategy; record in Notes; update contracts if handshake needed.
 - [ ] `tests/engine/` — fixture-frame integration tests (`integration`/`gpu` tags).
 - [ ] Full gate + /ad-commit.

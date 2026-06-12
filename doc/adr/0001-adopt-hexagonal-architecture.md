@@ -1,6 +1,6 @@
 # ADR-0001: Adopt hexagonal architecture with an enforced dependency rule
 
-**Status:** proposed
+**Status:** accepted
 **Date:** 2026-06-11
 **Deciders:** Ale (alexandremendoncaalvaro), Dean (Corridor Digital)
 
@@ -19,6 +19,10 @@ We will structure the system as hexagonal (ports and adapters) with five layers 
 * New contributors get a navigable structure with one place per concern.
 * More ceremony than the POC: every capability needs a port, an adapter, and a wire format. Small features pay an indirection tax.
 * The addon build needs vendoring machinery (ADR-0004) because two interpreters share `core/` and `contracts/`.
+
+## Amendment (2026-06-12)
+
+The `firmware/` layer was removed at product review: the Arduino encoder hardware was specific to Dean's own setup and is dropped from the product (PRD Non-goals). The structure is now four layers — `contracts/`, `core/`, `addon/`, `engine/` — under the same inward-only dependency rule. `serial` remains on the forbidden-import list for `contracts/` and `core/` as a guard. Mentions of `firmware/` and the five-layer count in the Context, Decision, and Consequences above are historical. ARCHITECTURE.md reflects the four-layer structure.
 
 ## Alternatives Considered
 

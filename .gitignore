@@ -25,3 +25,5 @@ output_capture/
 # OS / editor
 .DS_Store
 Thumbs.db
+.agentic/
+.coverage

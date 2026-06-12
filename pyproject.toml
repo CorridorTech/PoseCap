@@ -1,0 +1,94 @@
+[project]
+name = "posecap"
+version = "0.1.0"
+description = "PoseCap workspace root"
+requires-python = ">=3.11"
+dependencies = [
+  "posecap-contracts",
+  "posecap-core",
+  "posecap-engine",
+]
+
+[tool.uv]
+package = false
+
+[tool.uv.sources]
+posecap-contracts = { workspace = true }
+posecap-core = { workspace = true }
+posecap-engine = { workspace = true }
+
+[tool.uv.workspace]
+members = ["contracts", "core", "engine"]
+
+[dependency-groups]
+dev = [
+  "pytest>=8",
+  "ruff>=0.8",
+  "pyright>=1.1.390",
+  "import-linter>=2",
+  "pre-commit>=4.6.0",
+  "pytest-cov>=7.1.0",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = [".claude", ".agents", ".codex"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "SIM", "UP", "C90"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 15
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-m 'not gpu and not e2e and not eval'"
+markers = [
+  "integration: crosses a process or filesystem boundary",
+  "e2e: requires Blender",
+  "gpu: requires CUDA",
+  "slow: long-running",
+  "eval: pose-accuracy evaluation against golden samples",
+]
+
+[tool.pyright]
+include = ["contracts", "core", "engine", "tests"]
+venvPath = "."
+venv = ".venv"
+typeCheckingMode = "standard"
+strict = ["contracts", "core"]
+
+[tool.importlinter]
+root_packages = [
+  "posecap_contracts",
+  "posecap_core",
+  "posecap_engine",
+]
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+name = "contracts is the innermost layer"
+type = "forbidden"
+source_modules = ["posecap_contracts"]
+forbidden_modules = [
+  "posecap_core",
+  "posecap_engine",
+  "numpy",
+  "bpy",
+  "torch",
+  "serial",
+  "socket",
+]
+
+[[tool.importlinter.contracts]]
+name = "core depends inward only"
+type = "forbidden"
+source_modules = ["posecap_core"]
+forbidden_modules = [
+  "posecap_engine",
+  "bpy",
+  "torch",
+  "serial",
+  "socket",
+]

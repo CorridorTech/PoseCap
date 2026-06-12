@@ -1,6 +1,6 @@
 # GUIDELINES.md
 
-Full engineering reference for CorridorRig. Distilled non-negotiables live in [`AGENTS.md`](AGENTS.md); system structure lives in [`ARCHITECTURE.md`](ARCHITECTURE.md); individual decisions live in [`doc/adr/`](doc/adr/).
+Full engineering reference for PoseCap. Distilled non-negotiables live in [`AGENTS.md`](AGENTS.md); system structure lives in [`ARCHITECTURE.md`](ARCHITECTURE.md); individual decisions live in [`doc/adr/`](doc/adr/).
 
 **Project tradeoff statement:** a working install on the first try beats everything — when an engineering choice trades setup simplicity against elegance, performance headroom, or implementation convenience, setup simplicity wins. The POC's environment (source-compiled PyTorch3D, conda-name probing, manual junctions) is the cautionary tale.
 
@@ -21,15 +21,15 @@ Hexagonal, per [`ARCHITECTURE.md`](ARCHITECTURE.md). Operational consequences:
 | modules, packages, functions, variables | `snake_case` |
 | classes, exceptions, protocols | `PascalCase` |
 | constants | `UPPER_SNAKE` |
-| Blender operator `bl_idname` | `corridorrig.<verb>_<noun>` |
+| Blender operator `bl_idname` | `posecap.<verb>_<noun>` |
 | test files | `test_<module>.py`, mirroring the source tree |
 
 * No abbreviations: `connection` not `conn`, `multiplexer` not `mux` (except established domain acronyms: `smplx`, `fps`, `tcp`, `json`).
-* "Rig" means the physical encoder rig, never the armature. Armature is "armature" or "body model". UI copy and identifiers follow the same split.
+* The driven skeleton is "armature" or "body model" in code and UI copy — never "rig" (reserved word from the dropped hardware era; avoid it entirely).
 
 ### 2.2 Error handling
 
-* Exception hierarchy rooted at one domain base per package (`CorridorRigError` in `core/`); adapters raise subclasses, never bare `Exception`.
+* Exception hierarchy rooted at one domain base per package (`PoseCapError` in `core/`); adapters raise subclasses, never bare `Exception`.
 * `bpy` edge translates domain errors to `Operator.report({'ERROR'}, ...)` + `{'CANCELLED'}`. Engine edge logs structured and writes the job status file. No traceback ever reaches a user-facing surface unformatted.
 * No bare `except:`; no `except Exception: pass`. Catch what you can handle; let the rest propagate to the edge.
 * Exceptions are for failures, not control flow. Expected absence returns `None` or a typed result, documented in the signature.
@@ -67,7 +67,7 @@ Exemption is structural, not discretionary: rules 8/9 do not apply where `bpy` A
 
 Budget (binding, from [PRD](doc/product/PRD.md)): 30 FPS pose application, <100 ms capture-to-viewport latency, RTX-class GPU.
 
-* Hot paths: engine inference loop, addon timer callback, serial reader thread, TCP frame decode.
+* Hot paths: engine inference loop, addon timer callback, TCP frame decode.
 * No per-frame allocations on hot paths — preallocate and reuse numpy buffers; no string formatting, no disk I/O, no logging above DEBUG inside the per-frame path.
 * Frame-time instrumentation is mandatory: engine logs inference FPS at INFO on an interval; addon logs apply-time the same way. The latency metric is measured from these stamps, not estimated.
 * Regression rule: a change that increases steady-state frame time by more than 10% needs a recorded justification before merge.
@@ -94,18 +94,18 @@ Budget (binding, from [PRD](doc/product/PRD.md)): 30 FPS pose application, <100 
 
 ## 8. Quality Gates
 
-Not yet wired — invoke `/ad-hooks` after the pyproject scaffold lands. Planned shape:
+Wired via pre-commit (`.pre-commit-config.yaml`; install once with `uv run pre-commit install --hook-type pre-commit --hook-type pre-push`):
 
-* Pre-commit (fast): `ruff check`, `ruff format --check`, secret scan, licensed-binary scan (no `.npz`/`.pkl`/weights staged).
-* Pre-push (thorough): `pyright`, `pytest -m "not gpu and not e2e"`, import-linter.
-* CI: full suite including gpu-tagged tests on a self-hosted runner when available; `pip-audit` over the lockfile; licensed-binary history scan (PRD metric).
+* Pre-commit (fast): `ruff check`, `ruff format --check`, private-key detection, large-file cap (5 MB), licensed-binary block (`tools/check_licensed_binaries.py` — no `.npz`/`.pkl`/`.pt`/`.ckpt`/`.onnx`/`.engine` ever staged).
+* Pre-push (thorough): `pyright`, `pytest` (default tags), import-linter.
+* CI (`.github/workflows/ci.yml`): full gate matrix on Linux and Windows (ruff, format, pyright, import-linter, pytest with a 90% coverage floor on contracts/core), licensed-binary tree scan, and `pip-audit` over the exported lockfile. Runs on every PR and on `main`. `gpu`/`e2e`/`eval` tags stay local until a GPU runner exists.
 * Never bypass: no `--no-verify`, no skipped hooks, no deleted failing tests.
 
 ## 9. Testing Strategy
 
 * Framework: pytest. Single-file runs preferred during development (`uv run pytest tests/core/test_retarget.py`).
 * `contracts/` and `core/` are pure — tested without Blender, GPU, camera, or hardware. High coverage expected (target 90%); this is where the domain logic lives, so this is where the tests live.
-* Contract tests pin wire formats: golden JSON fixtures for pose payloads, serial frames, job status files. A wire-format change that breaks a golden fixture is a breaking change and says so in the commit.
+* Contract tests pin wire formats: golden JSON fixtures for pose payloads and job status files. A wire-format change that breaks a golden fixture is a breaking change and says so in the commit.
 * `engine/` integration tests run against recorded frames (fixture video/images), never a live camera. GPU-dependent tests carry the `gpu` tag and skip cleanly when CUDA is absent.
 * `addon/` logic stays thin enough that most of it is tested through `core/`; Blender-dependent smoke tests run via `blender --background --python` and carry the `e2e` tag.
 * Tag taxonomy: `unit` (default, untagged), `integration`, `e2e`, `gpu`, `slow`, `eval`. CI selects by tag; the default local run excludes `gpu`, `e2e`, and `eval`.
@@ -137,7 +137,7 @@ Discipline: no emoji, no dates in narrative prose, no speculation, definitions a
 
 ## 12. Security
 
-* Untrusted inputs and their boundaries: user-dropped image files (extension + size validated before the engine touches them), webcam frames (engine-internal), serial lines (parsed defensively — bounds-checked floats, malformed lines dropped and counted, never crash the reader), TCP JSON frames (schema-validated on decode per ARCHITECTURE.md), downloaded model weights (pinned HuggingFace revision, `torch.load(..., weights_only=True)` always — `weights_only=False` is banned).
+* Untrusted inputs and their boundaries: user-dropped image files (extension + size validated before the engine touches them), webcam frames (engine-internal), TCP JSON frames (schema-validated on decode per ARCHITECTURE.md), downloaded model weights (pinned HuggingFace revision, `torch.load(..., weights_only=True)` always — `weights_only=False` is banned).
 * Pickle is banned for IPC and persistence. JSON or documented binary formats only.
 * `subprocess` calls never use `shell=True`; process teardown by handle/PID, never by window title.
 * No secrets exist in this project by design; if one ever appears (API token, license key) it lives in an env var or OS keychain, gitignored, never committed — history is permanent and the repo goes public.

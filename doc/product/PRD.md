@@ -1,13 +1,13 @@
-# PRD — CorridorRig
+# PRD — PoseCap
 
-Status: draft
+Status: accepted
 Created: 2026-06-11
-Updated: 2026-06-11
+Updated: 2026-06-12
 Owner: alexandremendoncaalvaro
 
 ## Product
 
-CorridorRig is a free, open-source Blender plugin that gives animators real-time markerless motion capture from a webcam (PEAR pose estimation) combined with a physical Arduino encoder rig for world position and rotation. It is the clean-architecture rewrite of Dean's (Corridor Digital) proof of concept, developed privately by Ale and Dean for now, with a public open-source release once the MVP is solid.
+PoseCap is a free, open-source Blender plugin that gives animators real-time markerless motion capture from a webcam (PEAR pose estimation). Poses apply pelvis-locked — monocular models cannot recover reliable world position, so world translation is an open problem on the roadmap, not a launch feature. It is the clean-architecture rewrite of Dean's (Corridor Digital) proof of concept, developed privately by Ale and Dean for now, with a public open-source release once the MVP is solid.
 
 ## Target User
 
@@ -21,11 +21,11 @@ Primary: Blender animators who need fast, cheap body mocap without suits, marker
 
 ## Problem
 
-Today, a Blender animator who wants believable body animation must hand-keyframe it, buy a mocap suit, or round-trip through external mocap software. Dean's POC proved a webcam plus a consumer GPU can stream SMPL-X poses straight onto a Blender rig in real time — but the POC is unmaintainable vibe-coded glue: no tests, copy-pasted pipelines, Windows hacks inline everywhere, known data-loss bugs (keyframe wipes on stream restart), and license-encumbered lineage. Without this rewrite, the capability dies with the prototype.
+Today, a Blender animator who wants believable body animation must hand-keyframe it, buy a mocap suit, or round-trip through external mocap software. Dean's POC proved a webcam plus a consumer GPU can stream SMPL-X poses straight onto a Blender armature in real time — but the POC is unmaintainable vibe-coded glue: no tests, copy-pasted pipelines, Windows hacks inline everywhere, known data-loss bugs (keyframe wipes on stream restart), and license-encumbered lineage. Without this rewrite, the capability dies with the prototype.
 
 ## Goals
 
-* Parity with the POC's verified-working feature set (canonical list: [doc/reference/poc-verification.md](../reference/poc-verification.md)) with zero reproduced POC bugs: live webcam streaming, record-live-mocap, single timed capture, batch image processing, Arduino rig input with per-axis mapping, SMPL-X model spawn, pose import, keyframe management.
+* Parity with the POC's verified-working feature set (canonical list: [doc/reference/poc-verification.md](../reference/poc-verification.md), minus the Arduino input dropped at product review) with zero reproduced POC bugs: live webcam streaming, record-live-mocap, single timed capture, batch image processing, SMPL-X model spawn, pose import, keyframe management.
 * Live mocap performance: pose applied in the viewport at 30 FPS with under 100 ms capture-to-viewport latency on an RTX-class GPU.
 * Clean-machine setup completes in one documented installer pass in 15 minutes or less, including environment build.
 * License-clean repository from the first commit: no model files or weights ever in git history, so the repo can go public without history rewrite; addon code GPL-compatible; rewrite carries no code from the GPL POC fork.
@@ -37,6 +37,7 @@ Today, a Blender animator who wants believable body animation must hand-keyframe
 * Fast-SAM-3D-Body / MHR backend — second engine adapter, not part of parity (see Roadmap: Next).
 * Face, jaw, and expression capture — POC had it deliberately disabled; stays out until body capture is solid.
 * SMPL+H body model — the POC's asset never existed; SMPL-X only.
+* Hardware world-position input — the POC's Arduino encoder rig was specific to Dean's own setup and is dropped from the product (Dean, product review). World position is pursued later via software (see Roadmap: Later).
 * Retargeting to arbitrary or Rigify rigs — SMPL-X armature is the only target for now.
 * Linux and macOS support in the MVP — Windows-first; platform adapters keep the door open.
 * Redistributing SMPL-X/FLAME/MANO model files or PEAR weights — never, in any release form.
@@ -59,7 +60,6 @@ MVP — parity with the POC's verified-working set, one vertical architecture:
 * Record Live MoCap — timeline-synced keyframe recording with clear start/stop, independent of any preview toggle (POC trap), keyframes persist across stream restarts.
 * Single timed capture — countdown, capture-to-pose with progress and failure reporting.
 * Batch image processing — select images in Blender, get poses applied; file-drop job under the hood.
-* Arduino encoder rig input — 8-channel read, per-axis channel mapping, per-axis scalars, stabilized rotation, no face/jaw channels. Code-complete in POC but never hardware-proven: first hardware validation happens here.
 * SMPL-X model spawn (v1.1 neutral), pose import with per-limb filters and orientation fix, keyframe manager.
 * Windows installers — environment build and extension install via Blender's extension system. The POC's documented install path was never proven (Dean ran a conda env); this one ships tested.
 
@@ -68,13 +68,14 @@ Next:
 * Public release — repo goes public, contribution docs land, backend and licensing verified for announcement.
 * Photo upload (single image) and standalone folder watcher — built in the POC but never successfully exercised; same job pipeline as batch.
 * Shape editing UI (measurements-to-betas, randomize/reset) — orphaned operators in the POC, never reachable.
-* Pose-accuracy eval harness — golden samples scored with metric-and-tolerance comparison; baseline-relative regression gate for backend swaps and PEAR pin bumps. The harness is built via spike once the engine CLI exists, but golden-sample acquisition starts immediately in parallel with MVP development (task 0007): synthetic renders have zero code dependency, and the Corridor suit-plus-webcam session has the longest scheduling lead time of anything on this roadmap. Prerequisite for objective backend comparison.
-* Fast-SAM-3D-Body engine adapter, including the MHR-to-SMPL feedforward conversion (Dean's open problem; upstream is MIT). The eval harness above is the tool this work is measured with.
+* Fast-SAM-3D-Body engine adapter, including the MHR-to-SMPL feedforward conversion (Dean's open problem; upstream is MIT).
 * Animation import (.npz AMASS) and FBX/Alembic export — advertised by the POC README but dead code in the POC.
 * Linux support for the engine bridge.
 
 Later:
 
+* World position from software — monocular pose is pelvis-locked; candidate approach is camera tracking fused with pose estimation (see the CEB Studios SAM3D-plus-camera-tracking demo Dean flagged: https://youtu.be/MwApuEcO9f8). Replaces the dropped hardware-rig approach.
+* Pose-accuracy eval harness — golden samples scored with metric-and-tolerance comparison; baseline-relative regression gate and the objective scoreboard for backend swaps (PEAR vs Fast-SAM). Deprioritized at product review: Dean's read is that model quality is not the current bottleneck — import experience and distribution are. Synthetic-fixture labeling in task 0003 stays (nearly free), so the harness loses no ground if revisited.
 * Multi-camera estimation (Fast-SAM-3D-Body multi-view fusion).
 * Retargeting to custom and Rigify rigs.
 * Face and expression capture.
@@ -90,10 +91,12 @@ Later:
 ## Open Questions
 
 * License split: single GPL-3.0 for the whole repo, or GPL-3.0 addon plus MIT/Apache-2.0 for contracts/core/engine bridge? One ADR decides; affects how reusable the bridge is outside Blender.
+
+  Resolved: [ADR-0006](../adr/0006-license-split-gpl-addon-apache-libraries.md) (accepted, amended) — GPL-3.0 for the addon, Apache-2.0 for contracts, core, and engine bridge (the original split also covered the since-dropped firmware package). LICENSE files land with the scaffold.
 * PEAR upstream license terms (code at Pixel-Talk/PEAR and weights at BestWJH/PEAR_models) — verify redistribution and commercial-use terms before the public announcement names PEAR as the backend.
 * Commercial SMPL-X (Meshcapade) license for Corridor's production use — who obtains it and when.
 * Repository home for the public repo — Corridor org, Dean's account, or Ale's account.
-* Eval-harness design: metric set (MPJPE, PA-MPJPE, joint-angle error, temporal jitter/acceleration) and regression threshold — decided in the eval spike after the engine CLI lands (task 0003). Ground-truth data must be self-made; research datasets (AMASS, 3DPW) are license-restricted and never enter the repo. Ground-truth tiers: synthetic renders (perfect answer key), suit-plus-webcam session (real-world truth), footage-only (qualitative and no-reference jitter checks only — no true values without a suit). Acquisition is task 0007, running in parallel with MVP work.
+* Eval-harness design: metric set (MPJPE, PA-MPJPE, joint-angle error, temporal jitter/acceleration) and regression threshold — decided in the eval spike after the engine CLI lands (task 0003). Ground-truth data must be self-made; research datasets (AMASS, 3DPW) are license-restricted and never enter the repo. Ground-truth tiers: synthetic renders (perfect answer key), suit-plus-webcam session (high-quality real-world reference — suit-to-SMPL-X mapping adds its own error), footage-only (qualitative and no-reference jitter checks only — no true values without a reference system). Acquisition runs in parallel with MVP work; the Corridor session is coordinated directly with Dean.
 * Go-public criteria — what gates the flip from private to public (MVP parity done? CI green? PEAR license verified? contribution docs ready?).
 * Parity checklist canonical source — first MVP spec must enumerate it from the POC's registered operators, not its README (README advertises dead features).
 
@@ -104,4 +107,4 @@ Later:
 * AGENTS.md — operational guide; stack and licensing posture.
 * ARCHITECTURE.md — binding layer structure the roadmap items implement.
 * doc/reference/README.md — PEAR and Fast-SAM-3D-Body papers, upstream addon lineage.
-* ADRs: none yet; five candidates flagged in the architecture pass plus the license split above.
+* ADRs: six accepted in [doc/adr/](../adr/) — hexagonal layers, TCP IPC, JSON wire format, uv vendoring, PEAR pinning, license split.
