@@ -26,3 +26,4 @@ output_capture/
 .DS_Store
 Thumbs.db
 .agentic/
+.coverage
