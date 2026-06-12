@@ -108,6 +108,8 @@ Definitional. Per-criterion progress tracking lives in per-Spec tasks, not here.
 - Recording density when inference rate diverges from scene FPS: insert per streamed frame or resample to scene frames? Needs a decision with a test during implementation.
 - Cross-process latency measurement: clock source for capture-vs-apply timestamps on one machine (wall clock both sides vs handshake-established offset). Instrumentation design detail; resolve in the implementing task.
 
+  Update at product review: the Arduino hardware input was dropped from the product entirely (Dean's call — too specific to his setup). The Out of Scope line about a separate Arduino spec is superseded: no such spec will exist, and the "hardware rig owns world transform" note no longer applies — world position is now a Later roadmap problem (candidate: camera tracking). This spec's own requirements are unaffected; poses were always pelvis-locked here.
+
 ## Related
 
 - ADRs: [0001](../adr/0001-adopt-hexagonal-architecture.md), [0002](../adr/0002-tcp-json-stream-live-pose.md), [0003](../adr/0003-json-wire-format-ban-pickle.md), [0004](../adr/0004-uv-workspace-vendor-shared-packages.md), [0005](../adr/0005-pear-external-pinned-never-vendored.md)

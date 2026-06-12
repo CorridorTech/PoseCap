@@ -1,4 +1,4 @@
-# Contributing to CorridorRig
+# Contributing to PoseCap
 
 Thanks for helping build free markerless mocap for Blender. This guide gets you from clone to green tests, and explains the rules that keep the project shippable.
 
@@ -11,15 +11,14 @@ Depends on what you want to work on — most contributions need far less than yo
 | `contracts/`, `core/` (wire formats, pose math — most of the logic) | Any OS, [uv](https://docs.astral.sh/uv/getting-started/installation/), git. No GPU, no Blender, no webcam. |
 | `engine/` (PEAR bridge) | Windows 10/11, NVIDIA RTX 30-series or newer, a webcam. |
 | `addon/` (Blender extension) | Blender 4.2 LTS or newer (5.x supported). |
-| Firmware | Arduino-compatible board + AS5600 encoders + I2C multiplexer (optional hardware path). |
 
 Python itself is managed by uv — you do not need a system Python.
 
 ## Setup
 
 ```bash
-git clone https://github.com/alexandremendoncaalvaro/CorridorRig.git
-cd CorridorRig
+git clone https://github.com/alexandremendoncaalvaro/PoseCap.git
+cd PoseCap
 uv sync
 uv run pre-commit install --hook-type pre-commit --hook-type pre-push
 uv run pytest
@@ -65,7 +64,7 @@ The one rule that surprises people: the dependency direction is machine-enforced
 
 ## Licensing of contributions
 
-The repo is split by package (ADR-0006): the Blender addon is GPL-3.0; `contracts/`, `core/`, `engine/`, and firmware are Apache-2.0. Your contribution lands under the license of the package it touches. Code may flow from the Apache packages into the GPL addon — never the reverse direction.
+The repo is split by package (ADR-0006): the Blender addon is GPL-3.0; `contracts/`, `core/`, and `engine/` are Apache-2.0. Your contribution lands under the license of the package it touches. Code may flow from the Apache packages into the GPL addon — never the reverse direction.
 
 ## Tests
 

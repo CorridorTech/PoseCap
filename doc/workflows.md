@@ -6,12 +6,11 @@ All flows describe the target design. Where the POC did something different that
 
 ## System context
 
-Three executables, joined by explicit contracts. Blender never imports torch; the engine never imports bpy; the firmware speaks plain CSV. The addon and engine exchange data over two channels only: a localhost TCP stream for live poses, and job files on disk for batch work.
+Two processes, joined by explicit contracts. Blender never imports torch; the engine never imports bpy. The addon and engine exchange data over two channels only: a localhost TCP stream for live poses, and job files on disk for batch work.
 
 ```mermaid
 flowchart LR
     CAM(["Webcam"])
-    ARD["Arduino firmware<br/>8x AS5600 encoders<br/>via I2C multiplexer"]
 
     subgraph ENGINE["Engine bridge process - uv venv, CUDA"]
         CAPTURE["Frame capture"]
@@ -22,8 +21,7 @@ flowchart LR
 
     subgraph BLENDER["Blender process - bundled Python"]
         CLIENT["TCP client thread"]
-        SERIAL["Serial reader thread"]
-        QUEUE["latest-wins queues"]
+        QUEUE["latest-wins queue"]
         TIMER["main-thread timer"]
         APPLY["core: pose mapping,<br/>keyframe policy"]
         UI["panels + operators"]
@@ -33,7 +31,6 @@ flowchart LR
 
     CAM --> CAPTURE --> INFER --> STREAM
     STREAM -- "JSON frames<br/>localhost TCP" --> CLIENT --> QUEUE
-    ARD -- "CSV @ 115200 baud<br/>USB serial" --> SERIAL --> QUEUE
     QUEUE --> TIMER --> APPLY --> UI
     UI -- "spawn / stop by PID" --> ENGINE
     UI -- "write job" --> JOBS
@@ -110,27 +107,9 @@ sequenceDiagram
     end
 ```
 
-## Hardware rig input
+## World position
 
-The physical encoder rig drives the world transform of a target object; body pose always comes from the engine. Code-complete in the POC, never hardware-proven — first validation happens during the rewrite. The wire format is the POC's proven-simple contract: 8 comma-separated floats per line, no framing.
-
-```mermaid
-flowchart TD
-    ENC["8x AS5600 encoders<br/>fixed I2C address 0x36"]
-    MUX["TCA9548A-class mux @ 0x70<br/>bitmask channel select"]
-    FW["Firmware loop @ 50 Hz:<br/>read 12-bit angle, unwrap +/-180,<br/>accumulate cumulative degrees"]
-    LINE["CSV line: 8 floats, CRLF<br/>115200 baud"]
-    RDR["Serial reader thread:<br/>parse + bounds-check,<br/>drop malformed lines (counted)"]
-    SLOT["latest-wins slot<br/>(stale samples dropped)"]
-    TMR["bpy timer @ 50 Hz<br/>(main thread)"]
-    MAP["per-axis mapping:<br/>channel -> (value - offset) x scale,<br/>optional flip"]
-    OBJ["target object<br/>location + rotation_euler"]
-    KEY["keyframed only when<br/>capture / recording fires"]
-
-    ENC --> MUX --> FW --> LINE --> RDR --> SLOT --> TMR --> MAP --> OBJ --> KEY
-```
-
-Known firmware limits (accepted, documented): unwrap assumes <180 degrees between consecutive reads — very fast spins alias; an unplugged encoder silently repeats its last value. "Reset to Origin" snapshots current channel values as offsets.
+There is deliberately no world-position flow: monocular pose estimation cannot recover trustworthy depth, so poses apply pelvis-locked. The POC's Arduino encoder-rig input was dropped from the product at review (too specific to one setup); the candidate future approach is software — camera tracking fused with pose estimation (PRD Roadmap: Later).
 
 ## Stream lifecycle
 

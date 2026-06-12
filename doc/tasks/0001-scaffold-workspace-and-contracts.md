@@ -30,9 +30,9 @@ Concrete sequential steps. Each as a checkbox. Reference file paths where applic
 
 - [x] Add `.gitattributes` at repo root.
 - [x] Root `pyproject.toml`: `[tool.uv.workspace]` members `contracts`, `core`, `engine`; shared `[tool.ruff]`, `[tool.pyright]`, `[tool.importlinter]` config per GUIDELINES §7.
-- [x] `contracts/pyproject.toml` + `contracts/src/corridorrig_contracts/` — frame dataclasses, `encode_line()`/`decode_line()` (compact separators, JSONDecodeError → typed error).
-- [x] `core/pyproject.toml` + `core/src/corridorrig_core/` — package skeleton and `PoseStream` port placeholder (math lands in task 0002).
-- [x] `engine/pyproject.toml` + `engine/src/corridorrig_engine/` — package skeleton.
+- [x] `contracts/pyproject.toml` + `contracts/src/posecap_contracts/` — frame dataclasses, `encode_line()`/`decode_line()` (compact separators, JSONDecodeError → typed error).
+- [x] `core/pyproject.toml` + `core/src/posecap_core/` — package skeleton and `PoseStream` port placeholder (math lands in task 0002).
+- [x] `engine/pyproject.toml` + `engine/src/posecap_engine/` — package skeleton.
 - [x] `tests/contracts/` — round-trip tests + `fixtures/*.json` golden files.
 - [x] Run the full gate locally; commit via /ad-commit (`build:` + `test:` concerns split).
 - [x] Update AGENTS.md entry-points line.

@@ -1,4 +1,4 @@
-# PRD — CorridorRig
+# PRD — PoseCap
 
 Status: accepted
 Created: 2026-06-11
@@ -7,7 +7,7 @@ Owner: alexandremendoncaalvaro
 
 ## Product
 
-CorridorRig is a free, open-source Blender plugin that gives animators real-time markerless motion capture from a webcam (PEAR pose estimation) combined with a physical Arduino encoder rig for world position and rotation. It is the clean-architecture rewrite of Dean's (Corridor Digital) proof of concept, developed privately by Ale and Dean for now, with a public open-source release once the MVP is solid.
+PoseCap is a free, open-source Blender plugin that gives animators real-time markerless motion capture from a webcam (PEAR pose estimation). Poses apply pelvis-locked — monocular models cannot recover reliable world position, so world translation is an open problem on the roadmap, not a launch feature. It is the clean-architecture rewrite of Dean's (Corridor Digital) proof of concept, developed privately by Ale and Dean for now, with a public open-source release once the MVP is solid.
 
 ## Target User
 
@@ -25,7 +25,7 @@ Today, a Blender animator who wants believable body animation must hand-keyframe
 
 ## Goals
 
-* Parity with the POC's verified-working feature set (canonical list: [doc/reference/poc-verification.md](../reference/poc-verification.md)) with zero reproduced POC bugs: live webcam streaming, record-live-mocap, single timed capture, batch image processing, Arduino rig input with per-axis mapping, SMPL-X model spawn, pose import, keyframe management.
+* Parity with the POC's verified-working feature set (canonical list: [doc/reference/poc-verification.md](../reference/poc-verification.md), minus the Arduino input dropped at product review) with zero reproduced POC bugs: live webcam streaming, record-live-mocap, single timed capture, batch image processing, SMPL-X model spawn, pose import, keyframe management.
 * Live mocap performance: pose applied in the viewport at 30 FPS with under 100 ms capture-to-viewport latency on an RTX-class GPU.
 * Clean-machine setup completes in one documented installer pass in 15 minutes or less, including environment build.
 * License-clean repository from the first commit: no model files or weights ever in git history, so the repo can go public without history rewrite; addon code GPL-compatible; rewrite carries no code from the GPL POC fork.
@@ -37,6 +37,7 @@ Today, a Blender animator who wants believable body animation must hand-keyframe
 * Fast-SAM-3D-Body / MHR backend — second engine adapter, not part of parity (see Roadmap: Next).
 * Face, jaw, and expression capture — POC had it deliberately disabled; stays out until body capture is solid.
 * SMPL+H body model — the POC's asset never existed; SMPL-X only.
+* Hardware world-position input — the POC's Arduino encoder rig was specific to Dean's own setup and is dropped from the product (Dean, product review). World position is pursued later via software (see Roadmap: Later).
 * Retargeting to arbitrary or Rigify rigs — SMPL-X armature is the only target for now.
 * Linux and macOS support in the MVP — Windows-first; platform adapters keep the door open.
 * Redistributing SMPL-X/FLAME/MANO model files or PEAR weights — never, in any release form.
@@ -59,7 +60,6 @@ MVP — parity with the POC's verified-working set, one vertical architecture:
 * Record Live MoCap — timeline-synced keyframe recording with clear start/stop, independent of any preview toggle (POC trap), keyframes persist across stream restarts.
 * Single timed capture — countdown, capture-to-pose with progress and failure reporting.
 * Batch image processing — select images in Blender, get poses applied; file-drop job under the hood.
-* Arduino encoder rig input — 8-channel read, per-axis channel mapping, per-axis scalars, stabilized rotation, no face/jaw channels. Code-complete in POC but never hardware-proven: first hardware validation happens here.
 * SMPL-X model spawn (v1.1 neutral), pose import with per-limb filters and orientation fix, keyframe manager.
 * Windows installers — environment build and extension install via Blender's extension system. The POC's documented install path was never proven (Dean ran a conda env); this one ships tested.
 
@@ -68,13 +68,14 @@ Next:
 * Public release — repo goes public, contribution docs land, backend and licensing verified for announcement.
 * Photo upload (single image) and standalone folder watcher — built in the POC but never successfully exercised; same job pipeline as batch.
 * Shape editing UI (measurements-to-betas, randomize/reset) — orphaned operators in the POC, never reachable.
-* Pose-accuracy eval harness — golden samples scored with metric-and-tolerance comparison; baseline-relative regression gate for backend swaps and PEAR pin bumps. The harness is built via spike once the engine CLI exists, but golden-sample acquisition starts immediately in parallel with MVP development: synthetic renders have zero code dependency (they land as task 0003 fixture inputs), and the Corridor capture session — gated on what hardware Dean confirms — is coordinated directly with Dean outside the task tracker. Prerequisite for objective backend comparison.
-* Fast-SAM-3D-Body engine adapter, including the MHR-to-SMPL feedforward conversion (Dean's open problem; upstream is MIT). The eval harness above is the tool this work is measured with.
+* Fast-SAM-3D-Body engine adapter, including the MHR-to-SMPL feedforward conversion (Dean's open problem; upstream is MIT).
 * Animation import (.npz AMASS) and FBX/Alembic export — advertised by the POC README but dead code in the POC.
 * Linux support for the engine bridge.
 
 Later:
 
+* World position from software — monocular pose is pelvis-locked; candidate approach is camera tracking fused with pose estimation (see the CEB Studios SAM3D-plus-camera-tracking demo Dean flagged: https://youtu.be/MwApuEcO9f8). Replaces the dropped hardware-rig approach.
+* Pose-accuracy eval harness — golden samples scored with metric-and-tolerance comparison; baseline-relative regression gate and the objective scoreboard for backend swaps (PEAR vs Fast-SAM). Deprioritized at product review: Dean's read is that model quality is not the current bottleneck — import experience and distribution are. Synthetic-fixture labeling in task 0003 stays (nearly free), so the harness loses no ground if revisited.
 * Multi-camera estimation (Fast-SAM-3D-Body multi-view fusion).
 * Retargeting to custom and Rigify rigs.
 * Face and expression capture.

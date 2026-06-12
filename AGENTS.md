@@ -2,10 +2,10 @@
 
 ## Project Overview
 
-Clean rewrite of Corridor Digital's "Human Input Device" proof of concept: a Blender plugin that drives SMPL-X body models from live webcam pose estimation (PEAR engine) plus a physical Arduino encoder rig supplying world position/rotation. The POC at `C:\Dev\CorridorRig-Original` is read-only reference; this repo replaces it with a tested, layered implementation covering the full pipeline (addon, engine bridge, firmware, installers). Hard constraint: SMPL-X model assets carry the MPI research (non-commercial) license — never commit or redistribute them; the repo is private now but goes public later, so git history must stay license-clean from the first commit (no licensed binary ever committed, even briefly). Commercial production use of the models requires a Meshcapade license, independent of the plugin's own license.
+PoseCap (clean rewrite of Corridor Digital's "Human Input Device" proof of concept): a Blender plugin that drives SMPL-X body models from live webcam pose estimation (PEAR engine), pelvis-locked — world position is a deferred software problem, and the POC's Arduino rig is dropped from scope. The POC at `C:\Dev\CorridorRig-Original` is read-only reference; this repo replaces it with a tested, layered implementation (addon, engine bridge, installers). Hard constraint: SMPL-X model assets carry the MPI research (non-commercial) license — never commit or redistribute them; the repo is private now but goes public later, so git history must stay license-clean from the first commit (no licensed binary ever committed, even briefly). Commercial production use of the models requires a Meshcapade license, independent of the plugin's own license.
 
-**Stack:** Python 3.11 (addon runs in Blender's bundled interpreter; engine bridge in a uv-managed venv), Blender >= 4.2 LTS (bpy, extension platform), PyTorch + PEAR pose-estimation engine (CUDA required at runtime), pyserial, Arduino C++ (Wire/I2C).
-**Entry points:** uv workspace packages `contracts/`, `core/`, `engine/` (src layout, `corridorrig_*` import names). Engine CLI lands with task 0003; the Blender extension lands with task 0004.
+**Stack:** Python 3.11 (addon runs in Blender's bundled interpreter; engine bridge in a uv-managed venv), Blender >= 4.2 LTS (bpy, extension platform), PyTorch + PEAR pose-estimation engine (CUDA required at runtime).
+**Entry points:** uv workspace packages `contracts/`, `core/`, `engine/` (src layout, `posecap_*` import names). Engine CLI lands with task 0003; the Blender extension lands with task 0004.
 
 ## Setup, Build, Test
 
@@ -52,7 +52,6 @@ Planned tree (POC paths in parentheses are reference only):
 
 * `addon/` — Blender extension (POC: `addon/Human_Input_Device/`)
 * `engine/` — PEAR bridge: folder watcher, live stream, single inference (POC: `PEAR/{folder_watcher,live_webcam,inference_single}.py`)
-* `firmware/` — Arduino encoder-rig sketch (POC: `Arduino/multiplexer_input/`)
 * `doc/adr/`, `doc/specs/`, `doc/tasks/` — decision records, feature specs, task files (ad-* kit conventions)
 * `.agents/skills/`, `.claude/` — agentic-docs kit v0.17.8-beta.1, profile `mature`
 * Vendored upstream PEAR research code stays out of this repo — the bridge imports it from a pinned external location. <TODO: vendoring strategy ADR>
@@ -78,8 +77,7 @@ Real traps confirmed in the POC; each is a contract the rewrite must honor or de
 
 * Engine-to-Blender IPC is file-based: `output_capture/live_pose.pkl` written via temp file + `os.replace`, consumer polls mtime on a modal timer. Consumers must tolerate partial and duplicate updates.
 * Pose payload `transl` is the camera matrix translation, not true SMPL-X translation; the POC compensates with a 180-degree X rotation (`smplx_import_flip_pear`).
-* Arduino protocol: 8 comma-separated floats per CRLF line at 115200 baud, no framing or checksum; unplugged encoders silently repeat their last cumulative value.
-* The hardware rig drives only object-level location/rotation of a chosen target object; body pose comes exclusively from the engine. "Rig" in CorridorRig means the physical encoder rig.
+* World position: poses apply pelvis-locked. The POC's Arduino world-input was dropped from scope (Dean, product review) — do not resurrect it; the future approach is software (camera tracking).
 * PEAR calls `.cuda()` unconditionally — CPU-only machines crash at runtime regardless of the install-time CPU fallback.
 * Blender 5.x changed action slots/channelbags — keyframe code needs version compat branches (POC: `operators/keyframes.py:84-97`).
 * POC addon bugs not to replicate: double class unregister on disable, dead unregistered operators (export/animation), webcam enumeration ignoring the engine-path preference, unbounded `modal_log.txt` growth.
