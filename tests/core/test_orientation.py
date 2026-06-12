@@ -24,9 +24,22 @@ def test_zero_rotation_is_unchanged() -> None:
     assert np.allclose(flip_global_orient(np.zeros(3)), np.zeros(3))
 
 
-def test_identity_input_becomes_pure_x_flip() -> None:
+def test_subthreshold_input_passes_through_unchanged() -> None:
+    """Inputs below ZERO_ANGLE take the zero-rotation branch — no flip applied."""
     result = flip_global_orient(np.array([1e-13, 0.0, 0.0]))
-    assert np.allclose(result, np.zeros(3))
+    assert np.allclose(result, [1e-13, 0.0, 0.0])
+
+
+def test_golden_pair_pins_the_flip() -> None:
+    """Hard-coded input/output pair (task 0002 AC).
+
+    Expected value derived once from the independent Rodrigues-matrix
+    composition of the same operation the POC performs with mathutils
+    (fix_quat @ quat, fix on the left) and frozen here as a literal.
+    """
+    result = flip_global_orient(np.array([0.7, -0.3, 1.1]))
+    expected = [-2.0573346685941796, 1.3372188622805132, 0.3646960533492306]
+    assert np.allclose(result, expected, atol=1e-12)
 
 
 def test_x_180_input_cancels_to_identity() -> None:

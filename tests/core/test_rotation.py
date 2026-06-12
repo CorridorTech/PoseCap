@@ -1,8 +1,10 @@
 import math
 
 import numpy as np
+import pytest
 from corridorrig_core import (
     IDENTITY_QUATERNION,
+    CorridorRigError,
     axis_angle_to_quaternion,
     make_sign_compatible,
     quaternion_multiply,
@@ -29,9 +31,21 @@ def test_identity_maps_to_zero_vector() -> None:
 
 
 def test_round_trip_preserves_rotation() -> None:
+    # Angles stay below pi: the quaternion double-cover folds larger angles
+    # onto their short-way equivalents, which is correct but not identity.
     for case in CASES:
         recovered = quaternion_to_axis_angle(axis_angle_to_quaternion(np.array(case)))
         assert np.allclose(recovered, case, atol=1e-9), case
+
+
+def test_zero_norm_quaternion_raises_typed_error() -> None:
+    with pytest.raises(CorridorRigError, match="zero-norm"):
+        quaternion_to_axis_angle(np.zeros(4))
+
+
+def test_exported_identity_is_immutable() -> None:
+    with pytest.raises(ValueError, match="read-only"):
+        IDENTITY_QUATERNION[0] = 0.0
 
 
 def test_quaternions_are_unit_length() -> None:

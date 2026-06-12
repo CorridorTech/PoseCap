@@ -97,3 +97,10 @@ def test_previous_quaternions_enforce_sign_continuity(payload: PosePayload) -> N
 
 def test_keyframe_data_path_is_rotation_quaternion() -> None:
     assert KEYFRAME_DATA_PATH == "rotation_quaternion"
+
+
+def test_plan_quaternions_are_immutable(payload: PosePayload) -> None:
+    """Plans double as the next frame's previous_quaternions — nothing may mutate them."""
+    plan = plan_pose_application(payload, LimbFilter())
+    with pytest.raises(ValueError, match="read-only"):
+        plan.rotations[0].quaternion[0] = 0.0
