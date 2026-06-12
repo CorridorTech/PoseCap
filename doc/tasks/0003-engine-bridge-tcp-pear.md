@@ -40,6 +40,10 @@ Concrete sequential steps. Each as a checkbox. Reference file paths where applic
 
 Append-only log. Date each entry. Never rewrite past entries.
 
+### 2026-06-11
+
+Decision: the recorded-frame fixtures created for this task's integration tests carry ground-truth pose labels (rendered SMPL-X sequences with known parameters) so the pose-accuracy eval harness (PRD Next roadmap) has labeled data from day one. The harness itself is out of this task's scope — it gets its own spike after the engine CLI lands.
+
 ## Definition of Done
 
 All Acceptance Criteria checked, plus:

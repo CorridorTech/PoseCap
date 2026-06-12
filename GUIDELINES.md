@@ -108,7 +108,8 @@ Not yet wired — invoke `/ad-hooks` after the pyproject scaffold lands. Planned
 * Contract tests pin wire formats: golden JSON fixtures for pose payloads, serial frames, job status files. A wire-format change that breaks a golden fixture is a breaking change and says so in the commit.
 * `engine/` integration tests run against recorded frames (fixture video/images), never a live camera. GPU-dependent tests carry the `gpu` tag and skip cleanly when CUDA is absent.
 * `addon/` logic stays thin enough that most of it is tested through `core/`; Blender-dependent smoke tests run via `blender --background --python` and carry the `e2e` tag.
-* Tag taxonomy: `unit` (default, untagged), `integration`, `e2e`, `gpu`, `slow`. CI selects by tag; the default local run excludes `gpu` and `e2e`.
+* Tag taxonomy: `unit` (default, untagged), `integration`, `e2e`, `gpu`, `slow`, `eval`. CI selects by tag; the default local run excludes `gpu`, `e2e`, and `eval`.
+* `eval` tier — pose-accuracy runs against self-made golden samples (rendered SMPL-X animations with known parameters). Metric-and-tolerance comparison (per-joint position error, joint-angle error, temporal jitter), never exact equality — model output shifts across GPU/driver/torch versions. Baseline first, threshold second: eval runs on demand or nightly and never gates CI before a recorded baseline exists. The engine is evaluated in isolation (frames in, parameters out); the end-to-end Blender layer is a separate, thinner check. Ground-truth data is always self-made — research mocap datasets carry restricted licenses and never enter the repo.
 * Tests verify behavior through public interfaces. No test reaches into private state; if it must, the module surface is wrong — fix that instead.
 
 ## 10. Git Workflow
