@@ -1,0 +1,92 @@
+[project]
+name = "corridorrig"
+version = "0.1.0"
+description = "CorridorRig workspace root"
+requires-python = ">=3.11"
+dependencies = [
+  "corridorrig-contracts",
+  "corridorrig-core",
+  "corridorrig-engine",
+]
+
+[tool.uv]
+package = false
+
+[tool.uv.sources]
+corridorrig-contracts = { workspace = true }
+corridorrig-core = { workspace = true }
+corridorrig-engine = { workspace = true }
+
+[tool.uv.workspace]
+members = ["contracts", "core", "engine"]
+
+[dependency-groups]
+dev = [
+  "pytest>=8",
+  "ruff>=0.8",
+  "pyright>=1.1.390",
+  "import-linter>=2",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = [".claude", ".agents", ".codex"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "SIM", "UP", "C90"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 15
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-m 'not gpu and not e2e and not eval'"
+markers = [
+  "integration: crosses a process or filesystem boundary",
+  "e2e: requires Blender",
+  "gpu: requires CUDA",
+  "slow: long-running",
+  "eval: pose-accuracy evaluation against golden samples",
+]
+
+[tool.pyright]
+include = ["contracts", "core", "engine", "tests"]
+venvPath = "."
+venv = ".venv"
+typeCheckingMode = "standard"
+strict = ["contracts", "core"]
+
+[tool.importlinter]
+root_packages = [
+  "corridorrig_contracts",
+  "corridorrig_core",
+  "corridorrig_engine",
+]
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+name = "contracts is the innermost layer"
+type = "forbidden"
+source_modules = ["corridorrig_contracts"]
+forbidden_modules = [
+  "corridorrig_core",
+  "corridorrig_engine",
+  "numpy",
+  "bpy",
+  "torch",
+  "serial",
+  "socket",
+]
+
+[[tool.importlinter.contracts]]
+name = "core depends inward only"
+type = "forbidden"
+source_modules = ["corridorrig_core"]
+forbidden_modules = [
+  "corridorrig_engine",
+  "bpy",
+  "torch",
+  "serial",
+  "socket",
+]
