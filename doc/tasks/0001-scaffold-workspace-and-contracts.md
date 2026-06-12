@@ -34,7 +34,7 @@ Concrete sequential steps. Each as a checkbox. Reference file paths where applic
 - [x] `core/pyproject.toml` + `core/src/corridorrig_core/` — package skeleton and `PoseStream` port placeholder (math lands in task 0002).
 - [x] `engine/pyproject.toml` + `engine/src/corridorrig_engine/` — package skeleton.
 - [x] `tests/contracts/` — round-trip tests + `fixtures/*.json` golden files.
-- [ ] Run the full gate locally; commit via /ad-commit (`build:` + `test:` concerns split).
+- [x] Run the full gate locally; commit via /ad-commit (`build:` + `test:` concerns split).
 - [x] Update AGENTS.md entry-points line.
 
 ## Notes
@@ -44,6 +44,10 @@ Append-only log. Date each entry. Never rewrite past entries.
 ### 2026-06-11
 
 Scaffold implemented on `feat/task-0001-scaffold`. Gates green: ruff clean, format clean, pyright 0 errors (strict on contracts/core), import-linter 2/2 contracts kept, pytest 27/27. Golden fixtures generated from the canonical encoder (sorted keys, compact separators) and pinned byte-for-byte by tests. Frame schema groups SMPL-X arrays in a nested `pose` object, present iff `status` is "ok" — explicit no-person frames per SPEC-0001 R11. `py.typed` markers added so pyright treats workspace packages as typed. Root LICENSE = Apache-2.0 per ADR-0006; the GPL-3.0 addon license lands with task 0004. Pending: fresh-context review (DoD), then status done.
+
+Naming: the plan step said `encode_line()`/`decode_line()`; shipped names are `encode_pose_frame()`/`decode_pose_frame()` (clearer once job-status and serial codecs joined the package). Flagged by the spec-axis review; recorded here instead of rewriting the plan step.
+
+Two-axis review (WORKFLOW §10) ran on the branch: 1 Standards Blocker (encoder accepted status/pose-inconsistent frames — fixed with an invariant guard plus two tests), 2 Standards Concerns (job-state dual representation deduplicated; test helpers converted to pytest fixtures), docstring notes addressed. Spec axis: zero blockers, no scope creep, no missing AC.
 
 ## Definition of Done
 
