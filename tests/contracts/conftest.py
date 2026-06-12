@@ -1,3 +1,4 @@
+import pytest
 from corridorrig_contracts import (
     NUM_BETAS,
     NUM_BODY_JOINTS,
@@ -9,8 +10,8 @@ from corridorrig_contracts import (
 )
 
 
-def make_ok_frame() -> PoseFrame:
-    """A deterministic, fully-populated frame used across tests and fixtures."""
+def _build_ok_frame() -> PoseFrame:
+    """A deterministic, fully-populated frame; also the golden-fixture source."""
     body_pose = [[0.0, 0.0, 0.0] for _ in range(NUM_BODY_JOINTS)]
     body_pose[0] = [0.5, 0.0, 0.0]
     payload = PosePayload(
@@ -32,7 +33,7 @@ def make_ok_frame() -> PoseFrame:
     )
 
 
-def make_no_person_frame() -> PoseFrame:
+def _build_no_person_frame() -> PoseFrame:
     return PoseFrame(
         schema_version=SCHEMA_VERSION,
         seq=43,
@@ -40,3 +41,13 @@ def make_no_person_frame() -> PoseFrame:
         status="no_person",
         pose=None,
     )
+
+
+@pytest.fixture
+def ok_frame() -> PoseFrame:
+    return _build_ok_frame()
+
+
+@pytest.fixture
+def no_person_frame() -> PoseFrame:
+    return _build_no_person_frame()
