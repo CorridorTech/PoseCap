@@ -4,7 +4,7 @@
 
 PoseCap (clean rewrite of Corridor Digital's "Human Input Device" proof of concept): a Blender plugin that drives SMPL-X body models from live webcam pose estimation (PEAR engine), pelvis-locked — world position is a deferred software problem, and the POC's Arduino rig is dropped from scope. The POC at `C:\Dev\CorridorRig-Original` is read-only reference; this repo replaces it with a tested, layered implementation (addon, engine bridge, installers). Hard constraint: SMPL-X model assets carry the MPI research (non-commercial) license — never commit or redistribute them; the repo is private now but goes public later, so git history must stay license-clean from the first commit (no licensed binary ever committed, even briefly). Commercial production use of the models requires a Meshcapade license, independent of the plugin's own license.
 
-**Stack:** Python 3.11 (addon runs in Blender's bundled interpreter; engine bridge in a uv-managed venv), Blender >= 4.2 LTS (bpy, extension platform), PyTorch + PEAR pose-estimation engine (CUDA required at runtime).
+**Stack:** Python >=3.11 (addon runs in Blender's bundled interpreter; engine bridge in a uv-managed venv), Blender >= 4.2 LTS and 5.x (bpy, extension platform), PyTorch + PEAR pose-estimation engine (CUDA required at runtime).
 **Entry points:** uv workspace packages `contracts/`, `core/`, `engine/` (src layout, `posecap_*` import names). Engine CLI lands with task 0003; the Blender extension lands with task 0004.
 
 ## Setup, Build, Test
@@ -19,8 +19,10 @@ uv run pytest
 
 # Run before any commit
 uv run ruff check .
-uv run ruff format .
+uv run ruff format --check .
 uv run pyright
+uv run lint-imports
+uv run pytest
 ```
 
 Quality gates run as: `uv run ruff check .`, `uv run ruff format --check .`, `uv run pyright`, `uv run lint-imports`, `uv run pytest`.
@@ -32,6 +34,8 @@ Addon code executes inside Blender's bundled Python: stdlib + `bpy`/`mathutils`/
 See [`GUIDELINES.md`](GUIDELINES.md) §8 for the full reference. Non-negotiable subset:
 
 * Hooks wired via pre-commit; new clones run `uv run pre-commit install --hook-type pre-commit --hook-type pre-push` once.
+* Pre-commit runs ruff, format check, private-key detection, large-file cap, and licensed-binary blocking.
+* Pre-push runs pyright, pytest default tags, and import-linter.
 * Never bypass: no `--no-verify`, no skipped hooks, no deleted failing tests.
 
 ## Code Style
@@ -52,8 +56,9 @@ Planned tree (POC paths in parentheses are reference only):
 
 * `addon/` — Blender extension (POC: `addon/Human_Input_Device/`)
 * `engine/` — PEAR bridge: folder watcher, live stream, single inference (POC: `PEAR/{folder_watcher,live_webcam,inference_single}.py`)
-* `doc/adr/`, `doc/specs/`, `doc/tasks/` — decision records, feature specs, task files (ad-* kit conventions)
-* `.agents/skills/`, `.claude/` — agentic-docs kit v0.17.8-beta.1, profile `mature`
+* `doc/product/`, `doc/specs/`, `doc/tasks/`, `doc/adr/` — product scope, feature specs, task files, decision records
+* `doc/workflows.md` — product flow diagrams; agent workflow rules live in `AGENTS.md` and `GUIDELINES.md`
+* `.agents/skills/`, `.claude/` — agentic-docs skill installs for Codex and Claude Code
 * Upstream PEAR research code stays out of this repo — the bridge imports it from a pinned external location (ADR-0005); shared-package vendoring strategy in ADR-0004.
 
 ## Commit & PR Conventions
