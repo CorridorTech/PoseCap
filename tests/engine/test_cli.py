@@ -1,8 +1,13 @@
 import json
 import re
+import socket
+import time
 from io import StringIO
 from pathlib import Path
+from queue import Empty, Queue
+from threading import Thread
 
+from posecap_contracts import SCHEMA_VERSION, PoseFrame, decode_pose_frame
 from posecap_engine import PEAR_MODELS_REVISION, PEAR_REVISION
 from posecap_engine.capture import CameraDevice
 from posecap_engine.cli import run
@@ -119,6 +124,51 @@ def test_live_command_passes_pear_options_to_frame_source(monkeypatch) -> None:
     }
 
 
+def test_live_command_serves_no_person_frame_from_pear_source(monkeypatch, tmp_path: Path) -> None:
+    class FakePearFrameSource:
+        def __init__(self, pear_root: Path, **_kwargs: object) -> None:
+            self._pear_root = pear_root
+
+        def frames(self):
+            assert self._pear_root == tmp_path / "pear"
+            yield PoseFrame(SCHEMA_VERSION, 0, 123.5, "no_person", None)
+
+    monkeypatch.setattr("posecap_engine.cli.PearFrameSource", FakePearFrameSource)
+    stdout = _ThreadedStdout()
+    stderr = StringIO()
+    code: Queue[int] = Queue()
+    thread = Thread(
+        target=lambda: code.put(
+            run(
+                [
+                    "live",
+                    "--pear-root",
+                    str(tmp_path / "pear"),
+                    "--port",
+                    "0",
+                ],
+                stdout=stdout,
+                stderr=stderr,
+            )
+        ),
+        daemon=True,
+    )
+    thread.start()
+
+    listening = json.loads(stdout.next_line(timeout=2))
+    with socket.create_connection((listening["host"], listening["port"]), timeout=2) as client:
+        reader = client.makefile("r", encoding="utf-8")
+        frame = decode_pose_frame(reader.readline())
+        assert reader.readline() == ""
+
+    thread.join(timeout=2)
+    if thread.is_alive():
+        raise AssertionError("live command did not exit after serving the frame")
+    assert code.get(timeout=0) == 0
+    assert stderr.getvalue() == ""
+    assert (frame.seq, frame.status, frame.pose) == (0, "no_person", None)
+
+
 def test_doctor_command_prints_json_and_returns_error_code(monkeypatch) -> None:
     monkeypatch.setattr(
         "posecap_engine.cli.run_doctor",
@@ -147,3 +197,29 @@ def test_doctor_command_prints_json_and_returns_error_code(monkeypatch) -> None:
 def test_external_pear_pins_are_full_commit_shas() -> None:
     assert re.fullmatch(r"[0-9a-f]{40}", PEAR_REVISION)
     assert re.fullmatch(r"[0-9a-f]{40}", PEAR_MODELS_REVISION)
+
+
+class _ThreadedStdout(StringIO):
+    def __init__(self) -> None:
+        super().__init__()
+        self._lines: Queue[str] = Queue()
+        self._buffer = ""
+
+    def write(self, text: str) -> int:
+        self._buffer += text
+        while "\n" in self._buffer:
+            line, self._buffer = self._buffer.split("\n", 1)
+            self._lines.put(line)
+        return len(text)
+
+    def flush(self) -> None:
+        return None
+
+    def next_line(self, *, timeout: float) -> str:
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            try:
+                return self._lines.get(timeout=0.01)
+            except Empty:
+                continue
+        raise AssertionError("timed out waiting for stdout line")

@@ -182,6 +182,8 @@ try {
             "einops",
             "colored",
             "rich",
+            "trimesh",
+            "plotly",
             "smplx",
             "fvcore",
             "iopath",

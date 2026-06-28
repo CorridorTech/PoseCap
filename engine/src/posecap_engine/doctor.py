@@ -33,6 +33,8 @@ _REQUIRED_IMPORTS = (
     ("einops", "PEAR tensor reshaping"),
     ("colored", "PEAR logging utility"),
     ("rich", "PEAR progress/logging utility"),
+    ("trimesh", "PEAR mesh/model geometry helpers"),
+    ("plotly", "PEAR debug visualization imports"),
     ("pytorch3d", "PEAR SMPL-X transform and renderer dependency"),
 )
 

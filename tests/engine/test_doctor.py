@@ -26,6 +26,12 @@ def test_doctor_reports_missing_runtime_pieces_without_traceback(
     assert report["ok"] is False
     assert checks["nvidia_smi"]["status"] == "ok"
     assert checks["import:torch"]["status"] == "error"
+    assert checks["import:trimesh"]["message"] == (
+        "trimesh is missing; required for PEAR mesh/model geometry helpers."
+    )
+    assert checks["import:plotly"]["message"] == (
+        "plotly is missing; required for PEAR debug visualization imports."
+    )
     assert checks["torch_cuda"]["message"] == (
         "PyTorch is not installed, so CUDA availability cannot be checked."
     )
