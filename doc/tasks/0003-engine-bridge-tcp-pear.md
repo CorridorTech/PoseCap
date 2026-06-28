@@ -80,6 +80,10 @@ The task 0007 runtime made the PEAR boundary testable enough to expose two missi
 
 Final verification: `uv run ruff check .`, `uv run ruff format --check .`, `uv run pyright --pythonplatform Windows`, `uv run pyright --pythonplatform Linux`, `uv run lint-imports`, `uv run pytest -q` (`92 passed, 1 deselected`), `git diff --check`, and the licensed-binary scanner over Git-tracked files all pass. The PowerShell runtime setup script parses successfully through `System.Management.Automation.PSParser`. The required `/ad-review` pass reported no Standards or Spec findings.
 
+Follow-up `/ad-review` against the task 0004 stack found that task 0003 still needed true live PEAR evidence now that task 0007 had unblocked the runtime. A TDD pass added missing runtime readiness coverage for `tzdata`, required `assets/SMPLX/smpl_mean_params.npz` in the external PEAR asset check, and fixed the PEAR adapter to run upstream model initialization from `C:\Dev\PoseCap-PEAR` because PEAR opens several asset paths relative to its checkout root.
+
+Real live PEAR verification on this workstation now passes from the public CLI: `.venv-pear\Scripts\posecap-engine.exe doctor --pear-root C:\Dev\PoseCap-PEAR --download-weights` reports `ok: true`, `devices --max-index 2` sees Camera 0 at 1280x720 / 60 FPS, and `posecap-engine live --pear-root C:\Dev\PoseCap-PEAR --camera-index 0 --width 640 --height 480 --port 0` served three schema-decoded TCP frames. The frames were explicit `no_person` status frames, not silence; warm startup to first frame was 10.922 seconds, the captured frame span was 1.236 seconds for an observed 1.618 FPS on this RTX 3080 setup, and closing the client made the engine exit with code 0 in 1.157 seconds. No licensed asset files are tracked in Git; the required assets remain only in the external PEAR checkout.
+
 ## Definition of Done
 
 All Acceptance Criteria checked, plus:

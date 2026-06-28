@@ -11,6 +11,7 @@ from posecap_engine.doctor import run_doctor
 def test_doctor_reports_missing_runtime_pieces_without_traceback(
     monkeypatch, tmp_path: Path
 ) -> None:
+    monkeypatch.setattr(doctor.sys, "platform", "win32")
     monkeypatch.setattr(
         doctor.importlib.util,
         "find_spec",
@@ -31,6 +32,9 @@ def test_doctor_reports_missing_runtime_pieces_without_traceback(
     )
     assert checks["import:plotly"]["message"] == (
         "plotly is missing; required for PEAR debug visualization imports."
+    )
+    assert checks["import:tzdata"]["message"] == (
+        "tzdata is missing; required for Windows timezone data used during PEAR live startup."
     )
     assert checks["torch_cuda"]["message"] == (
         "PyTorch is not installed, so CUDA availability cannot be checked."
@@ -164,6 +168,26 @@ def test_doctor_verifies_pinned_pear_revision(monkeypatch, tmp_path: Path) -> No
     assert checks["pear_checkout"]["status"] == "ok"
     assert checks["pear_assets"]["status"] == "error"
     assert checks["hf_weights"]["status"] == "warn"
+
+
+def test_doctor_reports_missing_pear_mean_params_asset(monkeypatch, tmp_path: Path) -> None:
+    pear_root = _pear_checkout(tmp_path)
+    monkeypatch.setattr(doctor.importlib.util, "find_spec", lambda _module_name: SimpleNamespace())
+    monkeypatch.setattr(
+        doctor.importlib,
+        "import_module",
+        lambda module_name: _fake_torch() if module_name == "torch" else SimpleNamespace(),
+    )
+
+    report = run_doctor(
+        pear_root=pear_root,
+        command_runner=lambda command: _fake_command(command, pear_revision=PEAR_REVISION),
+    )
+
+    check = _checks_by_name(report)["pear_assets"]
+    details = cast(dict[str, object], check["details"])
+    missing = cast(list[str], details["missing"])
+    assert str(Path("assets") / "SMPLX" / "smpl_mean_params.npz") in missing
 
 
 def test_doctor_reports_wrong_pear_revision(monkeypatch, tmp_path: Path) -> None:
