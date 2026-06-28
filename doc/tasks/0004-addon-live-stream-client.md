@@ -49,6 +49,8 @@ The first public client test starts a local TCP server, writes two schema-valid 
 
 Not claimed in this slice: Blender extension manifest/build, bpy timer application, engine process spawning, lifecycle UI, reconnect behavior, armature validation, keyframe preservation checks, or Blender 4.2/5.x HITL verification.
 
+Follow-up `/ad-review` found two addon-client issues before merge. A TDD pass added public `TcpPoseStreamClient` regressions for an idle gap between stream frames and for stopping while the client is still connecting. The client now puts the connected socket back into blocking mode before wrapping it with `socket.makefile("r")`, avoiding Python's timed-out file-object state, and a voluntary `close()` during connect no longer reports the last connection failure as a terminal stream error.
+
 ## Definition of Done
 
 All Acceptance Criteria checked, plus:

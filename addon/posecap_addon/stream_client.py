@@ -102,19 +102,17 @@ class TcpPoseStreamClient:
                 return socket.create_connection((self._host, self._port), timeout=timeout)
             except OSError as exc:
                 last_error = exc
-                time.sleep(min(self._retry_interval_seconds, max(0.0, remaining)))
-        if last_error is not None:
+                self._stop.wait(min(self._retry_interval_seconds, max(0.0, remaining)))
+        if not self._stop.is_set() and last_error is not None:
             self._report_error(last_error)
         return None
 
     def _read_frames(self, connection: socket.socket) -> None:
-        connection.settimeout(0.2)
+        connection.settimeout(None)
         with connection, connection.makefile("r", encoding="utf-8") as reader:
             while not self._stop.is_set():
                 try:
                     line = reader.readline()
-                except TimeoutError:
-                    continue
                 except OSError as exc:
                     if self._stop.is_set():
                         return
