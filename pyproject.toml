@@ -44,6 +44,7 @@ max-complexity = 15
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-m 'not gpu and not e2e and not eval'"
+pythonpath = ["addon"]
 markers = [
   "integration: crosses a process or filesystem boundary",
   "e2e: requires Blender",
@@ -53,7 +54,8 @@ markers = [
 ]
 
 [tool.pyright]
-include = ["contracts", "core", "engine", "tests"]
+include = ["contracts", "core", "engine", "addon", "tests"]
+extraPaths = ["addon"]
 venvPath = "."
 venv = ".venv"
 typeCheckingMode = "standard"

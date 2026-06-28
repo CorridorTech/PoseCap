@@ -1,6 +1,6 @@
 # Task 0004: Addon — extension skeleton and live stream client
 
-**Status:** proposed
+**Status:** in progress
 **Created:** 2026-06-11
 **Owner:** alexandremendoncaalvaro
 **Execution:** HITL
@@ -29,7 +29,7 @@ Verifiable conditions. Each as a checkbox so progress is point-editable.
 Concrete sequential steps. Each as a checkbox. Reference file paths where applicable.
 
 - [ ] `addon/` extension skeleton: `blender_manifest.toml` (wheels list), registration chain, preferences.
-- [ ] `addon/.../stream_client.py` — daemon thread, makefile line reader, typed decode via contracts, latest-wins slot.
+- [x] `addon/.../stream_client.py` — daemon thread, makefile line reader, typed decode via contracts, latest-wins slot.
 - [ ] `addon/.../apply_timer.py` — bpy.app.timers callback: pop, validate armature ref, core policy → bone writes, redraw tag.
 - [ ] `addon/.../engine_process.py` — spawn/terminate by handle (platform adapter, no shell=True).
 - [ ] `addon/.../panels.py` + state property — lifecycle UI per workflows.md state machine.
@@ -40,6 +40,14 @@ Concrete sequential steps. Each as a checkbox. Reference file paths where applic
 ## Notes
 
 Append-only log. Date each entry. Never rewrite past entries.
+
+### 2026-06-28
+
+Started the addon-side live stream client as the first task 0004 vertical slice after task 0003's engine stream close-out. Added `addon/posecap_addon/stream_client.py` with a daemon TCP reader thread, `socket.makefile("r")` line reads, contracts-level `decode_pose_frame()` validation at the boundary, bounded connect retry, explicit close/error reporting, and a single-slot latest-wins queue behind `latest()`. Added `addon/posecap_addon/__init__.py` and `py.typed` so the package has a registration entry point and pyright can type-check the addon source.
+
+The first public client test starts a local TCP server, writes two schema-valid pose frames, and verifies `TcpPoseStreamClient.latest()` returns only the newest unconsumed frame before returning `None`. Verification passes: `uv run ruff check .`, `uv run ruff format --check .`, `uv run pyright --pythonplatform Windows`, `uv run pyright --pythonplatform Linux`, `uv run lint-imports`, and `uv run pytest -q` (`93 passed, 1 deselected`).
+
+Not claimed in this slice: Blender extension manifest/build, bpy timer application, engine process spawning, lifecycle UI, reconnect behavior, armature validation, keyframe preservation checks, or Blender 4.2/5.x HITL verification.
 
 ## Definition of Done
 
