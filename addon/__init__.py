@@ -1,10 +1,28 @@
 """Blender extension entry point for PoseCap."""
 
-from .posecap_addon import TcpPoseStreamClient
-from .posecap_addon import register as _register
-from .posecap_addon import unregister as _unregister
+from .posecap_addon import (
+    EngineEndpoint,
+    EngineProcess,
+    EngineStartupError,
+    TcpPoseStreamClient,
+    start_engine_stream,
+)
+from .posecap_addon import (
+    register as _register,
+)
+from .posecap_addon import (
+    unregister as _unregister,
+)
 
-__all__ = ["TcpPoseStreamClient", "register", "unregister"]
+__all__ = [
+    "EngineEndpoint",
+    "EngineProcess",
+    "EngineStartupError",
+    "TcpPoseStreamClient",
+    "register",
+    "start_engine_stream",
+    "unregister",
+]
 
 
 def register() -> None:

@@ -1,8 +1,17 @@
 """PoseCap Blender extension package."""
 
+from .engine_process import EngineEndpoint, EngineProcess, EngineStartupError, start_engine_stream
 from .stream_client import TcpPoseStreamClient
 
-__all__ = ["TcpPoseStreamClient", "register", "unregister"]
+__all__ = [
+    "EngineEndpoint",
+    "EngineProcess",
+    "EngineStartupError",
+    "TcpPoseStreamClient",
+    "register",
+    "start_engine_stream",
+    "unregister",
+]
 
 
 def register() -> None:

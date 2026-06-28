@@ -31,7 +31,7 @@ Concrete sequential steps. Each as a checkbox. Reference file paths where applic
 - [ ] `addon/` extension skeleton: `blender_manifest.toml` (wheels list), registration chain, preferences.
 - [x] `addon/.../stream_client.py` — daemon thread, makefile line reader, typed decode via contracts, latest-wins slot.
 - [ ] `addon/.../apply_timer.py` — bpy.app.timers callback: pop, validate armature ref, core policy → bone writes, redraw tag.
-- [ ] `addon/.../engine_process.py` — spawn/terminate by handle (platform adapter, no shell=True).
+- [x] `addon/.../engine_process.py` — spawn/terminate by handle (platform adapter, no shell=True).
 - [ ] `addon/.../panels.py` + state property — lifecycle UI per workflows.md state machine.
 - [x] Extension build script vendoring wheels (`tools/build_extension.py`).
 - [ ] Headless e2e smoke + manual verification matrix (4.2/5.x) recorded in Notes.
@@ -57,7 +57,11 @@ TDD coverage for the public packaging behavior lives in `tests/addon/test_build_
 
 Pre-merge `/ad-review` found one packaging bug before the branch was merge-ready: `build_extension(repo_root=...)` accepted an explicit repository root but still ran `uv build --package` from the caller's current working directory. A TDD regression now changes cwd outside the repo and verifies the wheel-builder runs from `repo_root`; the build script wraps only the `uv build` calls in that working directory. The previously failing outside-repo invocation now builds the extension zip, and Blender 5.0 validates it successfully.
 
-Not claimed in this slice: Blender preferences, extension installation through the UI on Blender 4.2 LTS and 5.x, headless register/unregister smoke, or live stream application inside Blender.
+Added `addon/posecap_addon/engine_process.py` as the pure-Python process launcher slice. The public `start_engine_stream()` surface starts a process from an argv list with `shell=False`, reads the engine's first stdout `listening` JSON event with a bounded timeout, returns the announced TCP endpoint together with the `subprocess.Popen` handle, and `stop()` terminates by handle with a kill fallback. TDD coverage starts a real Python child process that announces a listening endpoint and verifies the wrapper stops it, plus a timeout regression that confirms a non-announcing child process is terminated before `EngineStartupError` escapes. The extension build test now asserts `posecap_addon/engine_process.py` lands in the zip.
+
+Verification for the launcher slice passed: `uv run ruff check .`, `uv run ruff format --check .`, `uv run pyright --pythonplatform Windows`, `uv run pyright --pythonplatform Linux`, `uv run lint-imports`, `uv run pytest -q` (`101 passed, 1 deselected`), a fresh extension build, and Blender 5.0 `extension validate` on the updated zip.
+
+Not claimed in this slice: Blender preferences, Start Stream UI lifecycle wiring, extension installation through the UI on Blender 4.2 LTS and 5.x, headless register/unregister smoke, or live stream application inside Blender.
 
 ## Definition of Done
 
