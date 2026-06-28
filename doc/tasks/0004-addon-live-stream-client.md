@@ -33,7 +33,7 @@ Concrete sequential steps. Each as a checkbox. Reference file paths where applic
 - [ ] `addon/.../apply_timer.py` — bpy.app.timers callback: pop, validate armature ref, core policy → bone writes, redraw tag.
 - [ ] `addon/.../engine_process.py` — spawn/terminate by handle (platform adapter, no shell=True).
 - [ ] `addon/.../panels.py` + state property — lifecycle UI per workflows.md state machine.
-- [ ] Extension build script vendoring wheels (`tools/build_extension.py`).
+- [x] Extension build script vendoring wheels (`tools/build_extension.py`).
 - [ ] Headless e2e smoke + manual verification matrix (4.2/5.x) recorded in Notes.
 - [ ] Full gate + /ad-commit.
 
@@ -50,6 +50,14 @@ The first public client test starts a local TCP server, writes two schema-valid 
 Not claimed in this slice: Blender extension manifest/build, bpy timer application, engine process spawning, lifecycle UI, reconnect behavior, armature validation, keyframe preservation checks, or Blender 4.2/5.x HITL verification.
 
 Follow-up `/ad-review` found two addon-client issues before merge. A TDD pass added public `TcpPoseStreamClient` regressions for an idle gap between stream frames and for stopping while the client is still connecting. The client now puts the connected socket back into blocking mode before wrapping it with `socket.makefile("r")`, avoiding Python's timed-out file-object state, and a voluntary `close()` during connect no longer reports the last connection failure as a terminal stream error.
+
+Added the extension packaging slice with `addon/blender_manifest.toml`, the Blender extension root entry point at `addon/__init__.py`, and `tools/build_extension.py`. The build script stages `addon/`, builds `posecap-contracts` and `posecap-core` wheels with `uv build --wheel --package ... --out-dir ...`, verifies that every wheel declared in the manifest exists, and writes `posecap-0.1.0.zip`.
+
+TDD coverage for the public packaging behavior lives in `tests/addon/test_build_extension.py`: it exercises `build_extension()` through a fake wheel builder and asserts the zip contains the manifest, root entry point, addon package, stream client, and vendored wheel paths declared by Blender. Verification passed for the focused test, the real build into `.agentic/extension-dist/posecap-0.1.0.zip`, `blender --command extension validate --valid-tags=""`, and a Blender 5.0 CLI build/validate from the staged source. Full local gates passed: `uv run ruff check .`, `uv run ruff format --check .`, `uv run pyright --pythonplatform Windows`, `uv run pyright --pythonplatform Linux`, `uv run lint-imports`, and `uv run pytest -q` (`98 passed, 1 deselected`).
+
+Pre-merge `/ad-review` found one packaging bug before the branch was merge-ready: `build_extension(repo_root=...)` accepted an explicit repository root but still ran `uv build --package` from the caller's current working directory. A TDD regression now changes cwd outside the repo and verifies the wheel-builder runs from `repo_root`; the build script wraps only the `uv build` calls in that working directory. The previously failing outside-repo invocation now builds the extension zip, and Blender 5.0 validates it successfully.
+
+Not claimed in this slice: Blender preferences, extension installation through the UI on Blender 4.2 LTS and 5.x, headless register/unregister smoke, or live stream application inside Blender.
 
 ## Definition of Done
 
