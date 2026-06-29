@@ -60,7 +60,9 @@ def test_build_extension_zip_contains_manifest_entrypoint_and_vendored_wheels(
     assert "posecap_addon/__init__.py" in names
     assert "posecap_addon/apply_timer.py" in names
     assert "posecap_addon/engine_process.py" in names
+    assert "posecap_addon/panels.py" in names
     assert "posecap_addon/stream_client.py" in names
+    assert "posecap_addon/ui_state.py" in names
     assert "wheels/posecap_contracts-0.1.0-py3-none-any.whl" in names
     assert "wheels/posecap_core-0.1.0-py3-none-any.whl" in names
 

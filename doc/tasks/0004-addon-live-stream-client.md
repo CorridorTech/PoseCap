@@ -32,7 +32,7 @@ Concrete sequential steps. Each as a checkbox. Reference file paths where applic
 - [x] `addon/.../stream_client.py` — daemon thread, makefile line reader, typed decode via contracts, latest-wins slot.
 - [x] `addon/.../apply_timer.py` — bpy.app.timers callback: pop, validate armature ref, core policy → bone writes, redraw tag.
 - [x] `addon/.../engine_process.py` — spawn/terminate by handle (platform adapter, no shell=True).
-- [ ] `addon/.../panels.py` + state property — lifecycle UI per workflows.md state machine.
+- [x] `addon/.../panels.py` + state property — lifecycle UI per workflows.md state machine.
 - [x] Extension build script vendoring wheels (`tools/build_extension.py`).
 - [ ] Headless e2e smoke + manual verification matrix (4.2/5.x) recorded in Notes.
 - [ ] Full gate + /ad-commit.
@@ -70,6 +70,14 @@ Final pre-merge review hardening caught two packaging issues before the branch w
 Post-hardening verification passed: `uv run ruff check .`, `uv run ruff format --check .`, `uv run pyright --pythonplatform Windows`, `uv run pyright --pythonplatform Linux`, `uv run lint-imports`, `uv run pytest -q` (`109 passed, 1 deselected`), a fresh extension build, and Blender 5.0 `extension validate` on the rebuilt zip.
 
 Not claimed in this slice: Blender preferences, Start Stream UI lifecycle wiring, extension installation through the UI on Blender 4.2 LTS and 5.x, headless register/unregister smoke, live stream application inside Blender, keyframe-count preservation checks, or apply-time rotating-log instrumentation.
+
+### 2026-06-29
+
+Added the lifecycle UI/state slice with `addon/posecap_addon/ui_state.py` and `addon/posecap_addon/panels.py`. The pure state model covers Stopped, Starting, Streaming, Recording, Reconnecting, and Warning affordances; the Blender adapter registers `Scene.posecap`, a View3D sidebar panel, and Start/Stop operators through the package registration chain without importing `bpy` during normal pytest/pyright runs. The panel delegates drawing to a pure function so lifecycle controls stay covered outside Blender.
+
+TDD coverage now verifies the state-control matrix, panel drawing through a fake layout, Blender-style class/property registration through a fake `bpy`, addon register/unregister delegation, and extension packaging of the new UI files. A Blender 5.0.1 background smoke with the staged vendored wheels registers `posecap_addon`, mutates `bpy.context.scene.posecap.lifecycle_state`, and unregisters twice without raising. Not claimed in this slice: preferences, real Start Stream engine/process wiring, transition to Streaming after first frame, extension installation through the UI, live pose application inside Blender, recording/keyframe behavior, or rotating apply-time instrumentation.
+
+Verification passed: `uv run ruff check .`, `uv run ruff format --check .`, `uv run pyright --pythonplatform Windows`, `uv run pyright --pythonplatform Linux`, `uv run lint-imports`, `uv run pytest -q` (`113 passed, 1 deselected`), a fresh extension build, Blender 5.0 `extension validate`, and the Blender 5.0.1 background register/unregister smoke.
 
 ## Definition of Done
 

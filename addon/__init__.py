@@ -1,12 +1,14 @@
 """Blender extension entry point for PoseCap."""
 
 from .posecap_addon import (
+    SCENE_PROPERTY_NAME,
     BpyArmaturePoseWriter,
     EngineEndpoint,
     EngineProcess,
     EngineStartupError,
     PoseApplyTimer,
     TcpPoseStreamClient,
+    draw_live_stream_panel,
     start_engine_stream,
     tag_view3d_redraw,
 )
@@ -23,7 +25,9 @@ __all__ = [
     "EngineProcess",
     "EngineStartupError",
     "PoseApplyTimer",
+    "SCENE_PROPERTY_NAME",
     "TcpPoseStreamClient",
+    "draw_live_stream_panel",
     "register",
     "start_engine_stream",
     "tag_view3d_redraw",
