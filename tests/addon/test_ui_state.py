@@ -10,7 +10,15 @@ from posecap_addon.panels import (
     unregister_blender_ui,
 )
 from posecap_addon.ui_state import LifecycleState, lifecycle_controls
-from posecap_contracts import SCHEMA_VERSION, PoseFrame
+from posecap_contracts import (
+    NUM_BETAS,
+    NUM_BODY_JOINTS,
+    NUM_EXPRESSION,
+    NUM_HAND_JOINTS,
+    SCHEMA_VERSION,
+    PoseFrame,
+    PosePayload,
+)
 
 
 def test_lifecycle_controls_match_stream_state_machine() -> None:
@@ -361,9 +369,56 @@ def test_streaming_engine_death_stops_with_reported_reason(monkeypatch) -> None:
         unregister_blender_ui(bpy)
 
 
+def test_streaming_invalid_armature_warns_and_reselected_target_resumes(monkeypatch) -> None:
+    bpy = _FakeBpy()
+    register_blender_ui(bpy)
+    settings = _Settings(lifecycle_state="STOPPED")
+    settings.pear_root = "C:/PEAR"
+    settings.target_armature = _RemovedArmature()
+    context = _FakeContext(settings)
+    engine = _FakeEngine()
+    clients: list[_FakeClient] = []
+
+    monkeypatch.setattr(
+        posecap_addon.panels,
+        "start_engine_stream",
+        lambda _command: engine,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        posecap_addon.panels,
+        "TcpPoseStreamClient",
+        lambda host, port, **_kwargs: clients.append(_FakeClient(host, port)) or clients[-1],
+        raising=False,
+    )
+
+    try:
+        start_cls = bpy.utils.registered_class("POSECAP_OT_StartStream")
+        assert start_cls().execute(context) == {"FINISHED"}
+        clients[0].frames.append(PoseFrame(SCHEMA_VERSION, 1, 100.0, "ok", _payload()))
+
+        assert bpy.app.timers.registered[0]() == 1.0 / 60.0
+
+        assert settings.lifecycle_state == "WARNING"
+        assert settings.status_message == "target armature is unavailable"
+
+        replacement = _FakeArmature(["pelvis"])
+        settings.target_armature = replacement
+        clients[0].frames.append(PoseFrame(SCHEMA_VERSION, 2, 100.5, "ok", _payload()))
+
+        assert bpy.app.timers.registered[0]() == 1.0 / 60.0
+
+        assert settings.lifecycle_state == "STREAMING"
+        assert settings.status_message == "Streaming"
+        assert replacement.pose.bones["pelvis"].rotation_mode == "QUATERNION"
+    finally:
+        unregister_blender_ui(bpy)
+
+
 class _Settings:
     lifecycle_state: LifecycleState
     status_message: str
+    target_armature: object | None
 
     def __init__(self, *, lifecycle_state: LifecycleState, status_message: str = "") -> None:
         self.lifecycle_state = lifecycle_state
@@ -435,11 +490,16 @@ class _FakeLayout:
 class _FakeContext:
     def __init__(self, settings: _Settings) -> None:
         self.scene = _FakeScene(settings)
+        self.window_manager = _FakeWindowManager()
 
 
 class _FakeScene:
     def __init__(self, settings: _Settings) -> None:
         self.posecap = settings
+
+
+class _FakeWindowManager:
+    windows: list[object] = []
 
 
 class _FakeBpy:
@@ -564,3 +624,57 @@ class _FakeClient:
 
     def close(self, *, timeout_seconds: float = 2.0) -> None:
         self.closed = True
+
+
+class _RemovedArmature:
+    @property
+    def pose(self):
+        raise ReferenceError("StructRNA of type Object has been removed")
+
+
+class _FakeArmature:
+    def __init__(self, bone_names: list[str]) -> None:
+        self.pose = _FakePose(bone_names)
+
+
+class _FakePose:
+    def __init__(self, bone_names: list[str]) -> None:
+        self.bones = _FakeBones(bone_names)
+
+
+class _FakeBones:
+    def __init__(self, bone_names: list[str]) -> None:
+        self._bones = {name: _FakeBone(name) for name in bone_names}
+
+    def __iter__(self):
+        return iter(self._bones.values())
+
+    def __getitem__(self, name: str):
+        return self._bones[name]
+
+    def get(self, name: str):
+        return self._bones.get(name)
+
+
+class _FakeBone:
+    def __init__(self, name: str) -> None:
+        self.name = name
+        self.rotation_mode = "XYZ"
+        self.rotation_quaternion = (1.0, 0.0, 0.0, 0.0)
+        self.keyframes: list[str] = []
+
+    def keyframe_insert(self, *, data_path: str) -> None:
+        self.keyframes.append(data_path)
+
+
+def _payload() -> PosePayload:
+    return PosePayload(
+        global_orient=[0.0, 0.0, 0.0],
+        body_pose=[[0.0, 0.0, 0.0] for _ in range(NUM_BODY_JOINTS)],
+        left_hand_pose=[[0.0, 0.0, 0.0] for _ in range(NUM_HAND_JOINTS)],
+        right_hand_pose=[[0.0, 0.0, 0.0] for _ in range(NUM_HAND_JOINTS)],
+        jaw_pose=[0.0, 0.0, 0.0],
+        betas=[0.0 for _ in range(NUM_BETAS)],
+        expression=[0.0 for _ in range(NUM_EXPRESSION)],
+        transl=[0.0, 0.0, 0.0],
+    )

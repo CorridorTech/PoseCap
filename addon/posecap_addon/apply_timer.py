@@ -18,6 +18,7 @@ from posecap_core import (
 from .instrumentation import ApplyTimeInstrumentation
 
 WarningCallback = Callable[[str], None]
+RecoveryCallback = Callable[[], None]
 
 
 class PoseWriter(Protocol):
@@ -43,6 +44,7 @@ class PoseApplyTimer:
         apply_orientation_fix: bool = True,
         insert_keyframes: bool = False,
         on_warning: WarningCallback | None = None,
+        on_recovery: RecoveryCallback | None = None,
         instrumentation: ApplyTimeInstrumentation | None = None,
     ) -> None:
         if interval_seconds <= 0:
@@ -54,6 +56,7 @@ class PoseApplyTimer:
         self._apply_orientation_fix = apply_orientation_fix
         self._insert_keyframes = insert_keyframes
         self._on_warning = on_warning
+        self._on_recovery = on_recovery
         self._instrumentation = instrumentation
         self._previous_quaternions: dict[str, np.ndarray] = {}
         self._reported_invalid_target = False
@@ -87,6 +90,7 @@ class PoseApplyTimer:
         if not self._writer.is_valid():
             self._warn_invalid_target()
             return False
+        recovered = self._reported_invalid_target
         self._reported_invalid_target = False
         plan = plan_pose_application(
             frame.pose,
@@ -99,6 +103,8 @@ class PoseApplyTimer:
         self._previous_quaternions = {
             rotation.bone_name: rotation.quaternion for rotation in plan.rotations
         }
+        if recovered and self._on_recovery is not None:
+            self._on_recovery()
         return True
 
     def _warn_invalid_target(self) -> None:

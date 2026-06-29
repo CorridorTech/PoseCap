@@ -212,8 +212,8 @@ def _start_live_stream(context: Any, bpy_module: Any) -> set[str]:
         )
         client.start()
         lifecycle_stream = _LifecyclePoseStream(client, settings)
-        writer = BpyArmaturePoseWriter(
-            settings.target_armature,
+        writer = _LiveTargetArmaturePoseWriter(
+            settings,
             redraw=lambda: tag_view3d_redraw(context),
         )
         logger = configure_addon_logging(_addon_log_path(bpy_module))
@@ -223,6 +223,7 @@ def _start_live_stream(context: Any, bpy_module: Any) -> set[str]:
             apply_orientation_fix=bool(settings.apply_orientation_fix),
             insert_keyframes=bool(settings.record_live_mocap),
             on_warning=lambda message: _handle_apply_warning(settings, message),
+            on_recovery=lambda: _handle_apply_recovery(settings),
             instrumentation=ApplyTimeInstrumentation(logger=logger),
         )
         session = _LiveStreamSession(bpy_module, settings, engine, client, timer)
@@ -275,10 +276,45 @@ def _handle_apply_warning(settings: _LiveStreamSettings, message: str) -> None:
     settings.status_message = message
 
 
+def _handle_apply_recovery(settings: _LiveStreamSettings) -> None:
+    if settings.lifecycle_state != "WARNING":
+        return
+    if bool(settings.record_live_mocap):
+        settings.lifecycle_state = "RECORDING"
+        settings.status_message = "Recording"
+        return
+    settings.lifecycle_state = "STREAMING"
+    settings.status_message = "Streaming"
+
+
 def _addon_log_path(bpy_module: Any) -> Path:
     tempdir = str(getattr(bpy_module.app, "tempdir", "")).strip()
     root = Path(tempdir) if tempdir != "" else Path(tempfile.gettempdir())
     return root / "posecap-addon.log"
+
+
+class _LiveTargetArmaturePoseWriter:
+    def __init__(
+        self,
+        settings: _LiveStreamSettings,
+        *,
+        redraw: Callable[[], None] | None = None,
+    ) -> None:
+        self._settings = settings
+        self._redraw = redraw
+
+    def is_valid(self) -> bool:
+        return self._writer().is_valid()
+
+    def apply(self, plan: Any, *, insert_keyframes: bool) -> None:
+        self._writer().apply(plan, insert_keyframes=insert_keyframes)
+
+    def tag_redraw(self) -> None:
+        if self._redraw is not None:
+            self._redraw()
+
+    def _writer(self) -> BpyArmaturePoseWriter:
+        return BpyArmaturePoseWriter(self._settings.target_armature)
 
 
 class _LifecyclePoseStream:

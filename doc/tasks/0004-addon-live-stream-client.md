@@ -18,7 +18,7 @@ Verifiable conditions. Each as a checkbox so progress is point-editable.
 - [ ] Extension zip builds with vendored pure-Python wheels; installs via Blender's extension system on 4.2 LTS and a 5.x build.
 - [ ] Start Stream spawns the engine by process handle, connects with bounded retry, and the UI passes Starting → Streaming; connect timeout lands in Stopped with a reported reason.
 - [ ] Poses apply at the stream rate with stale frames dropped (latest-wins); per-limb filters and orientation fix work; existing keyframes untouched (automated count before/after).
-- [ ] Deleting the armature mid-stream produces a warning state and no unhandled exception; selecting a valid target resumes without restart.
+- [x] Deleting the armature mid-stream produces a warning state and no unhandled exception; selecting a valid target resumes without restart.
 - [ ] Stop Stream terminates the engine by handle; no engine process remains after 5 seconds (process-listing check).
 - [x] Socket drop shows Reconnecting; engine death lands in Stopped with reason.
 - [x] Apply-time instrumentation logged at INFO on an interval to a rotating log; nothing above DEBUG per frame.
@@ -100,6 +100,12 @@ Added the headless Blender e2e smoke. `tests/e2e/test_blender_addon_smoke.py` bu
 Focused verification passed with Blender 5.0 at `C:\Program Files\Blender Foundation\Blender 5.0\blender.exe`: `POSECAP_BLENDER=... uv run pytest tests/e2e/test_blender_addon_smoke.py -q -m e2e` (`1 passed`). Focused ruff checks for the new test passed. Not claimed in this slice: extension installation through Blender's UI, Blender 4.2 LTS HITL verification, recording/keyframe behavior, or the full 4.2/5.x manual verification matrix.
 
 Full verification for this slice passed: `uv run ruff check .`, `uv run ruff format --check .`, `uv run pyright --pythonplatform Windows`, `uv run pyright --pythonplatform Linux`, `uv run lint-imports`, `uv run pytest -q` (`123 passed, 2 deselected`), a fresh extension build to `.agentic/extension-dist/posecap-0.1.0.zip`, and Blender 5.0 `extension validate`.
+
+Added armature-warning recovery for the live panel runtime. The stream session now resolves `Scene.posecap.target_armature` on each applied frame instead of freezing the original object at Start Stream, and `PoseApplyTimer` reports recovery after a successful apply following an invalid-target warning. A deleted/removed armature now transitions the UI to Warning once; selecting a valid replacement lets the next `ok` frame apply to the new target and returns the UI to Streaming without restarting the stream.
+
+TDD coverage added `test_streaming_invalid_armature_warns_and_reselected_target_resumes`, which starts the panel runtime with a removed armature, observes the Warning state, swaps in a fake valid `pelvis` armature, and verifies the next frame applies and restores Streaming. Focused verification passed: `uv run pytest tests/addon/test_ui_state.py tests/addon/test_apply_timer.py -q` (`17 passed`). Not claimed in this slice: recording/keyframe behavior, extension installation through Blender's UI, Blender 4.2 LTS HITL verification, or the full 4.2/5.x manual verification matrix.
+
+Full verification for this slice passed: `uv run ruff check .`, `uv run ruff format --check .`, `uv run pyright --pythonplatform Windows`, `uv run pyright --pythonplatform Linux`, `uv run lint-imports`, `uv run pytest -q` (`124 passed, 2 deselected`), `POSECAP_BLENDER=... uv run pytest tests/e2e/test_blender_addon_smoke.py -q -m e2e` (`1 passed`), a fresh extension build to `.agentic/extension-dist/posecap-0.1.0.zip`, and Blender 5.0 `extension validate`.
 
 ## Definition of Done
 
