@@ -20,7 +20,7 @@ Verifiable conditions. Each as a checkbox so progress is point-editable.
 - [ ] Poses apply at the stream rate with stale frames dropped (latest-wins); per-limb filters and orientation fix work; existing keyframes untouched (automated count before/after).
 - [ ] Deleting the armature mid-stream produces a warning state and no unhandled exception; selecting a valid target resumes without restart.
 - [ ] Stop Stream terminates the engine by handle; no engine process remains after 5 seconds (process-listing check).
-- [ ] Socket drop shows Reconnecting; engine death lands in Stopped with reason.
+- [x] Socket drop shows Reconnecting; engine death lands in Stopped with reason.
 - [ ] Apply-time instrumentation logged at INFO on an interval to a rotating log; nothing above DEBUG per frame.
 - [ ] Headless smoke test via `blender --background --python` exercises register/unregister and a simulated frame apply (`e2e` tag); addon disable does not raise (POC double-unregister bug regression check).
 
@@ -84,6 +84,12 @@ Connected the lifecycle panel Start/Stop operators to the real addon-side live r
 TDD coverage added two public operator tests in `tests/addon/test_ui_state.py`: the happy path verifies Start owns engine/client/timer and Stop tears them down, and the timeout path verifies a client connection error is observed by the main-thread timer, lands in Stopped with a reason, and closes both client and engine. The implementation deliberately does not mutate `Scene.posecap` from the TCP reader thread; the background client only records `error`, and the timer callback performs lifecycle transitions on Blender's main thread. No new core/contracts/engine coupling was added.
 
 Verification passed: `uv run ruff check .`, `uv run ruff format --check .`, `uv run pyright --pythonplatform Windows`, `uv run pyright --pythonplatform Linux`, `uv run lint-imports`, `uv run pytest -q` (`115 passed, 1 deselected`), a fresh extension build to `.agentic/extension-dist/posecap-0.1.0.zip`, Blender 5.0 `extension validate`, and a Blender 5.0.1 background smoke that registers `posecap_addon`, mutates `bpy.context.scene.posecap.lifecycle_state`, and unregisters twice. Not claimed in this slice: Blender preferences/installer wiring for the PEAR runtime executable, socket-drop reconnection, recording/keyframe behavior, apply-time rotating-log instrumentation, extension installation through the UI, or Blender 4.2 LTS HITL verification.
+
+Added the socket-drop and engine-death lifecycle slice. `TcpPoseStreamClient` now exposes a public `connection_state`, treats EOF/read `OSError` after an established connection as a recoverable drop, enters `RECONNECTING`, and reconnects to the same announced endpoint with the existing bounded retry behavior. Decode/schema errors remain terminal. The live-stream timer observes the client state on Blender's main thread, transitions Streaming/Recording to Reconnecting, promotes back to Streaming on the next frame, and checks engine liveness before client errors so an externally dead engine lands in Stopped with `Engine process exited`.
+
+TDD coverage added public tests for the operator/timer lifecycle (`Streaming -> Reconnecting -> Streaming` on socket drop, no resume from a queued stale frame while still reconnecting, and `Streaming -> Stopped` on engine death) plus a real localhost reconnect test for `TcpPoseStreamClient` across two server-side TCP connections. Focused verification passed: `uv run pytest tests/addon/test_ui_state.py tests/addon/test_stream_client.py tests/addon/test_apply_timer.py -q` (`18 passed`). Not claimed in this slice: apply-time rotating-log instrumentation, Blender preferences/installer wiring, recording/keyframe behavior, extension installation through the UI, or Blender 4.2 LTS HITL verification.
+
+Full verification passed for this slice: `uv run ruff check .`, `uv run ruff format --check .`, `uv run pyright --pythonplatform Windows`, `uv run pyright --pythonplatform Linux`, `uv run lint-imports`, `uv run pytest -q` (`119 passed, 1 deselected`), a fresh extension build to `.agentic/extension-dist/posecap-0.1.0.zip`, Blender 5.0 `extension validate`, and a Blender 5.0.1 background register/unregister smoke against the staged extension.
 
 ## Definition of Done
 

@@ -182,6 +182,128 @@ def test_starting_stream_stops_from_timer_when_client_reports_connect_error(monk
         unregister_blender_ui(bpy)
 
 
+def test_streaming_socket_drop_shows_reconnecting_until_next_frame(monkeypatch) -> None:
+    bpy = _FakeBpy()
+    register_blender_ui(bpy)
+    settings = _Settings(lifecycle_state="STOPPED")
+    settings.pear_root = "C:/PEAR"
+    context = _FakeContext(settings)
+    engine = _FakeEngine()
+    clients: list[_FakeClient] = []
+
+    monkeypatch.setattr(
+        posecap_addon.panels,
+        "start_engine_stream",
+        lambda _command: engine,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        posecap_addon.panels,
+        "TcpPoseStreamClient",
+        lambda host, port, **_kwargs: clients.append(_FakeClient(host, port)) or clients[-1],
+        raising=False,
+    )
+
+    try:
+        start_cls = bpy.utils.registered_class("POSECAP_OT_StartStream")
+        assert start_cls().execute(context) == {"FINISHED"}
+        clients[0].frames.append(PoseFrame(SCHEMA_VERSION, 1, 100.0, "no_person", None))
+        assert bpy.app.timers.registered[0]() == 1.0 / 60.0
+        assert settings.lifecycle_state == "STREAMING"
+
+        clients[0].connection_state = "RECONNECTING"
+        assert bpy.app.timers.registered[0]() == 1.0 / 60.0
+        assert settings.lifecycle_state == "RECONNECTING"
+        assert settings.status_message == "Reconnecting"
+
+        clients[0].connection_state = "CONNECTED"
+        clients[0].frames.append(PoseFrame(SCHEMA_VERSION, 2, 100.5, "no_person", None))
+        assert bpy.app.timers.registered[0]() == 1.0 / 60.0
+        assert settings.lifecycle_state == "STREAMING"
+        assert settings.status_message == "Streaming"
+    finally:
+        unregister_blender_ui(bpy)
+
+
+def test_streaming_socket_drop_does_not_resume_from_queued_stale_frame(monkeypatch) -> None:
+    bpy = _FakeBpy()
+    register_blender_ui(bpy)
+    settings = _Settings(lifecycle_state="STOPPED")
+    settings.pear_root = "C:/PEAR"
+    context = _FakeContext(settings)
+    engine = _FakeEngine()
+    clients: list[_FakeClient] = []
+
+    monkeypatch.setattr(
+        posecap_addon.panels,
+        "start_engine_stream",
+        lambda _command: engine,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        posecap_addon.panels,
+        "TcpPoseStreamClient",
+        lambda host, port, **_kwargs: clients.append(_FakeClient(host, port)) or clients[-1],
+        raising=False,
+    )
+
+    try:
+        start_cls = bpy.utils.registered_class("POSECAP_OT_StartStream")
+        assert start_cls().execute(context) == {"FINISHED"}
+        clients[0].frames.append(PoseFrame(SCHEMA_VERSION, 1, 100.0, "no_person", None))
+        assert bpy.app.timers.registered[0]() == 1.0 / 60.0
+        assert settings.lifecycle_state == "STREAMING"
+
+        clients[0].connection_state = "RECONNECTING"
+        clients[0].frames.append(PoseFrame(SCHEMA_VERSION, 2, 100.5, "no_person", None))
+        assert bpy.app.timers.registered[0]() == 1.0 / 60.0
+
+        assert settings.lifecycle_state == "RECONNECTING"
+        assert settings.status_message == "Reconnecting"
+    finally:
+        unregister_blender_ui(bpy)
+
+
+def test_streaming_engine_death_stops_with_reported_reason(monkeypatch) -> None:
+    bpy = _FakeBpy()
+    register_blender_ui(bpy)
+    settings = _Settings(lifecycle_state="STOPPED")
+    settings.pear_root = "C:/PEAR"
+    context = _FakeContext(settings)
+    engine = _FakeEngine()
+    clients: list[_FakeClient] = []
+
+    monkeypatch.setattr(
+        posecap_addon.panels,
+        "start_engine_stream",
+        lambda _command: engine,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        posecap_addon.panels,
+        "TcpPoseStreamClient",
+        lambda host, port, **_kwargs: clients.append(_FakeClient(host, port)) or clients[-1],
+        raising=False,
+    )
+
+    try:
+        start_cls = bpy.utils.registered_class("POSECAP_OT_StartStream")
+        assert start_cls().execute(context) == {"FINISHED"}
+        clients[0].frames.append(PoseFrame(SCHEMA_VERSION, 1, 100.0, "no_person", None))
+        assert bpy.app.timers.registered[0]() == 1.0 / 60.0
+        assert settings.lifecycle_state == "STREAMING"
+
+        engine.running = False
+        assert bpy.app.timers.registered[0]() is None
+
+        assert settings.lifecycle_state == "STOPPED"
+        assert settings.status_message == "Engine process exited"
+        assert clients[0].closed
+        assert engine.stopped
+    finally:
+        unregister_blender_ui(bpy)
+
+
 class _Settings:
     lifecycle_state: LifecycleState
     status_message: str
@@ -357,9 +479,11 @@ class _FakeEngine:
     endpoint = _FakeEndpoint()
 
     def __init__(self) -> None:
+        self.running = True
         self.stopped = False
 
     def stop(self, *, timeout_seconds: float = 5.0) -> None:
+        self.running = False
         self.stopped = True
 
 
@@ -368,6 +492,7 @@ class _FakeClient:
         self.endpoint = (host, port)
         self.frames: list[PoseFrame] = []
         self.error: BaseException | None = None
+        self.connection_state = "CONNECTED"
         self.started = False
         self.closed = False
 

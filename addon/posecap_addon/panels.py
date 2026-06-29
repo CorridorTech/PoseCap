@@ -15,6 +15,7 @@ SCENE_PROPERTY_NAME = "posecap"
 
 _REGISTERED_CLASSES: tuple[type[Any], ...] = ()
 _ACTIVE_SESSION: "_LiveStreamSession | None" = None
+_RECONNECTABLE_STATES = frozenset({"STREAMING", "RECORDING"})
 
 
 class _LiveStreamSettings(Protocol):
@@ -279,6 +280,13 @@ class _LifecyclePoseStream:
         if frame is not None and self._settings.lifecycle_state == "STARTING":
             self._settings.lifecycle_state = "STREAMING"
             self._settings.status_message = "Streaming"
+        if (
+            frame is not None
+            and self._settings.lifecycle_state == "RECONNECTING"
+            and getattr(self._client, "connection_state", "CONNECTED") == "CONNECTED"
+        ):
+            self._settings.lifecycle_state = "STREAMING"
+            self._settings.status_message = "Streaming"
         return frame
 
     def close(self) -> None:
@@ -305,6 +313,17 @@ class _LiveStreamSession:
     def _tick(self) -> float | None:
         if self._stopped:
             return None
+        if not bool(getattr(self._engine, "running", True)):
+            self.stop(unregister_timer=False, bpy_module=self._bpy_module)
+            self._settings.lifecycle_state = "STOPPED"
+            self._settings.status_message = "Engine process exited"
+            return None
+        if (
+            getattr(self._client, "connection_state", None) == "RECONNECTING"
+            and self._settings.lifecycle_state in _RECONNECTABLE_STATES
+        ):
+            self._settings.lifecycle_state = "RECONNECTING"
+            self._settings.status_message = "Reconnecting"
         stream_error = getattr(self._client, "error", None)
         if stream_error is not None:
             self.stop(unregister_timer=False, bpy_module=self._bpy_module)
@@ -314,11 +333,6 @@ class _LiveStreamSession:
             else:
                 self._settings.lifecycle_state = "STOPPED"
                 self._settings.status_message = f"Stream stopped: {stream_error}"
-            return None
-        if not bool(getattr(self._engine, "running", True)):
-            self.stop(unregister_timer=False, bpy_module=self._bpy_module)
-            self._settings.lifecycle_state = "STOPPED"
-            self._settings.status_message = "Engine process exited"
             return None
         return self._timer.tick()
 
