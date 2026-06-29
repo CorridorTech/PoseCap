@@ -14,6 +14,20 @@ from pathlib import Path
 from typing import Any
 
 VENDORED_PACKAGES = ("posecap-contracts", "posecap-core")
+STAGE_MARKER = ".posecap-extension-stage"
+PROTECTED_REPO_DIRS = (
+    ".agents",
+    ".claude",
+    ".git",
+    ".github",
+    "addon",
+    "contracts",
+    "core",
+    "doc",
+    "engine",
+    "tests",
+    "tools",
+)
 
 Runner = Callable[[list[str]], None]
 
@@ -32,8 +46,7 @@ def build_extension(
     output_dir = output_dir.resolve()
     runner = _run if runner is None else runner
 
-    if staging_dir in {repo_root, addon_dir}:
-        raise ValueError("staging_dir must not be the repository root or addon source directory")
+    _assert_safe_staging_dir(repo_root, staging_dir)
     if not addon_dir.is_dir():
         raise FileNotFoundError(f"addon source directory not found: {addon_dir}")
 
@@ -66,8 +79,13 @@ def _run(command: list[str]) -> None:
 
 def _reset_directory(path: Path) -> None:
     if path.exists():
+        if not path.is_dir():
+            raise ValueError(f"staging_dir exists but is not a directory: {path}")
+        if any(path.iterdir()) and not _is_extension_staging_directory(path):
+            raise ValueError(f"staging_dir is not a PoseCap extension staging directory: {path}")
         shutil.rmtree(path)
     path.mkdir(parents=True)
+    (path / STAGE_MARKER).write_text("", encoding="utf-8")
 
 
 def _copy_addon_source(source: Path, target: Path) -> None:
@@ -117,10 +135,32 @@ def _assert_manifest_wheels_exist(staging_dir: Path, manifest: dict[str, Any]) -
 
 
 def _write_zip(source_dir: Path, zip_path: Path) -> None:
-    files = sorted(path for path in source_dir.rglob("*") if path.is_file())
+    files = sorted(
+        path for path in source_dir.rglob("*") if path.is_file() and path.name != STAGE_MARKER
+    )
     with zipfile.ZipFile(zip_path, mode="w", compression=zipfile.ZIP_DEFLATED) as archive:
         for path in files:
             archive.write(path, path.relative_to(source_dir).as_posix())
+
+
+def _assert_safe_staging_dir(repo_root: Path, staging_dir: Path) -> None:
+    if staging_dir == repo_root:
+        raise ValueError("staging_dir must not be the repository root")
+    for name in PROTECTED_REPO_DIRS:
+        protected = repo_root / name
+        if protected.exists() and (
+            staging_dir == protected or staging_dir.is_relative_to(protected)
+        ):
+            raise ValueError(f"staging_dir must not be inside repository source path: {protected}")
+
+
+def _is_extension_staging_directory(path: Path) -> bool:
+    if (path / STAGE_MARKER).is_file():
+        return True
+    return all(
+        (path / sentinel).exists()
+        for sentinel in ("blender_manifest.toml", "__init__.py", "posecap_addon")
+    )
 
 
 def main(argv: Sequence[str] | None = None) -> int:

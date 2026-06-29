@@ -65,6 +65,10 @@ Added `addon/posecap_addon/apply_timer.py` as the main-thread apply slice. `Pose
 
 TDD coverage lives in `tests/addon/test_apply_timer.py`: it verifies `ok` frame application/reschedule, `no_person` hold-last-pose behavior, single warning plus recovery for invalid targets, Blender-style quaternion/keyframe writes, removed-armature invalidation, and redraw tagging. The extension build test now asserts `posecap_addon/apply_timer.py` lands in the zip. Verification passed: `uv run ruff check .`, `uv run ruff format --check .`, `uv run pyright --pythonplatform Windows`, `uv run pyright --pythonplatform Linux`, `uv run lint-imports`, `uv run pytest -q` (`107 passed, 1 deselected`), a fresh extension build, and Blender 5.0 `extension validate`.
 
+Final pre-merge review hardening caught two packaging issues before the branch was ready: the manifest used the broader `GPL-3.0-or-later` SPDX expression while ADR-0006 and CONTRIBUTING bind the addon to GPL-3.0, and `tools/build_extension.py` could recursively clear an arbitrary existing staging directory if called with an unsafe `--staging-dir`. TDD coverage now asserts the manifest declares `SPDX:GPL-3.0-only`, the generated zip excludes the internal staging marker, staging inside protected repository source paths is rejected, and existing non-stage directories are left untouched.
+
+Post-hardening verification passed: `uv run ruff check .`, `uv run ruff format --check .`, `uv run pyright --pythonplatform Windows`, `uv run pyright --pythonplatform Linux`, `uv run lint-imports`, `uv run pytest -q` (`109 passed, 1 deselected`), a fresh extension build, and Blender 5.0 `extension validate` on the rebuilt zip.
+
 Not claimed in this slice: Blender preferences, Start Stream UI lifecycle wiring, extension installation through the UI on Blender 4.2 LTS and 5.x, headless register/unregister smoke, live stream application inside Blender, keyframe-count preservation checks, or apply-time rotating-log instrumentation.
 
 ## Definition of Done

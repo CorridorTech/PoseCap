@@ -3,6 +3,8 @@ import tomllib
 import zipfile
 from pathlib import Path
 
+import pytest
+
 
 def _load_build_extension_module():
     module_path = Path(__file__).parents[2] / "tools" / "build_extension.py"
@@ -48,10 +50,12 @@ def test_build_extension_zip_contains_manifest_entrypoint_and_vendored_wheels(
 
     assert manifest["id"] == "posecap"
     assert manifest["type"] == "add-on"
+    assert manifest["license"] == ["SPDX:GPL-3.0-only"]
     assert manifest["wheels"] == [
         "./wheels/posecap_contracts-0.1.0-py3-none-any.whl",
         "./wheels/posecap_core-0.1.0-py3-none-any.whl",
     ]
+    assert ".posecap-extension-stage" not in names
     assert "__init__.py" in names
     assert "posecap_addon/__init__.py" in names
     assert "posecap_addon/apply_timer.py" in names
@@ -85,3 +89,38 @@ def test_build_extension_builds_workspace_packages_from_repo_root(
         staging_dir=tmp_path / "stage",
         runner=fake_runner,
     )
+
+
+def test_build_extension_rejects_staging_inside_source_tree(tmp_path: Path) -> None:
+    build_extension = _load_build_extension_module()
+    repo_root = Path(__file__).parents[2]
+    source_file = repo_root / "addon" / "posecap_addon" / "__init__.py"
+
+    with pytest.raises(ValueError, match="staging_dir must not be inside"):
+        build_extension.build_extension(
+            repo_root=repo_root,
+            output_dir=tmp_path / "dist",
+            staging_dir=source_file.parent,
+            runner=lambda _command: None,
+        )
+
+    assert source_file.is_file()
+
+
+def test_build_extension_rejects_existing_non_stage_directory(tmp_path: Path) -> None:
+    build_extension = _load_build_extension_module()
+    repo_root = Path(__file__).parents[2]
+    important_dir = tmp_path / "important"
+    important_dir.mkdir()
+    important_file = important_dir / "keep.txt"
+    important_file.write_text("do not delete", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="not a PoseCap extension staging directory"):
+        build_extension.build_extension(
+            repo_root=repo_root,
+            output_dir=tmp_path / "dist",
+            staging_dir=important_dir,
+            runner=lambda _command: None,
+        )
+
+    assert important_file.read_text(encoding="utf-8") == "do not delete"
