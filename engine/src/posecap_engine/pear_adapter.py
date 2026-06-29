@@ -5,9 +5,11 @@ torch, OpenCV, or upstream PEAR.
 """
 
 import importlib
+import os
 import sys
 import time
 from collections.abc import Callable, Generator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
@@ -209,32 +211,34 @@ class _LivePearRuntime:
 
 
 def _load_pear_runtime(config: PearLiveConfig) -> _LivePearRuntime:
-    modules = _load_pear_modules(config.pear_root)
+    pear_root = config.pear_root.resolve()
+    modules = _load_pear_modules(pear_root)
     _ensure_cuda_available(modules.torch)
 
-    if hasattr(modules.torch, "set_float32_matmul_precision"):
-        modules.torch.set_float32_matmul_precision("high")
-    modules.lightning.fabric.seed_everything(10)
+    with _pear_working_directory(pear_root):
+        if hasattr(modules.torch, "set_float32_matmul_precision"):
+            modules.torch.set_float32_matmul_precision("high")
+        modules.lightning.fabric.seed_everything(10)
 
-    meta_cfg = modules.config_dict_class(
-        model_config_path=str(config.pear_root / _PEAR_CONFIG_RELATIVE_PATH)
-    )
-    meta_cfg = modules.add_extra_cfgs(meta_cfg)
+        meta_cfg = modules.config_dict_class(
+            model_config_path=str(pear_root / _PEAR_CONFIG_RELATIVE_PATH)
+        )
+        meta_cfg = modules.add_extra_cfgs(meta_cfg)
 
-    weights_path = modules.hf_hub_download(
-        repo_id=_PEAR_MODEL_REPO_ID,
-        filename=_PEAR_MODEL_FILENAME,
-        repo_type="model",
-        revision=PEAR_MODELS_REVISION,
-    )
-    model = modules.ehm_pipeline_class(meta_cfg)
-    state = modules.torch.load(weights_path, map_location="cpu", weights_only=True)
-    model.backbone.load_state_dict(state["backbone"], strict=False)
-    model.head.load_state_dict(state["head"], strict=False)
-    model = model.cuda()
-    model.eval()
+        weights_path = modules.hf_hub_download(
+            repo_id=_PEAR_MODEL_REPO_ID,
+            filename=_PEAR_MODEL_FILENAME,
+            repo_type="model",
+            revision=PEAR_MODELS_REVISION,
+        )
+        model = modules.ehm_pipeline_class(meta_cfg)
+        state = modules.torch.load(weights_path, map_location="cpu", weights_only=True)
+        model.backbone.load_state_dict(state["backbone"], strict=False)
+        model.head.load_state_dict(state["head"], strict=False)
+        model = model.cuda()
+        model.eval()
 
-    detector = modules.yolo_class(_resolve_yolo_model(config.pear_root))
+        detector = modules.yolo_class(_resolve_yolo_model(pear_root))
     return _LivePearRuntime(config, modules, model, detector)
 
 
@@ -256,6 +260,16 @@ def _load_pear_modules(pear_root: Path) -> _PearModules:
         config_dict_class=pear_utils.ConfigDict,
         add_extra_cfgs=pear_utils.add_extra_cfgs,
     )
+
+
+@contextmanager
+def _pear_working_directory(pear_root: Path) -> Generator[None, None, None]:
+    original_cwd = Path.cwd()
+    os.chdir(pear_root)
+    try:
+        yield
+    finally:
+        os.chdir(original_cwd)
 
 
 def _open_live_capture(config: PearLiveConfig) -> _OpenCvLiveCapture:

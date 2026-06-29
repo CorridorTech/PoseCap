@@ -170,6 +170,21 @@ verify the external PEAR checkout modules, report `find_spec()` discovery failur
 JSON errors, and catch `OSError` from the Torch CUDA check instead of leaking a
 traceback.
 
+Task 0003 close-out exposed two additional non-Torch PEAR imports required by the
+external EHM pipeline import path: `trimesh` from `utils.graphics_utils` and `plotly`
+from `utils.pipeline_utils`. The doctor required-import list and
+`tools/install/setup_pear_runtime.ps1` curated dependency set now include both. After
+installing them into `.venv-pear`, the direct doctor run reports the Python 3.11
+runtime, Torch/Torchvision CUDA matrix, PyTorch3D, PEAR imports, external PEAR pin,
+and pinned Hugging Face weights as OK; the only remaining doctor error is missing
+licensed SMPL/SMPL-X/FLAME assets.
+
+The first real task 0003 live-PEAR run exposed one more Windows runtime dependency:
+`tzdata`, required by the Python 3.11 timezone stack during PEAR live startup. The
+doctor required-import list and setup script now include `tzdata`. The same live run
+also confirmed that PEAR opens `assets/SMPLX/smpl_mean_params.npz` relative to its
+checkout root; the doctor now treats that file as a required external PEAR asset.
+
 ## Definition of Done
 
 All Acceptance Criteria checked, plus:

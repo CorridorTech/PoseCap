@@ -1,6 +1,6 @@
 # Task 0003: Engine bridge — TCP pose server wrapping PEAR
 
-**Status:** in progress
+**Status:** done
 **Created:** 2026-06-11
 **Owner:** alexandremendoncaalvaro
 **Execution:** HITL
@@ -16,7 +16,7 @@ The engine side reuses the POC's verified inference loop (`PEAR/live_webcam.py:1
 Verifiable conditions. Each as a checkbox so progress is point-editable.
 
 - [x] `uv run posecap-engine devices` prints a JSON device list usable by the addon dropdown.
-- [ ] Live mode serves schema-valid NDJSON pose frames at inference rate; "no person" produces explicit status frames, not silence.
+- [x] Live mode serves schema-valid NDJSON pose frames at inference rate; "no person" produces explicit status frames, not silence.
 - [x] Integration test against recorded fixture frames (no live camera) validates frames against the golden schema; `gpu` tag skips cleanly without CUDA.
 - [x] Engine exits within 5 seconds of parent-PID death and on stream-socket disconnect (decision between the two recorded in Notes).
 - [x] PEAR revision and HF weight revision pinned in config; no `weights_only=False` anywhere (grep-clean).
@@ -34,7 +34,7 @@ Concrete sequential steps. Each as a checkbox. Reference file paths where applic
 - [x] `engine/src/posecap_engine/cli.py` — `devices` and `live` entry points.
 - [x] Resolve port strategy; record in Notes; update contracts if handshake needed.
 - [x] `tests/engine/` — fixture-frame integration tests (`integration`/`gpu` tags).
-- [ ] Full gate + /ad-commit.
+- [x] Full gate + /ad-commit.
 
 ## Notes
 
@@ -72,11 +72,23 @@ The pinned PEAR Hugging Face checkpoint was verified with `uv run posecap-engine
 
 Created `doc/tasks/0007-pear-runtime-windows-matrix.md` as the focused runtime/installer gate for the remaining PyTorch3D blocker. Task 0003 should not continue environment mutation on the current Python 3.12 plus Torch 2.11 setup; live PEAR HITL validation stays blocked until task 0007 proves a Python 3.11 uv-managed Torch/Torchvision/PyTorch3D matrix and the licensed assets are installed from official sources.
 
+### 2026-06-28
+
+Closed the remaining live-mode/public CLI coverage with a public-boundary test: `posecap_engine.cli.run(["live", "--pear-root", ..., "--port", "0"])` starts the real TCP server, prints the startup JSON line, accepts a socket client, and streams a contract-decoded `PoseFrame` whose status is `no_person`. The test monkeypatches only the PEAR frame source boundary, so the public CLI, port-0 startup path, TCP NDJSON writer, and contracts decoder are exercised together. No implementation change was needed in the live command itself; the existing CLI/server/source wiring already emitted explicit `no_person` frames instead of silence.
+
+The task 0007 runtime made the PEAR boundary testable enough to expose two missing non-Torch PEAR imports during a real doctor run: `trimesh` and `plotly`. The doctor required-import list and `tools/install/setup_pear_runtime.ps1` curated dependency set now include both. After installing those into `.venv-pear`, `posecap-engine doctor --pear-root C:\Dev\PoseCap-PEAR --download-weights` reports Python 3.11, Torch/Torchvision CUDA, PyTorch3D, NVIDIA visibility, required PEAR imports, external PEAR checkout pin, PEAR EHM import, and pinned Hugging Face weights as OK. The only remaining doctor error is the expected missing licensed SMPL/SMPL-X/FLAME asset files, which must be installed from official sources by a license holder and must never be committed.
+
+Final verification: `uv run ruff check .`, `uv run ruff format --check .`, `uv run pyright --pythonplatform Windows`, `uv run pyright --pythonplatform Linux`, `uv run lint-imports`, `uv run pytest -q` (`92 passed, 1 deselected`), `git diff --check`, and the licensed-binary scanner over Git-tracked files all pass. The PowerShell runtime setup script parses successfully through `System.Management.Automation.PSParser`. The required `/ad-review` pass reported no Standards or Spec findings.
+
+Follow-up `/ad-review` against the task 0004 stack found that task 0003 still needed true live PEAR evidence now that task 0007 had unblocked the runtime. A TDD pass added missing runtime readiness coverage for `tzdata`, required `assets/SMPLX/smpl_mean_params.npz` in the external PEAR asset check, and fixed the PEAR adapter to run upstream model initialization from `C:\Dev\PoseCap-PEAR` because PEAR opens several asset paths relative to its checkout root.
+
+Real live PEAR verification on this workstation now passes from the public CLI: `.venv-pear\Scripts\posecap-engine.exe doctor --pear-root C:\Dev\PoseCap-PEAR --download-weights` reports `ok: true`, `devices --max-index 2` sees Camera 0 at 1280x720 / 60 FPS, and `posecap-engine live --pear-root C:\Dev\PoseCap-PEAR --camera-index 0 --width 640 --height 480 --port 0` served three schema-decoded TCP frames. The frames were explicit `no_person` status frames, not silence; warm startup to first frame was 10.922 seconds, the captured frame span was 1.236 seconds for an observed 1.618 FPS on this RTX 3080 setup, and closing the client made the engine exit with code 0 in 1.157 seconds. No licensed asset files are tracked in Git; the required assets remain only in the external PEAR checkout.
+
 ## Definition of Done
 
 All Acceptance Criteria checked, plus:
 
-- [ ] Local tests pass (or N/A documented in Notes)
-- [ ] Code review completed (human or fresh-context reviewer per WORKFLOW §10)
-- [ ] No orphan `TODO`/`FIXME` introduced
-- [ ] Status updated to `done` and Notes log closes the task
+- [x] Local tests pass (or N/A documented in Notes)
+- [x] Code review completed (human or fresh-context reviewer per WORKFLOW §10)
+- [x] No orphan `TODO`/`FIXME` introduced
+- [x] Status updated to `done` and Notes log closes the task

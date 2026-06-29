@@ -1,6 +1,6 @@
 # Task 0004: Addon — extension skeleton and live stream client
 
-**Status:** proposed
+**Status:** in progress
 **Created:** 2026-06-11
 **Owner:** alexandremendoncaalvaro
 **Execution:** HITL
@@ -29,17 +29,61 @@ Verifiable conditions. Each as a checkbox so progress is point-editable.
 Concrete sequential steps. Each as a checkbox. Reference file paths where applicable.
 
 - [ ] `addon/` extension skeleton: `blender_manifest.toml` (wheels list), registration chain, preferences.
-- [ ] `addon/.../stream_client.py` — daemon thread, makefile line reader, typed decode via contracts, latest-wins slot.
-- [ ] `addon/.../apply_timer.py` — bpy.app.timers callback: pop, validate armature ref, core policy → bone writes, redraw tag.
-- [ ] `addon/.../engine_process.py` — spawn/terminate by handle (platform adapter, no shell=True).
-- [ ] `addon/.../panels.py` + state property — lifecycle UI per workflows.md state machine.
-- [ ] Extension build script vendoring wheels (`tools/build_extension.py`).
+- [x] `addon/.../stream_client.py` — daemon thread, makefile line reader, typed decode via contracts, latest-wins slot.
+- [x] `addon/.../apply_timer.py` — bpy.app.timers callback: pop, validate armature ref, core policy → bone writes, redraw tag.
+- [x] `addon/.../engine_process.py` — spawn/terminate by handle (platform adapter, no shell=True).
+- [x] `addon/.../panels.py` + state property — lifecycle UI per workflows.md state machine.
+- [x] Extension build script vendoring wheels (`tools/build_extension.py`).
 - [ ] Headless e2e smoke + manual verification matrix (4.2/5.x) recorded in Notes.
 - [ ] Full gate + /ad-commit.
 
 ## Notes
 
 Append-only log. Date each entry. Never rewrite past entries.
+
+### 2026-06-28
+
+Started the addon-side live stream client as the first task 0004 vertical slice after task 0003's engine stream close-out. Added `addon/posecap_addon/stream_client.py` with a daemon TCP reader thread, `socket.makefile("r")` line reads, contracts-level `decode_pose_frame()` validation at the boundary, bounded connect retry, explicit close/error reporting, and a single-slot latest-wins queue behind `latest()`. Added `addon/posecap_addon/__init__.py` and `py.typed` so the package has a registration entry point and pyright can type-check the addon source.
+
+The first public client test starts a local TCP server, writes two schema-valid pose frames, and verifies `TcpPoseStreamClient.latest()` returns only the newest unconsumed frame before returning `None`. Verification passes: `uv run ruff check .`, `uv run ruff format --check .`, `uv run pyright --pythonplatform Windows`, `uv run pyright --pythonplatform Linux`, `uv run lint-imports`, and `uv run pytest -q` (`93 passed, 1 deselected`).
+
+Not claimed in this slice: Blender extension manifest/build, bpy timer application, engine process spawning, lifecycle UI, reconnect behavior, armature validation, keyframe preservation checks, or Blender 4.2/5.x HITL verification.
+
+Follow-up `/ad-review` found two addon-client issues before merge. A TDD pass added public `TcpPoseStreamClient` regressions for an idle gap between stream frames and for stopping while the client is still connecting. The client now puts the connected socket back into blocking mode before wrapping it with `socket.makefile("r")`, avoiding Python's timed-out file-object state, and a voluntary `close()` during connect no longer reports the last connection failure as a terminal stream error.
+
+Added the extension packaging slice with `addon/blender_manifest.toml`, the Blender extension root entry point at `addon/__init__.py`, and `tools/build_extension.py`. The build script stages `addon/`, builds `posecap-contracts` and `posecap-core` wheels with `uv build --wheel --package ... --out-dir ...`, verifies that every wheel declared in the manifest exists, and writes `posecap-0.1.0.zip`.
+
+TDD coverage for the public packaging behavior lives in `tests/addon/test_build_extension.py`: it exercises `build_extension()` through a fake wheel builder and asserts the zip contains the manifest, root entry point, addon package, stream client, and vendored wheel paths declared by Blender. Verification passed for the focused test, the real build into `.agentic/extension-dist/posecap-0.1.0.zip`, `blender --command extension validate --valid-tags=""`, and a Blender 5.0 CLI build/validate from the staged source. Full local gates passed: `uv run ruff check .`, `uv run ruff format --check .`, `uv run pyright --pythonplatform Windows`, `uv run pyright --pythonplatform Linux`, `uv run lint-imports`, and `uv run pytest -q` (`98 passed, 1 deselected`).
+
+Pre-merge `/ad-review` found one packaging bug before the branch was merge-ready: `build_extension(repo_root=...)` accepted an explicit repository root but still ran `uv build --package` from the caller's current working directory. A TDD regression now changes cwd outside the repo and verifies the wheel-builder runs from `repo_root`; the build script wraps only the `uv build` calls in that working directory. The previously failing outside-repo invocation now builds the extension zip, and Blender 5.0 validates it successfully.
+
+Added `addon/posecap_addon/engine_process.py` as the pure-Python process launcher slice. The public `start_engine_stream()` surface starts a process from an argv list with `shell=False`, reads the engine's first stdout `listening` JSON event with a bounded timeout, returns the announced TCP endpoint together with the `subprocess.Popen` handle, and `stop()` terminates by handle with a kill fallback. TDD coverage starts a real Python child process that announces a listening endpoint and verifies the wrapper stops it, plus a timeout regression that confirms a non-announcing child process is terminated before `EngineStartupError` escapes. The extension build test now asserts `posecap_addon/engine_process.py` lands in the zip.
+
+Verification for the launcher slice passed: `uv run ruff check .`, `uv run ruff format --check .`, `uv run pyright --pythonplatform Windows`, `uv run pyright --pythonplatform Linux`, `uv run lint-imports`, `uv run pytest -q` (`101 passed, 1 deselected`), a fresh extension build, and Blender 5.0 `extension validate` on the updated zip.
+
+Added `addon/posecap_addon/apply_timer.py` as the main-thread apply slice. `PoseApplyTimer.tick()` consumes the `PoseStream.latest()` surface, ignores empty and `no_person` frames without clearing the last pose, validates the target before every `ok` frame, runs `core.plan_pose_application()` with the configured limb filter/orientation fix, writes through a `PoseWriter`, tags redraw, and keeps previous quaternions for continuity. `BpyArmaturePoseWriter` is duck-typed so the module remains importable outside Blender; it writes `rotation_quaternion`, inserts `KEYFRAME_DATA_PATH` when recording is enabled, treats `ReferenceError: StructRNA ... removed` as an invalid target, and `tag_view3d_redraw()` marks only `VIEW_3D` areas.
+
+TDD coverage lives in `tests/addon/test_apply_timer.py`: it verifies `ok` frame application/reschedule, `no_person` hold-last-pose behavior, single warning plus recovery for invalid targets, Blender-style quaternion/keyframe writes, removed-armature invalidation, and redraw tagging. The extension build test now asserts `posecap_addon/apply_timer.py` lands in the zip. Verification passed: `uv run ruff check .`, `uv run ruff format --check .`, `uv run pyright --pythonplatform Windows`, `uv run pyright --pythonplatform Linux`, `uv run lint-imports`, `uv run pytest -q` (`107 passed, 1 deselected`), a fresh extension build, and Blender 5.0 `extension validate`.
+
+Final pre-merge review hardening caught two packaging issues before the branch was ready: the manifest used the broader `GPL-3.0-or-later` SPDX expression while ADR-0006 and CONTRIBUTING bind the addon to GPL-3.0, and `tools/build_extension.py` could recursively clear an arbitrary existing staging directory if called with an unsafe `--staging-dir`. TDD coverage now asserts the manifest declares `SPDX:GPL-3.0-only`, the generated zip excludes the internal staging marker, staging inside protected repository source paths is rejected, and existing non-stage directories are left untouched.
+
+Post-hardening verification passed: `uv run ruff check .`, `uv run ruff format --check .`, `uv run pyright --pythonplatform Windows`, `uv run pyright --pythonplatform Linux`, `uv run lint-imports`, `uv run pytest -q` (`109 passed, 1 deselected`), a fresh extension build, and Blender 5.0 `extension validate` on the rebuilt zip.
+
+Not claimed in this slice: Blender preferences, Start Stream UI lifecycle wiring, extension installation through the UI on Blender 4.2 LTS and 5.x, headless register/unregister smoke, live stream application inside Blender, keyframe-count preservation checks, or apply-time rotating-log instrumentation.
+
+### 2026-06-29
+
+Added the lifecycle UI/state slice with `addon/posecap_addon/ui_state.py` and `addon/posecap_addon/panels.py`. The pure state model covers Stopped, Starting, Streaming, Recording, Reconnecting, and Warning affordances; the Blender adapter registers `Scene.posecap`, a View3D sidebar panel, and Start/Stop operators through the package registration chain without importing `bpy` during normal pytest/pyright runs. The panel delegates drawing to a pure function so lifecycle controls stay covered outside Blender.
+
+TDD coverage now verifies the state-control matrix, panel drawing through a fake layout, Blender-style class/property registration through a fake `bpy`, addon register/unregister delegation, and extension packaging of the new UI files. A Blender 5.0.1 background smoke with the staged vendored wheels registers `posecap_addon`, mutates `bpy.context.scene.posecap.lifecycle_state`, and unregisters twice without raising. Not claimed in this slice: preferences, real Start Stream engine/process wiring, transition to Streaming after first frame, extension installation through the UI, live pose application inside Blender, recording/keyframe behavior, or rotating apply-time instrumentation.
+
+Verification passed: `uv run ruff check .`, `uv run ruff format --check .`, `uv run pyright --pythonplatform Windows`, `uv run pyright --pythonplatform Linux`, `uv run lint-imports`, `uv run pytest -q` (`113 passed, 1 deselected`), a fresh extension build, Blender 5.0 `extension validate`, and the Blender 5.0.1 background register/unregister smoke.
+
+Connected the lifecycle panel Start/Stop operators to the real addon-side live runtime. Start now builds the public engine command (`posecap-engine live --pear-root ... --camera-index ... --parent-pid ...`), starts the engine through `start_engine_stream()`, starts `TcpPoseStreamClient`, registers a stable `bpy.app.timers` callback around `PoseApplyTimer.tick()`, and transitions Starting to Streaming on the first received frame. Stop now unregisters the timer callback when still registered, closes the stream client through the timer, terminates the engine process by handle, clears Record Live MoCap, and returns the UI to Stopped. Addon unregister also stops any active session before removing Blender classes/properties.
+
+TDD coverage added two public operator tests in `tests/addon/test_ui_state.py`: the happy path verifies Start owns engine/client/timer and Stop tears them down, and the timeout path verifies a client connection error is observed by the main-thread timer, lands in Stopped with a reason, and closes both client and engine. The implementation deliberately does not mutate `Scene.posecap` from the TCP reader thread; the background client only records `error`, and the timer callback performs lifecycle transitions on Blender's main thread. No new core/contracts/engine coupling was added.
+
+Verification passed: `uv run ruff check .`, `uv run ruff format --check .`, `uv run pyright --pythonplatform Windows`, `uv run pyright --pythonplatform Linux`, `uv run lint-imports`, `uv run pytest -q` (`115 passed, 1 deselected`), a fresh extension build to `.agentic/extension-dist/posecap-0.1.0.zip`, Blender 5.0 `extension validate`, and a Blender 5.0.1 background smoke that registers `posecap_addon`, mutates `bpy.context.scene.posecap.lifecycle_state`, and unregisters twice. Not claimed in this slice: Blender preferences/installer wiring for the PEAR runtime executable, socket-drop reconnection, recording/keyframe behavior, apply-time rotating-log instrumentation, extension installation through the UI, or Blender 4.2 LTS HITL verification.
 
 ## Definition of Done
 

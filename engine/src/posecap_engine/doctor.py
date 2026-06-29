@@ -33,8 +33,12 @@ _REQUIRED_IMPORTS = (
     ("einops", "PEAR tensor reshaping"),
     ("colored", "PEAR logging utility"),
     ("rich", "PEAR progress/logging utility"),
+    ("trimesh", "PEAR mesh/model geometry helpers"),
+    ("plotly", "PEAR debug visualization imports"),
     ("pytorch3d", "PEAR SMPL-X transform and renderer dependency"),
 )
+
+_WINDOWS_REQUIRED_IMPORTS = (("tzdata", "Windows timezone data used during PEAR live startup"),)
 
 _PEAR_IMPORTS = (
     ("models.pipeline.ehm_pipeline", "PEAR EHM pipeline"),
@@ -47,6 +51,7 @@ _LICENSED_ASSET_PATHS = (
     Path("assets") / "SMPL" / "SMPL_NEUTRAL.pkl",
     Path("assets") / "SMPLX" / "SMPLX_NEUTRAL_2020.npz",
     Path("assets") / "SMPLX" / "flame_generic_model.pkl",
+    Path("assets") / "SMPLX" / "smpl_mean_params.npz",
     Path("assets") / "FLAME" / "FLAME2020" / "generic_model.pkl",
 )
 
@@ -195,7 +200,10 @@ def _check_nvidia_smi(command_runner: CommandRunner) -> DoctorCheck:
 
 
 def _check_required_imports() -> list[DoctorCheck]:
-    return _check_imports(_REQUIRED_IMPORTS)
+    imports = _REQUIRED_IMPORTS
+    if sys.platform == "win32":
+        imports = imports + _WINDOWS_REQUIRED_IMPORTS
+    return _check_imports(imports)
 
 
 def _check_pear_imports(pear_root: Path | None) -> list[DoctorCheck]:

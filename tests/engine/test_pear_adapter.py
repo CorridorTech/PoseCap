@@ -219,6 +219,69 @@ def test_load_pear_runtime_uses_ultralytics_model_name_when_local_yolo_is_absent
     assert calls["yolo_path"] == "yolov8x.pt"
 
 
+def test_load_pear_runtime_runs_upstream_initialization_from_pear_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    pear_root = _pear_checkout(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    relative_pear_root = Path("pear")
+    starting_cwd = Path.cwd()
+    calls: dict[str, object] = {}
+
+    class FakeTorch:
+        cuda = SimpleNamespace(is_available=lambda: True)
+
+        def load(self, _path: str, *, map_location: str, weights_only: bool) -> dict[str, object]:
+            assert (map_location, weights_only) == ("cpu", True)
+            return {"backbone": object(), "head": object()}
+
+    class FakeLayer:
+        def load_state_dict(self, _state: object, *, strict: bool) -> None:
+            assert strict is False
+
+    class FakeModel:
+        def __init__(self, _config: object) -> None:
+            calls["model_cwd"] = Path.cwd()
+            self.backbone = FakeLayer()
+            self.head = FakeLayer()
+
+        def cuda(self) -> "FakeModel":
+            return self
+
+        def eval(self) -> None:
+            return None
+
+    def fake_yolo(path: str) -> object:
+        calls["yolo_cwd"] = Path.cwd()
+        calls["yolo_path"] = path
+        return object()
+
+    modules = pear_adapter._PearModules(
+        torch=FakeTorch(),
+        cv2=object(),
+        transforms=SimpleNamespace(ToTensor=lambda: object()),
+        yolo_class=fake_yolo,
+        hf_hub_download=lambda **_kwargs: "weights.pt",
+        lightning=SimpleNamespace(fabric=SimpleNamespace(seed_everything=lambda _seed: None)),
+        ehm_pipeline_class=FakeModel,
+        config_dict_class=lambda **kwargs: kwargs,
+        add_extra_cfgs=lambda config: config,
+    )
+
+    def fake_load_modules(load_root: Path) -> pear_adapter._PearModules:
+        calls["load_root"] = load_root
+        return modules
+
+    monkeypatch.setattr(pear_adapter, "_load_pear_modules", fake_load_modules)
+
+    pear_adapter._load_pear_runtime(PearLiveConfig(pear_root=relative_pear_root, camera_index=0))
+
+    assert calls["load_root"] == pear_root
+    assert calls["model_cwd"] == pear_root
+    assert calls["yolo_cwd"] == pear_root
+    assert Path.cwd() == starting_cwd
+
+
 def test_pose_payload_from_outputs_converts_pear_rotations_to_contract_payload() -> None:
     cv2 = pytest.importorskip("cv2")
     identity = np.eye(3, dtype=np.float32)
