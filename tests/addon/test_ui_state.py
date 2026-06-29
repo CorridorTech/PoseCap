@@ -1,3 +1,7 @@
+import os
+from collections.abc import Callable
+
+import posecap_addon.panels
 from posecap_addon.panels import (
     SCENE_PROPERTY_NAME,
     draw_live_stream_panel,
@@ -5,6 +9,7 @@ from posecap_addon.panels import (
     unregister_blender_ui,
 )
 from posecap_addon.ui_state import LifecycleState, lifecycle_controls
+from posecap_contracts import SCHEMA_VERSION, PoseFrame
 
 
 def test_lifecycle_controls_match_stream_state_machine() -> None:
@@ -64,6 +69,117 @@ def test_blender_ui_registration_adds_scene_state_and_unregisters_cleanly() -> N
         "POSECAP_OT_StartStream",
         "POSECAP_PG_LiveStreamSettings",
     ]
+
+
+def test_start_and_stop_operators_own_stream_runtime(monkeypatch) -> None:
+    bpy = _FakeBpy()
+    register_blender_ui(bpy)
+    settings = _Settings(lifecycle_state="STOPPED")
+    settings.pear_root = "C:/PEAR"
+    settings.camera_index = 4
+    context = _FakeContext(settings)
+    engine = _FakeEngine()
+    clients: list[_FakeClient] = []
+    commands: list[tuple[str, ...]] = []
+
+    def fake_start_engine_stream(command):
+        commands.append(tuple(command))
+        return engine
+
+    def fake_client_factory(host: str, port: int, **_kwargs: object) -> "_FakeClient":
+        client = _FakeClient(host, port)
+        clients.append(client)
+        return client
+
+    monkeypatch.setattr(
+        posecap_addon.panels,
+        "start_engine_stream",
+        fake_start_engine_stream,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        posecap_addon.panels,
+        "TcpPoseStreamClient",
+        fake_client_factory,
+        raising=False,
+    )
+
+    start_cls = bpy.utils.registered_class("POSECAP_OT_StartStream")
+    stop_cls = bpy.utils.registered_class("POSECAP_OT_StopStream")
+
+    try:
+        assert start_cls().execute(context) == {"FINISHED"}
+
+        assert settings.lifecycle_state == "STARTING"
+        assert settings.status_message == "Starting"
+        assert commands == [
+            (
+                "posecap-engine",
+                "live",
+                "--pear-root",
+                "C:/PEAR",
+                "--camera-index",
+                "4",
+                "--parent-pid",
+                str(os.getpid()),
+            )
+        ]
+        assert clients[0].endpoint == ("127.0.0.1", 42321)
+        assert clients[0].started
+        assert len(bpy.app.timers.registered) == 1
+
+        clients[0].frames.append(PoseFrame(SCHEMA_VERSION, 1, 100.0, "no_person", None))
+        assert bpy.app.timers.registered[0]() == 1.0 / 60.0
+
+        assert settings.lifecycle_state == "STREAMING"
+        assert settings.status_message == "Streaming"
+
+        assert stop_cls().execute(context) == {"FINISHED"}
+
+        assert settings.lifecycle_state == "STOPPED"
+        assert settings.status_message == "Stopped"
+        assert not bpy.app.timers.registered
+        assert clients[0].closed
+        assert engine.stopped
+    finally:
+        unregister_blender_ui(bpy)
+
+
+def test_starting_stream_stops_from_timer_when_client_reports_connect_error(monkeypatch) -> None:
+    bpy = _FakeBpy()
+    register_blender_ui(bpy)
+    settings = _Settings(lifecycle_state="STOPPED")
+    settings.pear_root = "C:/PEAR"
+    context = _FakeContext(settings)
+    engine = _FakeEngine()
+    clients: list[_FakeClient] = []
+
+    monkeypatch.setattr(
+        posecap_addon.panels,
+        "start_engine_stream",
+        lambda _command: engine,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        posecap_addon.panels,
+        "TcpPoseStreamClient",
+        lambda host, port, **_kwargs: clients.append(_FakeClient(host, port)) or clients[-1],
+        raising=False,
+    )
+
+    try:
+        start_cls = bpy.utils.registered_class("POSECAP_OT_StartStream")
+        assert start_cls().execute(context) == {"FINISHED"}
+        clients[0].error = TimeoutError("timed out connecting")
+
+        assert bpy.app.timers.registered[0]() is None
+
+        assert settings.lifecycle_state == "STOPPED"
+        assert settings.status_message == "Connect failed: timed out connecting"
+        assert clients[0].closed
+        assert engine.stopped
+    finally:
+        unregister_blender_ui(bpy)
 
 
 class _Settings:
@@ -137,11 +253,22 @@ class _FakeLayout:
         return matches[0]
 
 
+class _FakeContext:
+    def __init__(self, settings: _Settings) -> None:
+        self.scene = _FakeScene(settings)
+
+
+class _FakeScene:
+    def __init__(self, settings: _Settings) -> None:
+        self.posecap = settings
+
+
 class _FakeBpy:
     def __init__(self) -> None:
         self.types = _FakeBpyTypes()
         self.props = _FakeBpyProps()
         self.utils = _FakeBpyUtils()
+        self.app = _FakeBpyApp()
 
 
 class _FakeBpyTypes:
@@ -188,3 +315,69 @@ class _FakeBpyUtils:
 
     def unregister_class(self, cls: type) -> None:
         self.unregistered.append(cls)
+
+    def registered_class(self, name: str) -> type:
+        for cls in self.registered:
+            if cls.__name__ == name:
+                return cls
+        raise AssertionError(f"missing registered class {name}")
+
+
+class _FakeBpyApp:
+    def __init__(self) -> None:
+        self.timers = _FakeTimers()
+
+
+class _FakeTimers:
+    def __init__(self) -> None:
+        self.registered: list[Callable[[], float | None]] = []
+
+    def register(
+        self,
+        function: Callable[[], float | None],
+        *,
+        first_interval: float = 0.0,
+        persistent: bool = False,
+    ) -> None:
+        self.registered.append(function)
+
+    def unregister(self, function: Callable[[], float | None]) -> None:
+        self.registered.remove(function)
+
+    def is_registered(self, function: Callable[[], float | None]) -> bool:
+        return function in self.registered
+
+
+class _FakeEndpoint:
+    host = "127.0.0.1"
+    port = 42321
+
+
+class _FakeEngine:
+    endpoint = _FakeEndpoint()
+
+    def __init__(self) -> None:
+        self.stopped = False
+
+    def stop(self, *, timeout_seconds: float = 5.0) -> None:
+        self.stopped = True
+
+
+class _FakeClient:
+    def __init__(self, host: str, port: int) -> None:
+        self.endpoint = (host, port)
+        self.frames: list[PoseFrame] = []
+        self.error: BaseException | None = None
+        self.started = False
+        self.closed = False
+
+    def start(self) -> None:
+        self.started = True
+
+    def latest(self) -> PoseFrame | None:
+        if not self.frames:
+            return None
+        return self.frames.pop(0)
+
+    def close(self, *, timeout_seconds: float = 2.0) -> None:
+        self.closed = True

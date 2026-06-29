@@ -79,6 +79,12 @@ TDD coverage now verifies the state-control matrix, panel drawing through a fake
 
 Verification passed: `uv run ruff check .`, `uv run ruff format --check .`, `uv run pyright --pythonplatform Windows`, `uv run pyright --pythonplatform Linux`, `uv run lint-imports`, `uv run pytest -q` (`113 passed, 1 deselected`), a fresh extension build, Blender 5.0 `extension validate`, and the Blender 5.0.1 background register/unregister smoke.
 
+Connected the lifecycle panel Start/Stop operators to the real addon-side live runtime. Start now builds the public engine command (`posecap-engine live --pear-root ... --camera-index ... --parent-pid ...`), starts the engine through `start_engine_stream()`, starts `TcpPoseStreamClient`, registers a stable `bpy.app.timers` callback around `PoseApplyTimer.tick()`, and transitions Starting to Streaming on the first received frame. Stop now unregisters the timer callback when still registered, closes the stream client through the timer, terminates the engine process by handle, clears Record Live MoCap, and returns the UI to Stopped. Addon unregister also stops any active session before removing Blender classes/properties.
+
+TDD coverage added two public operator tests in `tests/addon/test_ui_state.py`: the happy path verifies Start owns engine/client/timer and Stop tears them down, and the timeout path verifies a client connection error is observed by the main-thread timer, lands in Stopped with a reason, and closes both client and engine. The implementation deliberately does not mutate `Scene.posecap` from the TCP reader thread; the background client only records `error`, and the timer callback performs lifecycle transitions on Blender's main thread. No new core/contracts/engine coupling was added.
+
+Verification passed: `uv run ruff check .`, `uv run ruff format --check .`, `uv run pyright --pythonplatform Windows`, `uv run pyright --pythonplatform Linux`, `uv run lint-imports`, `uv run pytest -q` (`115 passed, 1 deselected`), a fresh extension build to `.agentic/extension-dist/posecap-0.1.0.zip`, Blender 5.0 `extension validate`, and a Blender 5.0.1 background smoke that registers `posecap_addon`, mutates `bpy.context.scene.posecap.lifecycle_state`, and unregisters twice. Not claimed in this slice: Blender preferences/installer wiring for the PEAR runtime executable, socket-drop reconnection, recording/keyframe behavior, apply-time rotating-log instrumentation, extension installation through the UI, or Blender 4.2 LTS HITL verification.
+
 ## Definition of Done
 
 All Acceptance Criteria checked, plus:
