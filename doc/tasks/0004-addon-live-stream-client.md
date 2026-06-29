@@ -22,7 +22,7 @@ Verifiable conditions. Each as a checkbox so progress is point-editable.
 - [ ] Stop Stream terminates the engine by handle; no engine process remains after 5 seconds (process-listing check).
 - [x] Socket drop shows Reconnecting; engine death lands in Stopped with reason.
 - [x] Apply-time instrumentation logged at INFO on an interval to a rotating log; nothing above DEBUG per frame.
-- [ ] Headless smoke test via `blender --background --python` exercises register/unregister and a simulated frame apply (`e2e` tag); addon disable does not raise (POC double-unregister bug regression check).
+- [x] Headless smoke test via `blender --background --python` exercises register/unregister and a simulated frame apply (`e2e` tag); addon disable does not raise (POC double-unregister bug regression check).
 
 ## Plan
 
@@ -94,6 +94,12 @@ Full verification passed for this slice: `uv run ruff check .`, `uv run ruff for
 Added addon apply-time instrumentation. `PoseApplyTimer` now accepts an `ApplyTimeInstrumentation` adapter, records only successfully applied `ok` frames, and emits aggregate INFO logs on an interval instead of logging per frame. `configure_addon_logging()` installs a bounded stdlib `RotatingFileHandler` for `posecap-addon.log`, and Start Stream configures it from `bpy.app.tempdir` before creating the timer. The extension packaging test now asserts `posecap_addon/instrumentation.py` ships in the zip.
 
 TDD coverage added public tests for interval aggregation without INFO per frame, bounded rotating-log handler setup without duplicate handlers, `PoseApplyTimer` duration recording on applied frames, Start Stream instrumentation wiring, and extension packaging of the new module. Focused verification passed: `uv run pytest tests/addon/test_apply_timer.py tests/addon/test_instrumentation.py tests/addon/test_ui_state.py tests/addon/test_build_extension.py -q` (`22 passed`). Full local pytest passed with `123 passed, 1 deselected`. Not claimed in this slice: Blender preferences/installer wiring, recording/keyframe behavior, extension installation through the UI, or Blender 4.2 LTS HITL verification.
+
+Added the headless Blender e2e smoke. `tests/e2e/test_blender_addon_smoke.py` builds the extension zip with vendored wheels, extracts it into a temporary extension root, runs Blender via `blender --background --factory-startup --python`, loads the extension root entry point, registers the addon, unregisters twice, registers again, creates a minimal armature with a `pelvis` bone, and applies a simulated `ok` pose frame through `PoseApplyTimer`/`BpyArmaturePoseWriter`. The test is marked `e2e`/`slow` so default pytest gates continue to deselect it unless explicitly requested.
+
+Focused verification passed with Blender 5.0 at `C:\Program Files\Blender Foundation\Blender 5.0\blender.exe`: `POSECAP_BLENDER=... uv run pytest tests/e2e/test_blender_addon_smoke.py -q -m e2e` (`1 passed`). Focused ruff checks for the new test passed. Not claimed in this slice: extension installation through Blender's UI, Blender 4.2 LTS HITL verification, recording/keyframe behavior, or the full 4.2/5.x manual verification matrix.
+
+Full verification for this slice passed: `uv run ruff check .`, `uv run ruff format --check .`, `uv run pyright --pythonplatform Windows`, `uv run pyright --pythonplatform Linux`, `uv run lint-imports`, `uv run pytest -q` (`123 passed, 2 deselected`), a fresh extension build to `.agentic/extension-dist/posecap-0.1.0.zip`, and Blender 5.0 `extension validate`.
 
 ## Definition of Done
 
