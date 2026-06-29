@@ -1,11 +1,14 @@
 """Blender extension entry point for PoseCap."""
 
 from .posecap_addon import (
+    BpyArmaturePoseWriter,
     EngineEndpoint,
     EngineProcess,
     EngineStartupError,
+    PoseApplyTimer,
     TcpPoseStreamClient,
     start_engine_stream,
+    tag_view3d_redraw,
 )
 from .posecap_addon import (
     register as _register,
@@ -15,12 +18,15 @@ from .posecap_addon import (
 )
 
 __all__ = [
+    "BpyArmaturePoseWriter",
     "EngineEndpoint",
     "EngineProcess",
     "EngineStartupError",
+    "PoseApplyTimer",
     "TcpPoseStreamClient",
     "register",
     "start_engine_stream",
+    "tag_view3d_redraw",
     "unregister",
 ]
 

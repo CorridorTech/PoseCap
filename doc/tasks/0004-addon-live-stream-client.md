@@ -30,7 +30,7 @@ Concrete sequential steps. Each as a checkbox. Reference file paths where applic
 
 - [ ] `addon/` extension skeleton: `blender_manifest.toml` (wheels list), registration chain, preferences.
 - [x] `addon/.../stream_client.py` — daemon thread, makefile line reader, typed decode via contracts, latest-wins slot.
-- [ ] `addon/.../apply_timer.py` — bpy.app.timers callback: pop, validate armature ref, core policy → bone writes, redraw tag.
+- [x] `addon/.../apply_timer.py` — bpy.app.timers callback: pop, validate armature ref, core policy → bone writes, redraw tag.
 - [x] `addon/.../engine_process.py` — spawn/terminate by handle (platform adapter, no shell=True).
 - [ ] `addon/.../panels.py` + state property — lifecycle UI per workflows.md state machine.
 - [x] Extension build script vendoring wheels (`tools/build_extension.py`).
@@ -61,7 +61,11 @@ Added `addon/posecap_addon/engine_process.py` as the pure-Python process launche
 
 Verification for the launcher slice passed: `uv run ruff check .`, `uv run ruff format --check .`, `uv run pyright --pythonplatform Windows`, `uv run pyright --pythonplatform Linux`, `uv run lint-imports`, `uv run pytest -q` (`101 passed, 1 deselected`), a fresh extension build, and Blender 5.0 `extension validate` on the updated zip.
 
-Not claimed in this slice: Blender preferences, Start Stream UI lifecycle wiring, extension installation through the UI on Blender 4.2 LTS and 5.x, headless register/unregister smoke, or live stream application inside Blender.
+Added `addon/posecap_addon/apply_timer.py` as the main-thread apply slice. `PoseApplyTimer.tick()` consumes the `PoseStream.latest()` surface, ignores empty and `no_person` frames without clearing the last pose, validates the target before every `ok` frame, runs `core.plan_pose_application()` with the configured limb filter/orientation fix, writes through a `PoseWriter`, tags redraw, and keeps previous quaternions for continuity. `BpyArmaturePoseWriter` is duck-typed so the module remains importable outside Blender; it writes `rotation_quaternion`, inserts `KEYFRAME_DATA_PATH` when recording is enabled, treats `ReferenceError: StructRNA ... removed` as an invalid target, and `tag_view3d_redraw()` marks only `VIEW_3D` areas.
+
+TDD coverage lives in `tests/addon/test_apply_timer.py`: it verifies `ok` frame application/reschedule, `no_person` hold-last-pose behavior, single warning plus recovery for invalid targets, Blender-style quaternion/keyframe writes, removed-armature invalidation, and redraw tagging. The extension build test now asserts `posecap_addon/apply_timer.py` lands in the zip. Verification passed: `uv run ruff check .`, `uv run ruff format --check .`, `uv run pyright --pythonplatform Windows`, `uv run pyright --pythonplatform Linux`, `uv run lint-imports`, `uv run pytest -q` (`107 passed, 1 deselected`), a fresh extension build, and Blender 5.0 `extension validate`.
+
+Not claimed in this slice: Blender preferences, Start Stream UI lifecycle wiring, extension installation through the UI on Blender 4.2 LTS and 5.x, headless register/unregister smoke, live stream application inside Blender, keyframe-count preservation checks, or apply-time rotating-log instrumentation.
 
 ## Definition of Done
 
