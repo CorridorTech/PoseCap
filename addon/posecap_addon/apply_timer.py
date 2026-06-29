@@ -15,6 +15,8 @@ from posecap_core import (
     plan_pose_application,
 )
 
+from .instrumentation import ApplyTimeInstrumentation
+
 WarningCallback = Callable[[str], None]
 
 
@@ -41,6 +43,7 @@ class PoseApplyTimer:
         apply_orientation_fix: bool = True,
         insert_keyframes: bool = False,
         on_warning: WarningCallback | None = None,
+        instrumentation: ApplyTimeInstrumentation | None = None,
     ) -> None:
         if interval_seconds <= 0:
             raise ValueError("interval_seconds must be positive")
@@ -51,6 +54,7 @@ class PoseApplyTimer:
         self._apply_orientation_fix = apply_orientation_fix
         self._insert_keyframes = insert_keyframes
         self._on_warning = on_warning
+        self._instrumentation = instrumentation
         self._previous_quaternions: dict[str, np.ndarray] = {}
         self._reported_invalid_target = False
         self._running = True
@@ -62,7 +66,14 @@ class PoseApplyTimer:
         frame = self._stream.latest()
         if frame is None:
             return self._interval_seconds
-        self._apply_frame(frame)
+        instrumentation = self._instrumentation
+        if instrumentation is None:
+            self._apply_frame(frame)
+            return self._interval_seconds
+        started_at = instrumentation.mark_start()
+        applied = self._apply_frame(frame)
+        if applied:
+            instrumentation.record_since(started_at)
         return self._interval_seconds
 
     def stop(self) -> None:
@@ -70,12 +81,12 @@ class PoseApplyTimer:
         self._running = False
         self._stream.close()
 
-    def _apply_frame(self, frame: PoseFrame) -> None:
+    def _apply_frame(self, frame: PoseFrame) -> bool:
         if frame.status == "no_person" or frame.pose is None:
-            return
+            return False
         if not self._writer.is_valid():
             self._warn_invalid_target()
-            return
+            return False
         self._reported_invalid_target = False
         plan = plan_pose_application(
             frame.pose,
@@ -88,6 +99,7 @@ class PoseApplyTimer:
         self._previous_quaternions = {
             rotation.bone_name: rotation.quaternion for rotation in plan.rotations
         }
+        return True
 
     def _warn_invalid_target(self) -> None:
         if self._reported_invalid_target:

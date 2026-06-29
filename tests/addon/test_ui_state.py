@@ -1,5 +1,6 @@
 import os
 from collections.abc import Callable
+from pathlib import Path
 
 import posecap_addon.panels
 from posecap_addon.panels import (
@@ -141,6 +142,62 @@ def test_start_and_stop_operators_own_stream_runtime(monkeypatch) -> None:
         assert not bpy.app.timers.registered
         assert clients[0].closed
         assert engine.stopped
+    finally:
+        unregister_blender_ui(bpy)
+
+
+def test_start_stream_configures_apply_time_instrumentation(monkeypatch, tmp_path) -> None:
+    bpy = _FakeBpy()
+    bpy.app.tempdir = str(tmp_path)
+    register_blender_ui(bpy)
+    settings = _Settings(lifecycle_state="STOPPED")
+    settings.pear_root = "C:/PEAR"
+    context = _FakeContext(settings)
+    engine = _FakeEngine()
+    clients: list[_FakeClient] = []
+    log_paths: list[Path] = []
+    instrumentation_loggers: list[object] = []
+    logger = object()
+
+    def fake_configure_addon_logging(log_path: Path) -> object:
+        log_paths.append(log_path)
+        return logger
+
+    def fake_instrumentation(*, logger: object) -> object:
+        instrumentation_loggers.append(logger)
+        return object()
+
+    monkeypatch.setattr(
+        posecap_addon.panels,
+        "start_engine_stream",
+        lambda _command: engine,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        posecap_addon.panels,
+        "TcpPoseStreamClient",
+        lambda host, port, **_kwargs: clients.append(_FakeClient(host, port)) or clients[-1],
+        raising=False,
+    )
+    monkeypatch.setattr(
+        posecap_addon.panels,
+        "configure_addon_logging",
+        fake_configure_addon_logging,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        posecap_addon.panels,
+        "ApplyTimeInstrumentation",
+        fake_instrumentation,
+        raising=False,
+    )
+
+    try:
+        start_cls = bpy.utils.registered_class("POSECAP_OT_StartStream")
+        assert start_cls().execute(context) == {"FINISHED"}
+
+        assert log_paths == [tmp_path / "posecap-addon.log"]
+        assert instrumentation_loggers == [logger]
     finally:
         unregister_blender_ui(bpy)
 
@@ -448,6 +505,7 @@ class _FakeBpyUtils:
 class _FakeBpyApp:
     def __init__(self) -> None:
         self.timers = _FakeTimers()
+        self.tempdir = ""
 
 
 class _FakeTimers:

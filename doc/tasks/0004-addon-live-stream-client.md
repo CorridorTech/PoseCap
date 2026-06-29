@@ -21,7 +21,7 @@ Verifiable conditions. Each as a checkbox so progress is point-editable.
 - [ ] Deleting the armature mid-stream produces a warning state and no unhandled exception; selecting a valid target resumes without restart.
 - [ ] Stop Stream terminates the engine by handle; no engine process remains after 5 seconds (process-listing check).
 - [x] Socket drop shows Reconnecting; engine death lands in Stopped with reason.
-- [ ] Apply-time instrumentation logged at INFO on an interval to a rotating log; nothing above DEBUG per frame.
+- [x] Apply-time instrumentation logged at INFO on an interval to a rotating log; nothing above DEBUG per frame.
 - [ ] Headless smoke test via `blender --background --python` exercises register/unregister and a simulated frame apply (`e2e` tag); addon disable does not raise (POC double-unregister bug regression check).
 
 ## Plan
@@ -90,6 +90,10 @@ Added the socket-drop and engine-death lifecycle slice. `TcpPoseStreamClient` no
 TDD coverage added public tests for the operator/timer lifecycle (`Streaming -> Reconnecting -> Streaming` on socket drop, no resume from a queued stale frame while still reconnecting, and `Streaming -> Stopped` on engine death) plus a real localhost reconnect test for `TcpPoseStreamClient` across two server-side TCP connections. Focused verification passed: `uv run pytest tests/addon/test_ui_state.py tests/addon/test_stream_client.py tests/addon/test_apply_timer.py -q` (`18 passed`). Not claimed in this slice: apply-time rotating-log instrumentation, Blender preferences/installer wiring, recording/keyframe behavior, extension installation through the UI, or Blender 4.2 LTS HITL verification.
 
 Full verification passed for this slice: `uv run ruff check .`, `uv run ruff format --check .`, `uv run pyright --pythonplatform Windows`, `uv run pyright --pythonplatform Linux`, `uv run lint-imports`, `uv run pytest -q` (`119 passed, 1 deselected`), a fresh extension build to `.agentic/extension-dist/posecap-0.1.0.zip`, Blender 5.0 `extension validate`, and a Blender 5.0.1 background register/unregister smoke against the staged extension.
+
+Added addon apply-time instrumentation. `PoseApplyTimer` now accepts an `ApplyTimeInstrumentation` adapter, records only successfully applied `ok` frames, and emits aggregate INFO logs on an interval instead of logging per frame. `configure_addon_logging()` installs a bounded stdlib `RotatingFileHandler` for `posecap-addon.log`, and Start Stream configures it from `bpy.app.tempdir` before creating the timer. The extension packaging test now asserts `posecap_addon/instrumentation.py` ships in the zip.
+
+TDD coverage added public tests for interval aggregation without INFO per frame, bounded rotating-log handler setup without duplicate handlers, `PoseApplyTimer` duration recording on applied frames, Start Stream instrumentation wiring, and extension packaging of the new module. Focused verification passed: `uv run pytest tests/addon/test_apply_timer.py tests/addon/test_instrumentation.py tests/addon/test_ui_state.py tests/addon/test_build_extension.py -q` (`22 passed`). Full local pytest passed with `123 passed, 1 deselected`. Not claimed in this slice: Blender preferences/installer wiring, recording/keyframe behavior, extension installation through the UI, or Blender 4.2 LTS HITL verification.
 
 ## Definition of Done
 

@@ -2,12 +2,15 @@
 
 import importlib
 import os
+import tempfile
 from collections.abc import Callable
 from contextlib import suppress
+from pathlib import Path
 from typing import Any, Protocol
 
 from .apply_timer import BpyArmaturePoseWriter, PoseApplyTimer, tag_view3d_redraw
 from .engine_process import start_engine_stream
+from .instrumentation import ApplyTimeInstrumentation, configure_addon_logging
 from .stream_client import TcpPoseStreamClient
 from .ui_state import LIFECYCLE_STATE_ITEMS, LifecycleState, lifecycle_controls
 
@@ -213,12 +216,14 @@ def _start_live_stream(context: Any, bpy_module: Any) -> set[str]:
             settings.target_armature,
             redraw=lambda: tag_view3d_redraw(context),
         )
+        logger = configure_addon_logging(_addon_log_path(bpy_module))
         timer = PoseApplyTimer(
             lifecycle_stream,
             writer,
             apply_orientation_fix=bool(settings.apply_orientation_fix),
             insert_keyframes=bool(settings.record_live_mocap),
             on_warning=lambda message: _handle_apply_warning(settings, message),
+            instrumentation=ApplyTimeInstrumentation(logger=logger),
         )
         session = _LiveStreamSession(bpy_module, settings, engine, client, timer)
         bpy_module.app.timers.register(session.timer_callback, first_interval=0.0)
@@ -268,6 +273,12 @@ def _engine_command(settings: _LiveStreamSettings) -> tuple[str, ...]:
 def _handle_apply_warning(settings: _LiveStreamSettings, message: str) -> None:
     settings.lifecycle_state = "WARNING"
     settings.status_message = message
+
+
+def _addon_log_path(bpy_module: Any) -> Path:
+    tempdir = str(getattr(bpy_module.app, "tempdir", "")).strip()
+    root = Path(tempdir) if tempdir != "" else Path(tempfile.gettempdir())
+    return root / "posecap-addon.log"
 
 
 class _LifecyclePoseStream:

@@ -1,5 +1,7 @@
 import numpy as np
+import pytest
 from posecap_addon.apply_timer import BpyArmaturePoseWriter, PoseApplyTimer, tag_view3d_redraw
+from posecap_addon.instrumentation import ApplyTimeInstrumentation
 from posecap_contracts import (
     NUM_BETAS,
     NUM_BODY_JOINTS,
@@ -41,6 +43,35 @@ def test_pose_apply_timer_holds_last_pose_on_no_person_frame() -> None:
 
     assert writer.applied == []
     assert writer.redraws == 0
+
+
+def test_pose_apply_timer_records_apply_time_for_applied_frame() -> None:
+    stream = _FakeStream(
+        [
+            PoseFrame(SCHEMA_VERSION, 1, 100.0, "ok", _payload()),
+        ]
+    )
+    writer = _FakeWriter()
+    logger = _FakeLogger()
+    instrumentation = ApplyTimeInstrumentation(
+        logger=logger,
+        clock=_ManualClock([0.0, 10.0, 10.025]),
+        interval_seconds=0.01,
+    )
+    timer = PoseApplyTimer(
+        stream,
+        writer,
+        interval_seconds=0.25,
+        instrumentation=instrumentation,
+    )
+
+    assert timer.tick() == 0.25
+
+    message, args = logger.infos[0]
+    assert message == "pose_apply_time frames=%d avg_ms=%.3f max_ms=%.3f"
+    assert args[0] == 1
+    assert args[1] == pytest.approx(25.0)
+    assert args[2] == pytest.approx(25.0)
 
 
 def test_pose_apply_timer_warns_once_for_invalid_target_then_resumes() -> None:
@@ -130,6 +161,24 @@ class _FakeWriter:
 
     def tag_redraw(self) -> None:
         self.redraws += 1
+
+
+class _FakeLogger:
+    def __init__(self) -> None:
+        self.infos: list[tuple[str, tuple[object, ...]]] = []
+
+    def info(self, message: str, *args: object) -> None:
+        self.infos.append((message, args))
+
+
+class _ManualClock:
+    def __init__(self, values: list[float]) -> None:
+        self._values = values
+
+    def __call__(self) -> float:
+        if not self._values:
+            raise AssertionError("clock exhausted")
+        return self._values.pop(0)
 
 
 class _FakeArmature:
