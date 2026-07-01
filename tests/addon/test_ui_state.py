@@ -1,6 +1,8 @@
 import os
+import socket
 import subprocess
 import sys
+import time
 from collections.abc import Callable
 from pathlib import Path
 
@@ -12,6 +14,7 @@ from posecap_addon.panels import (
     register_blender_ui,
     unregister_blender_ui,
 )
+from posecap_addon.stream_client import TcpPoseStreamClient
 from posecap_addon.ui_state import LifecycleState, lifecycle_controls
 from posecap_contracts import (
     NUM_BETAS,
@@ -247,6 +250,75 @@ def test_starting_stream_stops_from_timer_when_client_reports_connect_error(monk
         assert clients[0].closed
         assert engine.stopped
     finally:
+        unregister_blender_ui(bpy)
+
+
+def test_start_stream_real_client_timeout_stops_engine_process(monkeypatch) -> None:
+    bpy = _FakeBpy()
+    register_blender_ui(bpy)
+    settings = _Settings(lifecycle_state="STOPPED")
+    settings.pear_root = "C:/PEAR"
+    context = _FakeContext(settings)
+    unused_port = _unused_localhost_port()
+    script = (
+        "import json, time; "
+        "print(json.dumps("
+        f"{{'event': 'listening', 'host': '127.0.0.1', 'port': {unused_port}}}"
+        "), flush=True); "
+        "time.sleep(30)"
+    )
+    command = (sys.executable, "-c", script)
+    engines: list[EngineProcess] = []
+    clients: list[TcpPoseStreamClient] = []
+    start_engine_stream = posecap_addon.panels.start_engine_stream
+
+    def capture_engine(_command: tuple[str, ...]) -> EngineProcess:
+        engine = start_engine_stream(command, startup_timeout_seconds=2.0)
+        engines.append(engine)
+        return engine
+
+    def real_timeout_client(host: str, port: int, **_kwargs: object) -> TcpPoseStreamClient:
+        client = TcpPoseStreamClient(
+            host,
+            port,
+            connect_timeout_seconds=0.15,
+            retry_interval_seconds=0.01,
+        )
+        clients.append(client)
+        return client
+
+    monkeypatch.setattr(
+        posecap_addon.panels,
+        "start_engine_stream",
+        capture_engine,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        posecap_addon.panels,
+        "TcpPoseStreamClient",
+        real_timeout_client,
+        raising=False,
+    )
+
+    try:
+        start_cls = bpy.utils.registered_class("POSECAP_OT_StartStream")
+        assert start_cls().execute(context) == {"FINISHED"}
+
+        assert settings.lifecycle_state == "STARTING"
+        assert len(engines) == 1
+        assert engines[0].running
+        assert len(clients) == 1
+        assert clients[0].connection_state in {"CONNECTING", "STOPPED"}
+
+        assert _run_timer_until_stopped(bpy)
+
+        assert settings.lifecycle_state == "STOPPED"
+        assert settings.status_message.startswith("Connect failed: timed out connecting")
+        assert clients[0].connection_state == "STOPPED"
+        assert not engines[0].running
+    finally:
+        for engine in engines:
+            engine.stop(timeout_seconds=1.0)
         unregister_blender_ui(bpy)
 
 
@@ -756,3 +828,26 @@ def _pid_is_listed(pid: int) -> bool:
         timeout=5.0,
     )
     return completed.returncode == 0 and completed.stdout.strip() == str(pid)
+
+
+def _unused_localhost_port() -> int:
+    probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        probe.bind(("127.0.0.1", 0))
+        address = probe.getsockname()
+        if not isinstance(address, tuple) or len(address) < 2:
+            raise AssertionError(f"unexpected probe address: {address!r}")
+        return int(address[1])
+    finally:
+        probe.close()
+
+
+def _run_timer_until_stopped(bpy: _FakeBpy) -> bool:
+    deadline = time.monotonic() + 2.0
+    while time.monotonic() < deadline:
+        if not bpy.app.timers.registered:
+            return True
+        if bpy.app.timers.registered[0]() is None:
+            return True
+        time.sleep(0.02)
+    return False

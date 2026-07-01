@@ -16,7 +16,7 @@ The Blender-side half of the live slice. Threading model is the grounded happy p
 Verifiable conditions. Each as a checkbox so progress is point-editable.
 
 - [ ] Extension zip builds with vendored pure-Python wheels; installs via Blender's extension system on 4.2 LTS and a 5.x build.
-- [ ] Start Stream spawns the engine by process handle, connects with bounded retry, and the UI passes Starting → Streaming; connect timeout lands in Stopped with a reported reason.
+- [x] Start Stream spawns the engine by process handle, connects with bounded retry, and the UI passes Starting → Streaming; connect timeout lands in Stopped with a reported reason.
 - [ ] Poses apply at the stream rate with stale frames dropped (latest-wins); per-limb filters and orientation fix work; existing keyframes untouched (automated count before/after).
 - [x] Deleting the armature mid-stream produces a warning state and no unhandled exception; selecting a valid target resumes without restart.
 - [x] Stop Stream terminates the engine by handle; no engine process remains after 5 seconds (process-listing check).
@@ -112,6 +112,14 @@ Added the Stop Stream process-listing acceptance check. `tests/addon/test_ui_sta
 Focused verification passed: `uv run pytest tests/addon/test_ui_state.py::test_stop_stream_terminates_engine_process_and_removes_pid -q` (`1 passed`) and `uv run pytest tests/addon/test_ui_state.py tests/addon/test_engine_process.py -q` (`13 passed`). Not claimed in this slice: extension installation through Blender's UI, Blender 4.2 LTS HITL verification, recording/keyframe behavior, or the full 4.2/5.x manual verification matrix.
 
 Full verification for this slice passed: `uv run ruff check .`, `uv run ruff format --check .`, `uv run pyright --pythonplatform Windows`, `uv run pyright --pythonplatform Linux`, `uv run lint-imports`, `uv run pytest -q` (`125 passed, 2 deselected`), `POSECAP_BLENDER=... uv run pytest tests/e2e/test_blender_addon_smoke.py -q -m e2e` (`1 passed`), a fresh extension build to `.agentic/extension-dist/posecap-0.1.0.zip`, and Blender 5.0 `extension validate`.
+
+### 2026-07-01
+
+Added a public Start Stream timeout acceptance regression. `tests/addon/test_ui_state.py::test_start_stream_real_client_timeout_stops_engine_process` drives the registered Start Stream operator with a real `start_engine_stream()` child process that announces an unused localhost endpoint, a real `TcpPoseStreamClient` configured with a short bounded retry window, and the public timer callback. The existing runtime already moved Starting to Stopped with a reported connect-timeout reason and terminated the engine process by handle, so this slice required no addon runtime change.
+
+Focused verification passed: `uv run pytest tests/addon/test_ui_state.py::test_start_stream_real_client_timeout_stops_engine_process -q` (`1 passed`) and `uv run pytest tests/addon/test_ui_state.py tests/addon/test_stream_client.py tests/addon/test_engine_process.py -q` (`18 passed`). The previous public operator happy-path test continues to cover Starting to Streaming after the first frame.
+
+Full verification for this slice passed: `uv run ruff check .`, `uv run ruff format --check .`, `uv run pyright --pythonplatform Windows`, `uv run pyright --pythonplatform Linux`, `uv run lint-imports`, `uv run pytest -q` (`126 passed, 2 deselected`), `POSECAP_BLENDER=... uv run pytest tests/e2e/test_blender_addon_smoke.py -q -m e2e` (`1 passed`), a fresh extension build to `.agentic/extension-dist/posecap-0.1.0.zip`, and Blender 5.0 `extension validate`.
 
 ## Definition of Done
 
