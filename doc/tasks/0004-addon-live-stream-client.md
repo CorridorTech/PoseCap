@@ -28,7 +28,7 @@ Verifiable conditions. Each as a checkbox so progress is point-editable.
 
 Concrete sequential steps. Each as a checkbox. Reference file paths where applicable.
 
-- [ ] `addon/` extension skeleton: `blender_manifest.toml` (wheels list), registration chain, preferences.
+- [x] `addon/` extension skeleton: `blender_manifest.toml` (wheels list), registration chain, preferences.
 - [x] `addon/.../stream_client.py` — daemon thread, makefile line reader, typed decode via contracts, latest-wins slot.
 - [x] `addon/.../apply_timer.py` — bpy.app.timers callback: pop, validate armature ref, core policy → bone writes, redraw tag.
 - [x] `addon/.../engine_process.py` — spawn/terminate by handle (platform adapter, no shell=True).
@@ -126,6 +126,12 @@ Added a keyframe-preservation acceptance regression for live pose application. `
 Focused verification passed: `uv run pytest tests/addon/test_apply_timer.py::test_bpy_armature_pose_writer_preserves_existing_keyframes_when_not_recording -q` (`1 passed`) and `uv run pytest tests/addon/test_apply_timer.py tests/addon/test_stream_client.py tests/core/test_application.py tests/core/test_filters.py -q` (`27 passed`).
 
 Full verification for this slice passed: `uv run ruff check .`, `uv run ruff format --check .`, `uv run pyright --pythonplatform Windows`, `uv run pyright --pythonplatform Linux`, `uv run lint-imports`, `uv run pytest -q` (`127 passed, 2 deselected`), `POSECAP_BLENDER=... uv run pytest tests/e2e/test_blender_addon_smoke.py -q -m e2e` (`1 passed`), a fresh extension build to `.agentic/extension-dist/posecap-0.1.0.zip`, and Blender 5.0 `extension validate`.
+
+Added the addon preferences skeleton. `POSECAP_AP_AddonPreferences` registers under the active add-on package id, draws persistent defaults for the external PEAR checkout and engine executable, and Start Stream now falls back to those preferences when the scene-level PEAR Root field is empty. Scene settings remain the per-file override; preferences provide the install-level default without adding installer behavior to task 0004.
+
+Focused verification passed: `uv run pytest tests/addon/test_ui_state.py -q` (`14 passed`) and `uv run pytest tests/addon/test_ui_state.py tests/addon/test_registration.py tests/addon/test_build_extension.py -q` (`19 passed`).
+
+Full verification for this slice passed: `uv run ruff check .`, `uv run ruff format --check .`, `uv run pyright --pythonplatform Windows`, `uv run pyright --pythonplatform Linux`, `uv run lint-imports`, `uv run pytest -q` (`129 passed, 2 deselected`), `POSECAP_BLENDER=... uv run pytest tests/e2e/test_blender_addon_smoke.py -q -m e2e` (`1 passed`), a fresh extension build to `.agentic/extension-dist/posecap-0.1.0.zip`, and Blender 5.0 `extension validate`.
 
 ## Definition of Done
 

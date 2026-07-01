@@ -15,6 +15,12 @@ from .stream_client import TcpPoseStreamClient
 from .ui_state import LIFECYCLE_STATE_ITEMS, LifecycleState, lifecycle_controls
 
 SCENE_PROPERTY_NAME = "posecap"
+_MANIFEST_ADDON_ID = "posecap"
+ADDON_ID = (
+    __package__.removesuffix(".posecap_addon")
+    if __package__ and __package__ != "posecap_addon"
+    else _MANIFEST_ADDON_ID
+)
 
 _REGISTERED_CLASSES: tuple[type[Any], ...] = ()
 _ACTIVE_SESSION: "_LiveStreamSession | None" = None
@@ -29,6 +35,11 @@ class _LiveStreamSettings(Protocol):
     pear_root: str
     apply_orientation_fix: bool
     record_live_mocap: bool
+
+
+class _AddonPreferences(Protocol):
+    pear_root: str
+    engine_executable: str
 
 
 def draw_live_stream_panel(layout: Any, settings: _LiveStreamSettings) -> None:
@@ -59,6 +70,12 @@ def draw_live_stream_panel(layout: Any, settings: _LiveStreamSettings) -> None:
     record = layout.row()
     record.enabled = controls.can_record
     record.prop(settings, "record_live_mocap", toggle=True)
+
+
+def draw_addon_preferences(layout: Any, preferences: _AddonPreferences) -> None:
+    """Draw persistent addon defaults."""
+    layout.prop(preferences, "pear_root")
+    layout.prop(preferences, "engine_executable")
 
 
 def register() -> None:
@@ -147,6 +164,30 @@ def _build_blender_classes(bpy_module: Any) -> tuple[type[Any], ...]:
         ),
     }
 
+    class POSECAP_AP_AddonPreferences(bpy_module.types.AddonPreferences):
+        __slots__ = ()
+
+        bl_idname = ADDON_ID
+        bl_label = "PoseCap"
+
+        def draw(self, _context: Any) -> None:
+            draw_addon_preferences(self.layout, self)
+
+    POSECAP_AP_AddonPreferences.__annotations__ = {
+        "pear_root": bpy_module.props.StringProperty(
+            name="Default PEAR Root",
+            description="Default external PEAR checkout path for new live streams",
+            default="",
+            subtype="DIR_PATH",
+        ),
+        "engine_executable": bpy_module.props.StringProperty(
+            name="Engine Executable",
+            description="Command or absolute path used to launch the PoseCap engine",
+            default="posecap-engine",
+            subtype="FILE_PATH",
+        ),
+    }
+
     class POSECAP_OT_StartStream(bpy_module.types.Operator):
         bl_idname = "posecap.start_stream"
         bl_label = "Start Stream"
@@ -183,6 +224,7 @@ def _build_blender_classes(bpy_module: Any) -> tuple[type[Any], ...]:
 
     return (
         POSECAP_PG_LiveStreamSettings,
+        POSECAP_AP_AddonPreferences,
         POSECAP_OT_StartStream,
         POSECAP_OT_StopStream,
         POSECAP_PT_LiveStream,
@@ -205,7 +247,8 @@ def _start_live_stream(context: Any, bpy_module: Any) -> set[str]:
     settings.status_message = "Starting"
     engine = None
     try:
-        engine = start_engine_stream(_engine_command(settings))
+        preferences = _addon_preferences(context)
+        engine = start_engine_stream(_engine_command(settings, preferences))
         client = TcpPoseStreamClient(
             engine.endpoint.host,
             engine.endpoint.port,
@@ -255,12 +298,19 @@ def _stop_active_session(bpy_module: Any) -> None:
         session.stop(unregister_timer=True, bpy_module=bpy_module)
 
 
-def _engine_command(settings: _LiveStreamSettings) -> tuple[str, ...]:
-    pear_root = str(settings.pear_root).strip()
+def _engine_command(
+    settings: _LiveStreamSettings,
+    preferences: _AddonPreferences | None = None,
+) -> tuple[str, ...]:
+    pear_root = _first_nonempty(settings.pear_root, getattr(preferences, "pear_root", ""))
     if pear_root == "":
         raise ValueError("PEAR Root is required")
-    return (
+    engine_executable = _first_nonempty(
+        getattr(preferences, "engine_executable", ""),
         "posecap-engine",
+    )
+    return (
+        engine_executable,
         "live",
         "--pear-root",
         pear_root,
@@ -269,6 +319,25 @@ def _engine_command(settings: _LiveStreamSettings) -> tuple[str, ...]:
         "--parent-pid",
         str(os.getpid()),
     )
+
+
+def _first_nonempty(*values: object) -> str:
+    for value in values:
+        text = str(value).strip()
+        if text != "":
+            return text
+    return ""
+
+
+def _addon_preferences(context: Any) -> _AddonPreferences | None:
+    preferences = getattr(context, "preferences", None)
+    addons = getattr(preferences, "addons", None)
+    if addons is None:
+        return None
+    addon = addons.get(ADDON_ID) if hasattr(addons, "get") else None
+    if addon is None:
+        return None
+    return getattr(addon, "preferences", None)
 
 
 def _handle_apply_warning(settings: _LiveStreamSettings, message: str) -> None:

@@ -9,7 +9,9 @@ from pathlib import Path
 import posecap_addon.panels
 from posecap_addon.engine_process import EngineEndpoint, EngineProcess
 from posecap_addon.panels import (
+    ADDON_ID,
     SCENE_PROPERTY_NAME,
+    draw_addon_preferences,
     draw_live_stream_panel,
     register_blender_ui,
     unregister_blender_ui,
@@ -61,6 +63,19 @@ def test_live_stream_panel_draws_state_controls_from_lifecycle() -> None:
     assert layout.has_label("Stopped")
 
 
+def test_addon_preferences_draw_runtime_defaults() -> None:
+    layout = _FakeLayout()
+    preferences = _FakeAddonPreferences(
+        pear_root="C:/PEAR",
+        engine_executable="C:/PoseCap/posecap-engine.exe",
+    )
+
+    draw_addon_preferences(layout, preferences)
+
+    assert layout.has_property("pear_root")
+    assert layout.has_property("engine_executable")
+
+
 def test_blender_ui_registration_adds_scene_state_and_unregisters_cleanly() -> None:
     bpy = _FakeBpy()
 
@@ -68,10 +83,13 @@ def test_blender_ui_registration_adds_scene_state_and_unregisters_cleanly() -> N
 
     assert [cls.__name__ for cls in bpy.utils.registered] == [
         "POSECAP_PG_LiveStreamSettings",
+        "POSECAP_AP_AddonPreferences",
         "POSECAP_OT_StartStream",
         "POSECAP_OT_StopStream",
         "POSECAP_PT_LiveStream",
     ]
+    preferences_cls = bpy.utils.registered_class("POSECAP_AP_AddonPreferences")
+    assert preferences_cls.bl_idname == ADDON_ID
     assert getattr(bpy.types.Scene, SCENE_PROPERTY_NAME)[0] == "PointerProperty"
 
     unregister_blender_ui(bpy)
@@ -82,6 +100,7 @@ def test_blender_ui_registration_adds_scene_state_and_unregisters_cleanly() -> N
         "POSECAP_PT_LiveStream",
         "POSECAP_OT_StopStream",
         "POSECAP_OT_StartStream",
+        "POSECAP_AP_AddonPreferences",
         "POSECAP_PG_LiveStreamSettings",
     ]
 
@@ -156,6 +175,60 @@ def test_start_and_stop_operators_own_stream_runtime(monkeypatch) -> None:
         assert not bpy.app.timers.registered
         assert clients[0].closed
         assert engine.stopped
+    finally:
+        unregister_blender_ui(bpy)
+
+
+def test_start_stream_uses_addon_preferences_when_scene_runtime_fields_are_empty(
+    monkeypatch,
+) -> None:
+    bpy = _FakeBpy()
+    register_blender_ui(bpy)
+    settings = _Settings(lifecycle_state="STOPPED")
+    settings.camera_index = 4
+    preferences = _FakeAddonPreferences(
+        pear_root="C:/PEAR",
+        engine_executable="C:/PoseCap/posecap-engine.exe",
+    )
+    context = _FakeContext(settings, addon_preferences=preferences)
+    engine = _FakeEngine()
+    clients: list[_FakeClient] = []
+    commands: list[tuple[str, ...]] = []
+
+    def fake_start_engine_stream(command):
+        commands.append(tuple(command))
+        return engine
+
+    monkeypatch.setattr(
+        posecap_addon.panels,
+        "start_engine_stream",
+        fake_start_engine_stream,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        posecap_addon.panels,
+        "TcpPoseStreamClient",
+        lambda host, port, **_kwargs: clients.append(_FakeClient(host, port)) or clients[-1],
+        raising=False,
+    )
+
+    try:
+        start_cls = bpy.utils.registered_class("POSECAP_OT_StartStream")
+        assert start_cls().execute(context) == {"FINISHED"}
+
+        assert commands == [
+            (
+                "C:/PoseCap/posecap-engine.exe",
+                "live",
+                "--pear-root",
+                "C:/PEAR",
+                "--camera-index",
+                "4",
+                "--parent-pid",
+                str(os.getpid()),
+            )
+        ]
+        assert clients[0].started
     finally:
         unregister_blender_ui(bpy)
 
@@ -618,9 +691,15 @@ class _FakeLayout:
 
 
 class _FakeContext:
-    def __init__(self, settings: _Settings) -> None:
+    def __init__(
+        self,
+        settings: _Settings,
+        *,
+        addon_preferences: "_FakeAddonPreferences | None" = None,
+    ) -> None:
         self.scene = _FakeScene(settings)
         self.window_manager = _FakeWindowManager()
+        self.preferences = _FakePreferences(addon_preferences)
 
 
 class _FakeScene:
@@ -641,6 +720,9 @@ class _FakeBpy:
 
 
 class _FakeBpyTypes:
+    class AddonPreferences:
+        pass
+
     class PropertyGroup:
         pass
 
@@ -754,6 +836,24 @@ class _FakeClient:
 
     def close(self, *, timeout_seconds: float = 2.0) -> None:
         self.closed = True
+
+
+class _FakeAddonPreferences:
+    def __init__(self, *, pear_root: str, engine_executable: str) -> None:
+        self.pear_root = pear_root
+        self.engine_executable = engine_executable
+
+
+class _FakePreferences:
+    def __init__(self, addon_preferences: _FakeAddonPreferences | None) -> None:
+        self.addons = {}
+        if addon_preferences is not None:
+            self.addons[ADDON_ID] = _FakeAddon(addon_preferences)
+
+
+class _FakeAddon:
+    def __init__(self, preferences: _FakeAddonPreferences) -> None:
+        self.preferences = preferences
 
 
 class _RemovedArmature:
