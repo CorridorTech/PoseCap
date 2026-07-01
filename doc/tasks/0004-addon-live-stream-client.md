@@ -133,6 +133,8 @@ Focused verification passed: `uv run pytest tests/addon/test_ui_state.py -q` (`1
 
 Full verification for this slice passed: `uv run ruff check .`, `uv run ruff format --check .`, `uv run pyright --pythonplatform Windows`, `uv run pyright --pythonplatform Linux`, `uv run lint-imports`, `uv run pytest -q` (`129 passed, 2 deselected`), `POSECAP_BLENDER=... uv run pytest tests/e2e/test_blender_addon_smoke.py -q -m e2e` (`1 passed`), a fresh extension build to `.agentic/extension-dist/posecap-0.1.0.zip`, and Blender 5.0 `extension validate`.
 
+Recorded partial extension install evidence for the manual verification matrix. This workstation currently has Blender 5.0.1 only (`C:\Program Files\Blender Foundation\Blender 5.0\blender.exe`); no Blender 4.2 LTS install was found under `C:\Program Files\Blender Foundation`, so the 4.2 half of the install acceptance remains HITL/open. With `BLENDER_USER_RESOURCES` isolated to `.agentic\blender-user-resources-5.0`, Blender 5.0.1 listed `user_default` under that temporary directory, `blender --command extension install-file --repo user_default --enable .agentic\extension-dist\posecap-0.1.0.zip` exited 0, `blender --command extension list` reported `posecap [installed]`, and a background preferences check printed `bl_ext.user_default.posecap` in `bpy.context.preferences.addons`.
+
 ## Definition of Done
 
 All Acceptance Criteria checked, plus:
