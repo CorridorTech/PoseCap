@@ -19,7 +19,7 @@ Verifiable conditions. Each as a checkbox so progress is point-editable.
 - [ ] Start Stream spawns the engine by process handle, connects with bounded retry, and the UI passes Starting → Streaming; connect timeout lands in Stopped with a reported reason.
 - [ ] Poses apply at the stream rate with stale frames dropped (latest-wins); per-limb filters and orientation fix work; existing keyframes untouched (automated count before/after).
 - [x] Deleting the armature mid-stream produces a warning state and no unhandled exception; selecting a valid target resumes without restart.
-- [ ] Stop Stream terminates the engine by handle; no engine process remains after 5 seconds (process-listing check).
+- [x] Stop Stream terminates the engine by handle; no engine process remains after 5 seconds (process-listing check).
 - [x] Socket drop shows Reconnecting; engine death lands in Stopped with reason.
 - [x] Apply-time instrumentation logged at INFO on an interval to a rotating log; nothing above DEBUG per frame.
 - [x] Headless smoke test via `blender --background --python` exercises register/unregister and a simulated frame apply (`e2e` tag); addon disable does not raise (POC double-unregister bug regression check).
@@ -106,6 +106,12 @@ Added armature-warning recovery for the live panel runtime. The stream session n
 TDD coverage added `test_streaming_invalid_armature_warns_and_reselected_target_resumes`, which starts the panel runtime with a removed armature, observes the Warning state, swaps in a fake valid `pelvis` armature, and verifies the next frame applies and restores Streaming. Focused verification passed: `uv run pytest tests/addon/test_ui_state.py tests/addon/test_apply_timer.py -q` (`17 passed`). Not claimed in this slice: recording/keyframe behavior, extension installation through Blender's UI, Blender 4.2 LTS HITL verification, or the full 4.2/5.x manual verification matrix.
 
 Full verification for this slice passed: `uv run ruff check .`, `uv run ruff format --check .`, `uv run pyright --pythonplatform Windows`, `uv run pyright --pythonplatform Linux`, `uv run lint-imports`, `uv run pytest -q` (`124 passed, 2 deselected`), `POSECAP_BLENDER=... uv run pytest tests/e2e/test_blender_addon_smoke.py -q -m e2e` (`1 passed`), a fresh extension build to `.agentic/extension-dist/posecap-0.1.0.zip`, and Blender 5.0 `extension validate`.
+
+Added the Stop Stream process-listing acceptance check. `tests/addon/test_ui_state.py::test_stop_stream_terminates_engine_process_and_removes_pid` starts the panel runtime with a real long-lived Python child wrapped in `EngineProcess`, invokes the public Stop Stream operator, and verifies both the process handle and OS process listing (`tasklist` on Windows, `ps` elsewhere) no longer show the PID within the existing 5-second stop path. The runtime already used `EngineProcess.stop()` correctly, so no addon implementation change was needed in this slice.
+
+Focused verification passed: `uv run pytest tests/addon/test_ui_state.py::test_stop_stream_terminates_engine_process_and_removes_pid -q` (`1 passed`) and `uv run pytest tests/addon/test_ui_state.py tests/addon/test_engine_process.py -q` (`13 passed`). Not claimed in this slice: extension installation through Blender's UI, Blender 4.2 LTS HITL verification, recording/keyframe behavior, or the full 4.2/5.x manual verification matrix.
+
+Full verification for this slice passed: `uv run ruff check .`, `uv run ruff format --check .`, `uv run pyright --pythonplatform Windows`, `uv run pyright --pythonplatform Linux`, `uv run lint-imports`, `uv run pytest -q` (`125 passed, 2 deselected`), `POSECAP_BLENDER=... uv run pytest tests/e2e/test_blender_addon_smoke.py -q -m e2e` (`1 passed`), a fresh extension build to `.agentic/extension-dist/posecap-0.1.0.zip`, and Blender 5.0 `extension validate`.
 
 ## Definition of Done
 

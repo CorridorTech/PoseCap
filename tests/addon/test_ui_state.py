@@ -1,8 +1,11 @@
 import os
+import subprocess
+import sys
 from collections.abc import Callable
 from pathlib import Path
 
 import posecap_addon.panels
+from posecap_addon.engine_process import EngineEndpoint, EngineProcess
 from posecap_addon.panels import (
     SCENE_PROPERTY_NAME,
     draw_live_stream_panel,
@@ -415,6 +418,61 @@ def test_streaming_invalid_armature_warns_and_reselected_target_resumes(monkeypa
         unregister_blender_ui(bpy)
 
 
+def test_stop_stream_terminates_engine_process_and_removes_pid(monkeypatch) -> None:
+    bpy = _FakeBpy()
+    register_blender_ui(bpy)
+    settings = _Settings(lifecycle_state="STOPPED")
+    settings.pear_root = "C:/PEAR"
+    context = _FakeContext(settings)
+    process = subprocess.Popen(
+        [sys.executable, "-c", "import time; time.sleep(30)"],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        text=True,
+        shell=False,
+    )
+    engine = EngineProcess(
+        process=process,
+        endpoint=EngineEndpoint(host="127.0.0.1", port=42321),
+        command=(sys.executable, "-c", "import time; time.sleep(30)"),
+    )
+    clients: list[_FakeClient] = []
+
+    monkeypatch.setattr(
+        posecap_addon.panels,
+        "start_engine_stream",
+        lambda _command: engine,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        posecap_addon.panels,
+        "TcpPoseStreamClient",
+        lambda host, port, **_kwargs: clients.append(_FakeClient(host, port)) or clients[-1],
+        raising=False,
+    )
+
+    try:
+        start_cls = bpy.utils.registered_class("POSECAP_OT_StartStream")
+        stop_cls = bpy.utils.registered_class("POSECAP_OT_StopStream")
+        assert start_cls().execute(context) == {"FINISHED"}
+        pid = engine.pid
+        assert _pid_is_listed(pid)
+
+        assert stop_cls().execute(context) == {"FINISHED"}
+
+        assert settings.lifecycle_state == "STOPPED"
+        assert settings.status_message == "Stopped"
+        assert process.poll() is not None
+        assert not _pid_is_listed(pid)
+        assert clients[0].closed
+    finally:
+        if process.poll() is None:
+            process.kill()
+            process.wait(timeout=5.0)
+        unregister_blender_ui(bpy)
+
+
 class _Settings:
     lifecycle_state: LifecycleState
     status_message: str
@@ -678,3 +736,23 @@ def _payload() -> PosePayload:
         expression=[0.0 for _ in range(NUM_EXPRESSION)],
         transl=[0.0, 0.0, 0.0],
     )
+
+
+def _pid_is_listed(pid: int) -> bool:
+    if os.name == "nt":
+        completed = subprocess.run(
+            ["tasklist", "/FI", f"PID eq {pid}", "/FO", "CSV", "/NH"],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=5.0,
+        )
+        return completed.returncode == 0 and str(pid) in completed.stdout
+    completed = subprocess.run(
+        ["ps", "-p", str(pid), "-o", "pid="],
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=5.0,
+    )
+    return completed.returncode == 0 and completed.stdout.strip() == str(pid)
