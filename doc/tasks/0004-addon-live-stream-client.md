@@ -17,7 +17,7 @@ Verifiable conditions. Each as a checkbox so progress is point-editable.
 
 - [ ] Extension zip builds with vendored pure-Python wheels; installs via Blender's extension system on 4.2 LTS and a 5.x build.
 - [x] Start Stream spawns the engine by process handle, connects with bounded retry, and the UI passes Starting → Streaming; connect timeout lands in Stopped with a reported reason.
-- [ ] Poses apply at the stream rate with stale frames dropped (latest-wins); per-limb filters and orientation fix work; existing keyframes untouched (automated count before/after).
+- [x] Poses apply at the stream rate with stale frames dropped (latest-wins); per-limb filters and orientation fix work; existing keyframes untouched (automated count before/after).
 - [x] Deleting the armature mid-stream produces a warning state and no unhandled exception; selecting a valid target resumes without restart.
 - [x] Stop Stream terminates the engine by handle; no engine process remains after 5 seconds (process-listing check).
 - [x] Socket drop shows Reconnecting; engine death lands in Stopped with reason.
@@ -120,6 +120,12 @@ Added a public Start Stream timeout acceptance regression. `tests/addon/test_ui_
 Focused verification passed: `uv run pytest tests/addon/test_ui_state.py::test_start_stream_real_client_timeout_stops_engine_process -q` (`1 passed`) and `uv run pytest tests/addon/test_ui_state.py tests/addon/test_stream_client.py tests/addon/test_engine_process.py -q` (`18 passed`). The previous public operator happy-path test continues to cover Starting to Streaming after the first frame.
 
 Full verification for this slice passed: `uv run ruff check .`, `uv run ruff format --check .`, `uv run pyright --pythonplatform Windows`, `uv run pyright --pythonplatform Linux`, `uv run lint-imports`, `uv run pytest -q` (`126 passed, 2 deselected`), `POSECAP_BLENDER=... uv run pytest tests/e2e/test_blender_addon_smoke.py -q -m e2e` (`1 passed`), a fresh extension build to `.agentic/extension-dist/posecap-0.1.0.zip`, and Blender 5.0 `extension validate`.
+
+Added a keyframe-preservation acceptance regression for live pose application. `tests/addon/test_apply_timer.py::test_bpy_armature_pose_writer_preserves_existing_keyframes_when_not_recording` records the existing keyframe count on a Blender-style fake pose bone, applies a non-recording stream pose, and verifies the keyframe count/list is unchanged while the quaternion is updated. The broader acceptance criterion is covered by existing tests for latest-wins stale-frame dropping (`tests/addon/test_stream_client.py`), stream timer application (`tests/addon/test_apply_timer.py`), and core limb-filter/orientation-fix planning (`tests/core/test_application.py`, `tests/core/test_filters.py`).
+
+Focused verification passed: `uv run pytest tests/addon/test_apply_timer.py::test_bpy_armature_pose_writer_preserves_existing_keyframes_when_not_recording -q` (`1 passed`) and `uv run pytest tests/addon/test_apply_timer.py tests/addon/test_stream_client.py tests/core/test_application.py tests/core/test_filters.py -q` (`27 passed`).
+
+Full verification for this slice passed: `uv run ruff check .`, `uv run ruff format --check .`, `uv run pyright --pythonplatform Windows`, `uv run pyright --pythonplatform Linux`, `uv run lint-imports`, `uv run pytest -q` (`127 passed, 2 deselected`), `POSECAP_BLENDER=... uv run pytest tests/e2e/test_blender_addon_smoke.py -q -m e2e` (`1 passed`), a fresh extension build to `.agentic/extension-dist/posecap-0.1.0.zip`, and Blender 5.0 `extension validate`.
 
 ## Definition of Done
 

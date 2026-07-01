@@ -114,6 +114,26 @@ def test_bpy_armature_pose_writer_sets_quaternion_and_keyframes() -> None:
     assert armature.redraws == ["redraw"]
 
 
+def test_bpy_armature_pose_writer_preserves_existing_keyframes_when_not_recording() -> None:
+    armature = _FakeArmature(["left_hip"])
+    bone = armature.pose.bones["left_hip"]
+    bone.keyframes.extend([KEYFRAME_DATA_PATH, KEYFRAME_DATA_PATH])
+    writer = BpyArmaturePoseWriter(armature)
+    plan = PoseApplication(
+        clear_bones=frozenset({"left_hip"}),
+        rotations=(BoneRotation("left_hip", np.asarray([0.5, 0.5, 0.5, 0.5])),),
+    )
+
+    before_count = len(bone.keyframes)
+
+    writer.apply(plan, insert_keyframes=False)
+
+    assert bone.rotation_mode == "QUATERNION"
+    assert bone.rotation_quaternion == (0.5, 0.5, 0.5, 0.5)
+    assert len(bone.keyframes) == before_count
+    assert bone.keyframes == [KEYFRAME_DATA_PATH, KEYFRAME_DATA_PATH]
+
+
 def test_bpy_armature_pose_writer_treats_removed_armature_as_invalid() -> None:
     writer = BpyArmaturePoseWriter(_RemovedArmature())
 
