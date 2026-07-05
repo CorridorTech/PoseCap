@@ -135,6 +135,14 @@ Full verification for this slice passed: `uv run ruff check .`, `uv run ruff for
 
 Recorded partial extension install evidence for the manual verification matrix. This workstation currently has Blender 5.0.1 only (`C:\Program Files\Blender Foundation\Blender 5.0\blender.exe`); no Blender 4.2 LTS install was found under `C:\Program Files\Blender Foundation`, so the 4.2 half of the install acceptance remains HITL/open. With `BLENDER_USER_RESOURCES` isolated to `.agentic\blender-user-resources-5.0`, Blender 5.0.1 listed `user_default` under that temporary directory, `blender --command extension install-file --repo user_default --enable .agentic\extension-dist\posecap-0.1.0.zip` exited 0, `blender --command extension list` reported `posecap [installed]`, and a background preferences check printed `bl_ext.user_default.posecap` in `bpy.context.preferences.addons`.
 
+### 2026-07-05
+
+Added a public pose-orientation diagnostic after iVCam HITL showed visually inverted arm motion on the temporary smoke armature. `tools/diagnose_pose_orientation.py --pretty` builds a synthetic `left_shoulder_positive_z` payload, runs the public `core.plan_pose_application()` path, independently ports Dean's POC Rodrigues/quaternion behavior for the same payload, and reports PoseCap-vs-POC quaternions per sampled bone. The diagnostic currently reports `matches_poc: true`, with only `pelvis` and `left_shoulder` non-identity; this pins the core math to Dean's POC path and keeps the remaining visual mismatch suspicion on target armature rest pose / bone local axes rather than stream transport, camera index, PEAR extraction, or the PoseCap core planning route.
+
+TDD coverage lives in `tests/tools/test_pose_orientation_diagnostic.py`. The red step failed on the missing diagnostic script; the green step passed with `uv run pytest tests\tools\test_pose_orientation_diagnostic.py -q` (`1 passed`). Focused ruff and Windows pyright checks also passed for the new test/tool pair.
+
+Full verification for this slice passed: `uv run ruff check .`, `uv run ruff format --check .`, `uv run pyright --pythonplatform Windows`, `uv run pyright --pythonplatform Linux`, `uv run lint-imports`, `uv run pytest -q` (`130 passed, 2 deselected`), `POSECAP_BLENDER=... uv run pytest tests/e2e/test_blender_addon_smoke.py -q -m e2e` (`1 passed`), a fresh extension build to `.agentic/extension-dist/posecap-0.1.0.zip`, and Blender 5.0 `extension validate`. Blender 4.2 LTS remains unverified on this workstation because no 4.2 install exists under `C:\Program Files\Blender Foundation`.
+
 ## Definition of Done
 
 All Acceptance Criteria checked, plus:
