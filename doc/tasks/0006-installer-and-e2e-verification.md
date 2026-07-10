@@ -48,6 +48,38 @@ PyTorch3D v0.7.9 from a short local checkout, external pinned PEAR, and
 installer in this task should consume that path after ADR acceptance instead of
 inventing a new runtime matrix.
 
+### 2026-07-09
+
+Grounded the installer shape against the proven CK2P pattern (`C:\Dev\CK2P\packaging\`),
+which Ale asked this installer to mirror. Direct mapping:
+
+* **Inno Setup template + PowerShell renderer** (`corridorkey2.iss.template` +
+  `build_installer.ps1`): one template, offline/online flavors via preprocessor;
+  online flavor refused by the build script until a `distribution_manifest.json`
+  reports hosted packs as `ready`. PoseCap starts offline-only the same way.
+* **Runtime bundle** (`build_runtime_bundle.ps1`): CPython embeddable (pinned) +
+  hash-verified wheel set from the lockfile, laid out app-local so no system
+  Python or PATH dependence. PoseCap equivalent bundles the ADR-0007 matrix
+  (torch/torchvision cu124, PyTorch3D 0.7.9). PyTorch3D has no official Windows
+  wheel — build once on the workstation, bundle the built wheel with a recorded
+  sha256, so clean machines never need CUDA Toolkit or MSVC.
+* **Models pack** (`build_models_pack.ps1` + sha256 manifest): CK2P bundles a
+  verified models pack after a field failure with hand-assembled folders.
+  PoseCap split: PEAR weights — check redistribution license first; if not
+  redistributable, installer fetches at pinned HF revision with sha256
+  verification at install time (doctor already gates this). SMPL-X — never
+  bundled, never fetched; documented manual acquisition only (ADR-0006).
+* **Version single-source + output naming**: `PoseCap_v<ver>-win.<n>_Windows_<flavor>_Setup.exe`,
+  spanned setup if payload exceeds the 4.2 GB single-exe limit (CK2P hit this).
+* **Post-install gate**: `posecap-engine doctor` is the install-and-it-works
+  check, mirroring CK2P's doctor-checked models install.
+* **Blender extension**: `tools/build_extension.py` already produces the zip; the
+  installer places it and points the user at Blender's install-from-disk flow.
+
+Suggested layout mirroring CK2P: `packaging/build_installer.ps1`,
+`packaging/build_runtime_bundle.ps1`, `packaging/installer/posecap.iss.template`,
+`packaging/installer/distribution_manifest.json`, output in `packaging/dist/`.
+
 ## Definition of Done
 
 All Acceptance Criteria checked, plus:
