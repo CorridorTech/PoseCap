@@ -1,0 +1,61 @@
+; PoseCap — Windows installer template (task 0006; mirrors the CK2P pattern).
+;
+; Light flavor by design (Ale, 2026-07-09): the setup exe bundles only what has
+; no canonical hosted source — the PoseCap wheels, the repacked PyTorch3D wheel,
+; the Blender extension zip, uv.exe, and the bootstrap script. Everything heavy
+; (CPython, torch cu124, PyPI deps, PEAR code, model weights) is downloaded by
+; the bootstrap step from pinned canonical sources (python-build-standalone,
+; download.pytorch.org, PyPI, GitHub, Hugging Face) with exact pins baked into
+; installer_manifest.json. After Finish, everything needed is on disk; the only
+; prerequisites are an NVIDIA driver and Blender.
+;
+; SMPL-X body models are licensed (MPI/Meshcapade) and are neither bundled nor
+; downloaded — ADR-0006.
+;
+; Rendered by build_installer.ps1 (tokens replaced); do not compile directly.
+
+[Setup]
+AppId={{B3F1D7A2-4C88-4E15-A6D9-8E0C5B7F2A31}
+AppName=PoseCap
+AppVersion=@@APP_VERSION@@
+AppPublisher=CorridorTech
+AppPublisherURL=https://github.com/CorridorTech/PoseCap
+AppSupportURL=https://github.com/CorridorTech/PoseCap/issues
+VersionInfoVersion=@@BASE_VERSION@@
+VersionInfoTextVersion=@@DISPLAY_LABEL@@
+DefaultDirName={localappdata}\PoseCap
+DisableDirPage=auto
+DisableProgramGroupPage=yes
+ArchitecturesAllowed=x64compatible
+ArchitecturesInstallIn64BitMode=x64compatible
+PrivilegesRequired=lowest
+OutputBaseFilename=@@OUTPUT_BASENAME@@
+Compression=lzma2/max
+SolidCompression=yes
+SetupLogging=yes
+WizardStyle=modern
+LicenseFile=@@STAGING@@\LICENSE
+
+[Files]
+Source: "@@STAGING@@\bin\*"; DestDir: "{app}\bin"; Flags: ignoreversion recursesubdirs
+Source: "@@STAGING@@\wheels\*"; DestDir: "{app}\wheels"; Flags: ignoreversion
+Source: "@@STAGING@@\extension\*"; DestDir: "{app}\extension"; Flags: ignoreversion
+Source: "@@STAGING@@\bootstrap\*"; DestDir: "{app}\bootstrap"; Flags: ignoreversion
+Source: "@@STAGING@@\requirements-torch.lock"; DestDir: "{app}"; Flags: ignoreversion
+Source: "@@STAGING@@\requirements-pypi.lock"; DestDir: "{app}"; Flags: ignoreversion
+Source: "@@STAGING@@\installer_manifest.json"; DestDir: "{app}"; Flags: ignoreversion
+Source: "@@STAGING@@\LICENSE"; DestDir: "{app}"; Flags: ignoreversion
+Source: "@@STAGING@@\THIRD_PARTY_NOTICES.md"; DestDir: "{app}"; Flags: ignoreversion
+
+[Icons]
+Name: "{userprograms}\PoseCap\PoseCap Setup (repair)"; Filename: "powershell.exe"; Parameters: "-ExecutionPolicy Bypass -File ""{app}\bootstrap\bootstrap_install.ps1"""; WorkingDir: "{app}"
+Name: "{userprograms}\PoseCap\PoseCap Doctor"; Filename: "powershell.exe"; Parameters: "-ExecutionPolicy Bypass -NoExit -Command ""& '{app}\runtime\venv\Scripts\python.exe' -m posecap_engine.cli doctor --pear-root '{app}\pear'"""; WorkingDir: "{app}"
+
+[Run]
+Filename: "powershell.exe"; Parameters: "-ExecutionPolicy Bypass -File ""{app}\bootstrap\bootstrap_install.ps1"""; StatusMsg: "Setting up the GPU runtime (downloads about 4 GB — this is the long step)..."; Flags: waituntilterminated
+
+[UninstallDelete]
+Type: filesandordirs; Name: "{app}\python"
+Type: filesandordirs; Name: "{app}\runtime"
+Type: filesandordirs; Name: "{app}\pear"
+Type: filesandordirs; Name: "{app}\logs"

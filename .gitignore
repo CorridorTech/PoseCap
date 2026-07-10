@@ -21,6 +21,10 @@ assets/
 # Curated license-clean test fixtures (provenance in SOURCES.json) stay tracked
 !tests/fixtures/video/*.mp4
 
+# Installer build outputs (packaging inputs stay tracked)
+packaging/work/
+packaging/dist/
+
 # Runtime IPC dirs
 input_capture/
 output_capture/
