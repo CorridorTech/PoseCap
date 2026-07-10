@@ -209,6 +209,34 @@ Session note: a debug attempt driving the timer via
 `bpy.ops.wm.redraw_timer` from the console crashed Blender — that crash is the
 debug tool's fault, not the addon's; do not use it as a workaround.
 
+### 2026-07-10 (resolution — both live-path defects fixed and proven)
+
+Root causes isolated with in-session instrumentation (spies on the live
+session's apply path, logging seq / distinct-payload counters / bone
+quaternions to a file, sampled by an independent bpy timer):
+
+1. Timer death: the redraw lambda captured the Start operator's context,
+   which dies after execute(); the second tick raised and bpy silently
+   unregistered the timer. Fixed by resolving `bpy.context` at call time and
+   by catching apply exceptions in the session tick — failures now stop the
+   session and surface "Apply failed: ..." in the panel instead of freezing
+   silently.
+
+2. Frozen payloads with --source video: the engine child inherited Blender's
+   PATH, which poisons OpenCV's video-demuxer DLL resolution — capture
+   returned the first frame forever (seq grew, payloads identical, while the
+   same engine standalone produced 90/90 distinct poses). Fixed by spawning
+   the engine with a minimal PATH (engine dir + System32), everything else
+   inherited. June's camera sessions never hit this because the MSMF camera
+   path does not go through the ffmpeg demuxer.
+
+Final proof through the real addon path (dirty child env, fixture video):
+172/172 distinct payloads applied, armature animating in the viewport.
+`bpy.app.timers` scheduling itself was exonerated by a probe (194 ticks in
+20 s, idle unfocused GUI) — no modal-operator fallback needed. Fixes landed
+in PR "fix(addon): live apply-path fixes + wheel dev-stamping (0.1.1)";
+released as v0.1.1.
+
 ## Definition of Done
 
 All Acceptance Criteria checked, plus:
