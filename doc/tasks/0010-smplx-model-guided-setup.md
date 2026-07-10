@@ -126,6 +126,50 @@ and the guide instead of a manual file list.
 Open: HITL clean-machine re-test by Dean/Emmet (AC), and the panel
 screenshot for the release notes.
 
+### 2026-07-10 (field results, Corridor — Dean/Emmet via Discord)
+
+Emmet completed the MANUAL model setup successfully on his machine: engine
+doctor reported `"ok": true`, `pear_assets` ok; the v0.1.3-win.1 installer
+is confirmed in the field (`%LOCALAPPDATA%\PoseCap\{runtime\venv, pear}`).
+Expected warns appeared and are by-design: `pear_checkout` (installed PEAR
+tree has no `.git`, so the revision cannot be git-verified) and `hf_weights`
+(pose-model weights not downloaded until the first Start Stream).
+
+Field UX findings folded back into the slice (→ v0.1.3-win.2):
+1. First Start Stream downloads the pinned PEAR pose weight
+   (`ehm_model_stage1.pt`, ~2.7 GB) with no feedback — the panel sits on
+   "Starting" for minutes and a non-technical user thinks it hung. Fix: after
+   ~10 s in STARTING the panel status becomes an explicit first-run-download
+   message (no main-thread block, no fake detection). A cleaner seam (engine
+   emitting a JSON progress event before `hf_hub_download`) would change the
+   wire format and needs an ADR — deferred, not improvised.
+2. The `hf_weights` doctor warn used CLI-speak ("rerun doctor with
+   --download-weights") and reached an end user through the PoseCap Doctor
+   shortcut, causing real confusion. Reworded to plain language.
+3. SMPL zip member pin (`archive_member_suffix`) was an exact filename; Ale's
+   local `SMPL_NEUTRAL.pkl` is 109 MB (300-shape-component variant), so the
+   in-zip neutral member name may differ. Match hardened to any member whose
+   basename contains "neutral" and ends ".pkl" (case-insensitive).
+
+Items 1-4 above built TDD and committed (v0.1.3-win.2 slice). Doctor warn,
+tolerant SMPL member match, and the first-run-download panel hint all landed
+with tests; the PoseCap e2e smoke (register/unregister/apply) passed on the
+real Blender 5.0.
+
+Smoke test — official SMPL-X add-on spawn → Start Stream (Item 5): NOT RUN.
+The official MPI SMPL-X Blender add-on is not installed on this machine
+(`extensions/user_default/` has only `posecap`), and the add-on download is
+license-gated behind Ale's MPI account, so it was not auto-installed. The
+claim made to Dean ("a body spawned by the SMPL-X add-on works directly as
+Target Armature") is therefore STILL UNVALIDATED end to end. The illustrated
+guide deliberately does NOT cite the SMPL-X-add-on route as an easy path.
+Flagged to Ale; run this once locally with the add-on installed before that
+claim goes into any release note.
+
+Guide screenshots: real MPI-site captures need Ale's logged-in browser (the
+in-app browser timed out on these pages and Claude-in-Chrome is not
+connected); the guide ships with SVG illustrations meanwhile.
+
 ## Definition of Done
 
 All Acceptance Criteria checked, plus:

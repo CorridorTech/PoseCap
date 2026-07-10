@@ -58,14 +58,42 @@ from the official sites with your browser (log in first):
 
 PoseCap detects each file as it lands in your Downloads folder,
 validates it, extracts what it needs, and installs it — no unzipping, no
-file moving.
+file moving. It also picks up a browser-renamed re-download like
+`FLAME2020 (1).zip`.
+
+### Or place the files fully by hand (advanced)
+
+Confirmed working in the field (Corridor, 2026-07-10). Log in on each site
+first, then:
+
+- **SMPL** — the Downloads page is login-gated. Download the Python package,
+  open it, take the **neutral** model `.pkl`, rename it to `SMPL_NEUTRAL.pkl`,
+  and put it in `assets\SMPL\`.
+- **SMPL-X** — download `SMPLX_NEUTRAL_2020.npz` into `assets\SMPLX\`.
+- **FLAME** — the Downloads page is login-gated; the entry is **"FLAME 2020"**.
+  From it take `generic_model.pkl` and place it in **two** locations:
+  `assets\FLAME\FLAME2020\generic_model.pkl` and, renamed,
+  `assets\SMPLX\flame_generic_model.pkl`.
+- **smpl_mean_params.npz** — this one is public (not MPI-gated). Download it
+  from the pinned Hugging Face copy and put it in `assets\SMPLX\`:
+  <https://huggingface.co/spaces/brjathu/HMR2.0/resolve/998dfa865dddc3cdd4f4bed22a7c78a61cf9b32a/data/smpl_mean_params.npz>
+
+## First Start Stream downloads the AI model (~2.7 GB, one time)
+
+The very first time you click **Start Stream**, PoseCap downloads the pinned
+pose-estimation model (~2.7 GB) before the first frame appears. The panel
+shows **"Still starting — first run downloads the AI model (~2.7 GB), this
+can take several minutes."** This is the download, not a freeze — leave it
+running. Every later start is immediate.
 
 ## What you end up with
 
 ![Final file layout inside the PEAR folder](images/model-final-layout.svg)
 
 Run **PoseCap Doctor** (Start Menu shortcut) any time — every check must
-be green before the first live capture.
+be green before the first live capture. Two warnings are normal: the PEAR
+checkout has no git history to verify, and the AI model weights show as
+"not verified" until that first Start Stream downloads them.
 
 ## Troubleshooting
 
