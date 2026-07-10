@@ -206,6 +206,42 @@ def test_manually_downloaded_flame_archive_installs_both_flame_targets(
     )
 
 
+def test_smpl_zip_neutral_member_matches_variant_names(tmp_path: Path) -> None:
+    """The in-zip neutral member name varies by SMPL variant (e.g. 300 shapes)."""
+    downloads = tmp_path / "Downloads"
+    pear_root = tmp_path / "pear"
+    downloads.mkdir()
+    # A neutral member named differently from the exact pin, capital M, extra tag.
+    (downloads / "SMPL_python_v.1.1.0.zip").write_bytes(
+        _zip_payload(
+            "SMPL_python_v.1.1.0/models/basicModel_NEUTRAL_lbs_300_207_0_v1.1.0.pkl",
+            _pkl_bytes(20_000_001),
+        )
+    )
+
+    found = find_downloaded_model_archives(downloads, pear_root)
+    report = install_from_downloaded_archive(pear_root, found[0])
+
+    assert "SMPL_NEUTRAL.pkl" in report.installed
+    assert pear_root.joinpath("assets", "SMPL", "SMPL_NEUTRAL.pkl").is_file()
+
+
+def test_smpl_zip_without_a_neutral_member_fails_friendly(tmp_path: Path) -> None:
+    downloads = tmp_path / "Downloads"
+    pear_root = tmp_path / "pear"
+    downloads.mkdir()
+    # Only gendered members — no neutral model to install.
+    (downloads / "SMPL_python_v.1.1.0.zip").write_bytes(
+        _zip_payload(
+            "SMPL_python_v.1.1.0/models/basicModel_m_lbs_10_207_0_v1.1.0.pkl",
+            _pkl_bytes(20_000_001),
+        )
+    )
+
+    with pytest.raises(ModelSetupError, match="SMPL_NEUTRAL.pkl"):
+        install_from_downloaded_archive(pear_root, downloads / "SMPL_python_v.1.1.0.zip")
+
+
 def test_watcher_matches_browser_renamed_duplicate_downloads(tmp_path: Path) -> None:
     downloads = tmp_path / "Downloads"
     pear_root = tmp_path / "pear"

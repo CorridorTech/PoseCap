@@ -32,7 +32,7 @@ from posecap_contracts import (
     MpiDownload,
     PublicDownload,
 )
-from posecap_contracts.model_assets import download_failure_reason
+from posecap_contracts.model_assets import archive_member_matches, download_failure_reason
 
 # fetch(url, post_data, sink_path, progress(bytes_done, bytes_total_or_zero))
 ProgressCallback = Callable[[int, int], None]
@@ -216,9 +216,9 @@ def _place_targets(
         _verify_public_hash(source, targets[0], payload_path)
     extraction_dir = Path(tempfile.mkdtemp(prefix="posecap-extract-"))
     try:
-        member_suffix = getattr(source, "archive_member_suffix", None)
-        if member_suffix is not None:
-            payload_path = _extract_member(payload_path, member_suffix, targets[0], extraction_dir)
+        member_tokens = getattr(source, "archive_member_tokens", ())
+        if member_tokens:
+            payload_path = _extract_member(payload_path, member_tokens, targets[0], extraction_dir)
         installed = []
         for asset in targets:
             _validate_payload(asset, payload_path)
@@ -255,7 +255,7 @@ def _verify_public_hash(source: PublicDownload, asset: ModelAsset, payload_path:
 
 def _extract_member(
     payload_path: Path,
-    member_suffix: str,
+    member_tokens: tuple[str, ...],
     asset: ModelAsset,
     extraction_dir: Path,
 ) -> Path:
@@ -263,7 +263,11 @@ def _extract_member(
     try:
         with zipfile.ZipFile(payload_path) as archive:
             member = next(
-                (name for name in archive.namelist() if name.endswith(member_suffix)),
+                (
+                    name
+                    for name in archive.namelist()
+                    if not name.endswith("/") and archive_member_matches(name, member_tokens)
+                ),
                 None,
             )
             if member is None:

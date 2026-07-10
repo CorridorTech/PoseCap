@@ -19,12 +19,19 @@ MPI_DOWNLOAD_URL = "https://download.is.tue.mpg.de/download.php"
 
 @dataclass(frozen=True)
 class MpiDownload:
-    """One ``download.php`` POST fetch (the ICON/PIXIE/DECA fetch pattern)."""
+    """One ``download.php`` POST fetch (the ICON/PIXIE/DECA fetch pattern).
+
+    ``archive_member_tokens`` selects a file inside a downloaded zip by the
+    lowercased tokens its basename must all contain — tolerant of the naming
+    drift between SMPL variants (the neutral member differs between the
+    10- and 300-shape-component packages). Empty means the download is the
+    target file itself, not an archive.
+    """
 
     domain: str
     sfile: str
     signup_url: str
-    archive_member_suffix: str | None = None
+    archive_member_tokens: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -97,11 +104,18 @@ _SMPL_SIGNUP_URL = "https://smpl.is.tue.mpg.de/register.php"
 _SMPLX_SIGNUP_URL = "https://smpl-x.is.tue.mpg.de/register.php"
 _FLAME_SIGNUP_URL = "https://flame.is.tue.mpg.de/register.php"
 
+
+def archive_member_matches(member_name: str, tokens: tuple[str, ...]) -> bool:
+    """True when the archive member's basename contains every token (case-insensitive)."""
+    basename = member_name.replace("\\", "/").rsplit("/", 1)[-1].lower()
+    return all(token.lower() in basename for token in tokens)
+
+
 _FLAME_2020_DOWNLOAD = MpiDownload(
     domain="flame",
     sfile="FLAME2020.zip",
     signup_url=_FLAME_SIGNUP_URL,
-    archive_member_suffix="generic_model.pkl",
+    archive_member_tokens=("generic_model", ".pkl"),
 )
 
 REQUIRED_MODEL_ASSETS: tuple[ModelAsset, ...] = (
@@ -112,7 +126,7 @@ REQUIRED_MODEL_ASSETS: tuple[ModelAsset, ...] = (
             domain="smpl",
             sfile="SMPL_python_v.1.1.0.zip",
             signup_url=_SMPL_SIGNUP_URL,
-            archive_member_suffix="basicmodel_neutral_lbs_10_207_0_v1.1.0.pkl",
+            archive_member_tokens=("neutral", ".pkl"),
         ),
     ),
     ModelAsset(
