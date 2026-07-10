@@ -46,7 +46,15 @@ def test_iss_template_tokens_match_renderer() -> None:
     )
 
 
-def test_bootstrap_never_touches_smplx_models() -> None:
-    bootstrap = _read("installer/bootstrap_install.ps1")
-    assert "smpl-x" not in bootstrap.lower().replace("smpl-x body models", "")
-    assert "meshcapade.com" not in bootstrap.lower()
+def test_bootstrap_never_downloads_licensed_models() -> None:
+    bootstrap = _read("installer/bootstrap_install.ps1").lower()
+    download_lines = [
+        line
+        for line in bootstrap.splitlines()
+        if "invoke-webrequest" in line or "curl" in line or "hf_hub_download" in line
+    ]
+    for line in download_lines:
+        assert "smpl" not in line and "flame" not in line, line
+    # Instruction text must exist so the user knows the manual step.
+    assert "smpl-x" in bootstrap
+    assert "cannot be shipped or" in bootstrap

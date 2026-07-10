@@ -75,6 +75,7 @@ def test_live_command_passes_pear_options_to_frame_source(monkeypatch) -> None:
             height: int,
             yolo_threshold: float,
             crop_ratio: float,
+            yolo_model: str,
         ) -> None:
             captured["source"] = {
                 "pear_root": pear_root,
@@ -83,6 +84,7 @@ def test_live_command_passes_pear_options_to_frame_source(monkeypatch) -> None:
                 "height": height,
                 "yolo_threshold": yolo_threshold,
                 "crop_ratio": crop_ratio,
+                "yolo_model": yolo_model,
             }
 
         def frames(self):
@@ -108,6 +110,8 @@ def test_live_command_passes_pear_options_to_frame_source(monkeypatch) -> None:
             "0.45",
             "--crop-ratio",
             "1.5",
+            "--yolo-model",
+            "yolov8x",
         ],
         stdout=stdout,
         stderr=stderr,
@@ -122,6 +126,7 @@ def test_live_command_passes_pear_options_to_frame_source(monkeypatch) -> None:
         "height": 480,
         "yolo_threshold": 0.45,
         "crop_ratio": 1.5,
+        "yolo_model": "yolov8x",
     }
 
 

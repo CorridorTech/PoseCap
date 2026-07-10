@@ -253,7 +253,7 @@ def test_load_pear_runtime_uses_pinned_weights_revision(
         "revision": PEAR_MODELS_REVISION,
     }
     assert calls["torch_load"] == ("weights.pt", "cpu", True)
-    assert calls["yolo_path"] == str(pear_root / "model_zoo" / "yolov8x.pt")
+    assert calls["yolo_path"] == str(pear_root / "model_zoo" / "yolov8s.pt")
 
 
 def test_load_pear_runtime_uses_ultralytics_model_name_when_local_yolo_is_absent(
@@ -299,7 +299,7 @@ def test_load_pear_runtime_uses_ultralytics_model_name_when_local_yolo_is_absent
 
     pear_adapter._load_pear_runtime(PearLiveConfig(pear_root=pear_root, source=CameraSource(0)))
 
-    assert calls["yolo_path"] == "yolov8x.pt"
+    assert calls["yolo_path"] == "yolov8s.pt"
 
 
 def test_load_pear_runtime_runs_upstream_initialization_from_pear_root(
@@ -416,7 +416,7 @@ def _pear_checkout(tmp_path: Path, *, with_yolo: bool = True) -> Path:
     (pear_root / "configs" / "infer.yaml").write_text("model: infer\n", encoding="utf-8")
     if with_yolo:
         (pear_root / "model_zoo").mkdir()
-        (pear_root / "model_zoo" / "yolov8x.pt").write_text("weights", encoding="utf-8")
+        (pear_root / "model_zoo" / "yolov8s.pt").write_text("weights", encoding="utf-8")
     return pear_root
 
 

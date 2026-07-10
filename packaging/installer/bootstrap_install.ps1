@@ -17,6 +17,8 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+# PS 5.1: progress-bar rendering throttles Invoke-WebRequest downloads badly.
+$ProgressPreference = "SilentlyContinue"
 Set-StrictMode -Version Latest
 
 if ([string]::IsNullOrEmpty($InstallDir)) {
@@ -170,11 +172,27 @@ Step -Label "Fetch YOLO person-detection weights" `
         if (-not (Test-Path $yolo)) { throw "yolov8x.pt did not appear in $modelZoo" }
     }
 
+$LicensedModelsPending = $false
 Step -Label "Verify install (doctor) and fetch pose-model weights (~1 GB)" `
     -Fix "Read the doctor output above -- each failing check names its own fix. Re-run setup after fixing." `
     -Action {
-        & $VenvPython -m posecap_engine.cli doctor --pear-root $PearDir --download-weights | Tee-Object -Variable doctorOut | Out-Host
-        if ($LASTEXITCODE -ne 0) { throw "doctor reported failing checks" }
+        $doctorOut = & $VenvPython -m posecap_engine.cli doctor --pear-root $PearDir --download-weights
+        $doctorExit = $LASTEXITCODE
+        $doctorOut | Out-Host
+        if ($doctorExit -eq 0) { return }
+        # Licensed body models (SMPL/SMPL-X/FLAME) can never be bundled or
+        # auto-downloaded (ADR-0006). When they are the ONLY failing check the
+        # install itself succeeded; the user finishes with a documented manual
+        # download. Anything else is a real failure.
+        $report = $null
+        try { $report = $doctorOut | Where-Object { $_ -like '{*' } | Select-Object -Last 1 | ConvertFrom-Json } catch {}
+        if ($null -eq $report) { throw "doctor reported failing checks" }
+        $errors = @($report.checks | Where-Object { $_.status -eq 'error' } | ForEach-Object { $_.name })
+        if ($errors.Count -ge 1 -and (@($errors | Where-Object { $_ -ne 'pear_assets' }).Count -eq 0)) {
+            $script:LicensedModelsPending = $true
+            return
+        }
+        throw "doctor reported failing checks: $($errors -join ', ')"
     }
 
 # --- Blender extension: best effort, never fails the install -------------------
@@ -209,7 +227,22 @@ Write-Host "PoseCap setup complete." -ForegroundColor Green
 Write-Host "Engine executable: $EnginePath"
 Write-Host "In Blender: the PoseCap panel lives in the 3D Viewport sidebar (N key)."
 Write-Host "If the extension asks for the engine path, point it at the executable above."
-Write-Host "SMPL-X body models are licensed separately (MPI/Meshcapade) and are NOT installed;"
-Write-Host "the extension documentation explains where to download them and where to put them."
+if ($LicensedModelsPending) {
+    Write-Host ""
+    Write-Host "ACTION REQUIRED - licensed body models (one-time, ~5 minutes):" -ForegroundColor Yellow
+    Write-Host "SMPL/SMPL-X/FLAME body models are licensed by MPI and cannot be shipped or"
+    Write-Host "auto-downloaded. Register (free for research; Meshcapade for commercial use),"
+    Write-Host "download, and place these files under $PearDir\assets:"
+    Write-Host "  assets\SMPL\SMPL_NEUTRAL.pkl                (smpl.is.tue.mpg.de)"
+    Write-Host "  assets\SMPLX\SMPLX_NEUTRAL_2020.npz         (smpl-x.is.tue.mpg.de)"
+    Write-Host "  assets\SMPLX\flame_generic_model.pkl        (flame.is.tue.mpg.de)"
+    Write-Host "  assets\SMPLX\smpl_mean_params.npz           (see PEAR README)"
+    Write-Host "  assets\FLAME\FLAME2020\generic_model.pkl    (flame.is.tue.mpg.de)"
+    Write-Host "Then run the Start Menu shortcut 'PoseCap Doctor' - all checks must be green."
+}
+else {
+    Write-Host "SMPL-X body models are licensed separately (MPI/Meshcapade) and are NOT installed;"
+    Write-Host "the extension documentation explains where to download them and where to put them."
+}
 Stop-Transcript | Out-Null
 exit 0
