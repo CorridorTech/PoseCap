@@ -1,6 +1,6 @@
 schema_version = "1.0.0"
 id = "posecap"
-version = "0.1.0"
+version = "0.1.1"
 name = "PoseCap"
 tagline = "Live webcam pose capture for SMPL-X armatures"
 maintainer = "alexandremendoncaalvaro"
@@ -9,6 +9,6 @@ tags = ["Animation"]
 blender_version_min = "4.2.0"
 license = ["SPDX:GPL-3.0-only"]
 wheels = [
-  "./wheels/posecap_contracts-0.1.0-py3-none-any.whl",
-  "./wheels/posecap_core-0.1.0-py3-none-any.whl",
+  "./wheels/posecap_contracts-0.1.1-py3-none-any.whl",
+  "./wheels/posecap_core-0.1.1-py3-none-any.whl",
 ]

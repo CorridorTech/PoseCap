@@ -1,6 +1,6 @@
 [project]
 name = "posecap-contracts"
-version = "0.1.0"
+version = "0.1.1"
 description = "Wire formats shared by every PoseCap process"
 requires-python = ">=3.11"
 license = "Apache-2.0"

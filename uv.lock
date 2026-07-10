@@ -444,7 +444,7 @@ wheels = [
 
 [[package]]
 name = "posecap"
-version = "0.1.0"
+version = "0.1.1"
 source = { virtual = "." }
 dependencies = [
     { name = "posecap-contracts" },
@@ -481,12 +481,12 @@ dev = [
 
 [[package]]
 name = "posecap-contracts"
-version = "0.1.0"
+version = "0.1.1"
 source = { editable = "contracts" }
 
 [[package]]
 name = "posecap-core"
-version = "0.1.0"
+version = "0.1.1"
 source = { editable = "core" }
 dependencies = [
     { name = "numpy" },
@@ -501,7 +501,7 @@ requires-dist = [
 
 [[package]]
 name = "posecap-engine"
-version = "0.1.0"
+version = "0.1.1"
 source = { editable = "engine" }
 dependencies = [
     { name = "opencv-python" },
