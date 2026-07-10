@@ -1,12 +1,20 @@
-import sys
+import importlib.util
 import zipfile
 from pathlib import Path
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).parents[2] / "tools"))
 
-from repack_wheel import repack_installed_wheel  # noqa: E402
+def _load_repack_wheel():
+    module_path = Path(__file__).parents[2] / "tools" / "repack_wheel.py"
+    spec = importlib.util.spec_from_file_location("repack_wheel", module_path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+repack_installed_wheel = _load_repack_wheel().repack_installed_wheel
 
 
 def _installed_distribution(site_packages: Path) -> None:

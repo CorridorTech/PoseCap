@@ -62,6 +62,12 @@ def _build_parser() -> argparse.ArgumentParser:
     live.add_argument("--height", type=int, default=720)
     live.add_argument("--yolo-threshold", type=float, default=0.3)
     live.add_argument("--crop-ratio", type=float, default=1.75)
+    live.add_argument(
+        "--yolo-model",
+        default="yolov8s",
+        choices=["yolov8n", "yolov8s", "yolov8m", "yolov8x"],
+        help="person detector size; yolov8s reaches 30 FPS, yolov8x was the old default",
+    )
     live.add_argument("--parent-pid", type=int)
     live.add_argument("--log-file", type=Path)
     live.set_defaults(func=_run_live)
@@ -128,6 +134,7 @@ def _frame_source(args: argparse.Namespace) -> FixtureFrameSource | PearFrameSou
         height=args.height,
         yolo_threshold=args.yolo_threshold,
         crop_ratio=args.crop_ratio,
+        yolo_model=args.yolo_model,
     )
 
 
