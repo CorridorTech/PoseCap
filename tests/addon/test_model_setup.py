@@ -206,6 +206,22 @@ def test_manually_downloaded_flame_archive_installs_both_flame_targets(
     )
 
 
+def test_watcher_matches_browser_renamed_duplicate_downloads(tmp_path: Path) -> None:
+    downloads = tmp_path / "Downloads"
+    pear_root = tmp_path / "pear"
+    downloads.mkdir()
+    # A re-download the browser renamed to avoid clobbering the first attempt.
+    (downloads / "FLAME2020 (1).zip").write_bytes(
+        _zip_payload("generic_model.pkl", _pkl_bytes(20_000_001))
+    )
+
+    found = find_downloaded_model_archives(downloads, pear_root)
+    assert [path.name for path in found] == ["FLAME2020 (1).zip"]
+
+    report = install_from_downloaded_archive(pear_root, found[0])
+    assert "generic_model.pkl" in report.installed
+
+
 def test_watcher_ignores_unrelated_and_already_installed_files(tmp_path: Path) -> None:
     downloads = tmp_path / "Downloads"
     pear_root = tmp_path / "pear"
@@ -267,10 +283,80 @@ def test_watcher_session_installs_archives_as_they_appear(tmp_path: Path) -> Non
             _pkl_bytes(20_000_001),
         )
     )
+    # Completion (public fetch + doctor) runs on a background thread so the
+    # Blender UI never blocks; the tick only spawns it.
     session.tick()
+    session.join(timeout_seconds=10.0)
 
     assert session.state == "DONE", "public mean-params file must be fetched automatically"
     assert missing_model_assets(pear_root, _test_assets()) == ()
+
+
+def test_watcher_completion_does_not_block_the_calling_thread(tmp_path: Path) -> None:
+    """The Blocker fix: tick() must hand the network/doctor finish to a thread."""
+    import threading
+
+    downloads = tmp_path / "Downloads"
+    pear_root = tmp_path / "pear"
+    downloads.mkdir()
+    for name, payload in (
+        ("FLAME2020.zip", _zip_payload("generic_model.pkl", _pkl_bytes(20_000_001))),
+        ("SMPLX_NEUTRAL_2020.npz", _npz_bytes(100_000_001)),
+        (
+            "SMPL_python_v.1.1.0.zip",
+            _zip_payload(
+                "SMPL_python_v.1.1.0/smpl/models/basicmodel_neutral_lbs_10_207_0_v1.1.0.pkl",
+                _pkl_bytes(20_000_001),
+            ),
+        ),
+    ):
+        (downloads / name).write_bytes(payload)
+
+    release = threading.Event()
+
+    def blocking_fetch(url, post_data, sink_path, progress) -> None:
+        release.wait(timeout=5.0)
+        _RecordingFetcher()(url, post_data, sink_path, progress)
+
+    session = ModelSetupSession(fetch=blocking_fetch, assets=_test_assets())
+    session.start_watching(pear_root, downloads)
+
+    session.tick()  # must return immediately even though the fetch is blocked
+    assert session.state == "RUNNING"
+    release.set()
+    session.join(timeout_seconds=10.0)
+    assert session.state == "DONE"
+
+
+def test_watcher_keeps_watching_when_the_public_fetch_fails(tmp_path: Path) -> None:
+    downloads = tmp_path / "Downloads"
+    pear_root = tmp_path / "pear"
+    downloads.mkdir()
+    for name, payload in (
+        ("FLAME2020.zip", _zip_payload("generic_model.pkl", _pkl_bytes(20_000_001))),
+        ("SMPLX_NEUTRAL_2020.npz", _npz_bytes(100_000_001)),
+        (
+            "SMPL_python_v.1.1.0.zip",
+            _zip_payload(
+                "SMPL_python_v.1.1.0/smpl/models/basicmodel_neutral_lbs_10_207_0_v1.1.0.pkl",
+                _pkl_bytes(20_000_001),
+            ),
+        ),
+    ):
+        (downloads / name).write_bytes(payload)
+
+    login_page = b"<!DOCTYPE html><html><body>Sign in</body></html>"
+    session = ModelSetupSession(
+        fetch=_RecordingFetcher(payload_overrides={"smpl_mean_params.npz": login_page}),
+        assets=_test_assets(),
+    )
+    session.start_watching(pear_root, downloads)
+
+    session.tick()
+    session.join(timeout_seconds=10.0)
+
+    assert session.state == "WATCHING", "a failed finish must resume watching, not wedge"
+    session.tick()  # must be able to retry, not be stuck finalizing
 
 
 def test_watcher_session_keeps_watching_while_a_download_is_still_growing(

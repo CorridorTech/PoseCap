@@ -127,7 +127,13 @@ def find_downloaded_model_archives(
     }
     if not downloads_dir.is_dir():
         return ()
-    return tuple(sorted(path for path in downloads_dir.iterdir() if path.name in useful_names))
+    return tuple(
+        sorted(
+            path
+            for path in downloads_dir.iterdir()
+            if path.is_file() and _matched_source_name(path.name, useful_names) is not None
+        )
+    )
 
 
 def install_from_downloaded_archive(
@@ -136,16 +142,42 @@ def install_from_downloaded_archive(
     assets: tuple[ModelAsset, ...] = REQUIRED_MODEL_ASSETS,
 ) -> InstallReport:
     """Install every missing target served by a manually downloaded archive."""
+    candidate_names = {
+        _source_file_name(asset.source)
+        for asset in missing_model_assets(pear_root, assets)
+        if isinstance(asset.source, MpiDownload)
+    }
+    matched = _matched_source_name(archive_path.name, candidate_names)
+    if matched is None:
+        return InstallReport(installed=())
     targets = [
         asset
         for asset in missing_model_assets(pear_root, assets)
-        if isinstance(asset.source, MpiDownload)
-        and _source_file_name(asset.source) == archive_path.name
+        if isinstance(asset.source, MpiDownload) and _source_file_name(asset.source) == matched
     ]
     if not targets:
         return InstallReport(installed=())
     installed = _place_targets(pear_root, targets[0].source, targets, archive_path)
     return InstallReport(installed=tuple(installed))
+
+
+def _matched_source_name(file_name: str, source_names: set[str]) -> str | None:
+    """Match a Downloads file to an expected archive, tolerant of browser renames.
+
+    Browsers append ' (1)', ' (2)', … before the extension on a re-download;
+    the guide tells users to retry, so those variants must still be picked up.
+    """
+    if file_name in source_names:
+        return file_name
+    for source_name in source_names:
+        stem, _, extension = source_name.rpartition(".")
+        prefix = f"{stem} (" if stem else f"{source_name} ("
+        suffix = f").{extension}" if stem else ")"
+        if file_name.startswith(prefix) and file_name.endswith(suffix):
+            middle = file_name[len(prefix) : len(file_name) - len(suffix)]
+            if middle.isdigit():
+                return source_name
+    return None
 
 
 def _noop_progress(_bytes_done: int, _bytes_total: int) -> None:
@@ -323,6 +355,7 @@ class ModelSetupSession:
         self._thread: Thread | None = None
         self._pear_root: Path | None = None
         self._downloads_dir: Path | None = None
+        self._finalizing = False
         self.state: SessionState = "IDLE"
         self.status_message = ""
 
@@ -348,8 +381,14 @@ class ModelSetupSession:
         self.status_message = "Watching your Downloads folder…"
 
     def tick(self) -> None:
-        """Install any recognized finished download; finish when nothing is missing."""
-        if self.state != "WATCHING":
+        """Install any recognized finished download; finish when nothing is missing.
+
+        Runs on Blender's timer (main) thread, so only cheap local work
+        happens here — archive placement is fast disk I/O. The completion
+        step (a network fetch of the public file plus the doctor subprocess)
+        is handed to a background thread so the UI never blocks.
+        """
+        if self.state != "WATCHING" or self._finalizing:
             return
         pear_root, downloads_dir = self._pear_root, self._downloads_dir
         if pear_root is None or downloads_dir is None:
@@ -363,7 +402,20 @@ class ModelSetupSession:
                 continue
             if report.installed:
                 self.status_message = f"Installed {', '.join(report.installed)}"
-        self._finish_watch_if_complete(pear_root)
+        remaining = missing_model_assets(pear_root, self._assets)
+        if any(isinstance(asset.source, MpiDownload) for asset in remaining):
+            return
+        # Every license-gated file is present; finish off the main thread.
+        self._finalizing = True
+        self.state = "RUNNING"
+        self.status_message = "Finishing setup…"
+        self._thread = Thread(
+            target=self._finish_watch,
+            args=(pear_root,),
+            name="posecap-model-setup-finish",
+            daemon=True,
+        )
+        self._thread.start()
 
     def join(self, *, timeout_seconds: float) -> None:
         """Wait for a background credential install (tests and teardown)."""
@@ -392,13 +444,11 @@ class ModelSetupSession:
             return
         self._complete(pear_root)
 
-    def _finish_watch_if_complete(self, pear_root: Path) -> None:
-        remaining = missing_model_assets(pear_root, self._assets)
-        if any(isinstance(asset.source, MpiDownload) for asset in remaining):
-            return
-        if remaining:
-            # Only the public, non-MPI-gated file is left — fetch it directly.
-            try:
+    def _finish_watch(self, pear_root: Path) -> None:
+        """Fetch the remaining public file and run the doctor, off the main thread."""
+        try:
+            if missing_model_assets(pear_root, self._assets):
+                # Only the public, non-MPI-gated file can be left here.
                 install_missing_models(
                     pear_root,
                     MpiCredentials(email="", password=""),
@@ -406,10 +456,21 @@ class ModelSetupSession:
                     status=self._set_status,
                     assets=self._assets,
                 )
-            except ModelSetupError as exc:
-                self.status_message = str(exc)
-                return
+        except ModelSetupError as exc:
+            self.state = "WATCHING"
+            self.status_message = str(exc)
+            self._finalizing = False
+            return
+        except Exception:
+            self.state = "FAILED"
+            self.status_message = (
+                "Model setup failed unexpectedly — see the PoseCap log for details."
+            )
+            logging.getLogger(__name__).exception("model setup finalize failed")
+            self._finalizing = False
+            return
         self._complete(pear_root)
+        self._finalizing = False
 
     def _complete(self, pear_root: Path) -> None:
         if missing_model_assets(pear_root, self._assets):
