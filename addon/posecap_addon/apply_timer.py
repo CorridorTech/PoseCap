@@ -42,6 +42,7 @@ class PoseApplyTimer:
         limb_filter: LimbFilter | None = None,
         interval_seconds: float = 1.0 / 60.0,
         apply_orientation_fix: bool = True,
+        apply_world_position: bool = False,
         insert_keyframes: bool = False,
         on_warning: WarningCallback | None = None,
         on_recovery: RecoveryCallback | None = None,
@@ -54,6 +55,8 @@ class PoseApplyTimer:
         self._limb_filter = limb_filter or LimbFilter()
         self._interval_seconds = interval_seconds
         self._apply_orientation_fix = apply_orientation_fix
+        self._apply_world_position = apply_world_position
+        self._translation_origin: np.ndarray | None = None
         self._insert_keyframes = insert_keyframes
         self._on_warning = on_warning
         self._on_recovery = on_recovery
@@ -92,11 +95,15 @@ class PoseApplyTimer:
             return False
         recovered = self._reported_invalid_target
         self._reported_invalid_target = False
+        if self._apply_world_position and self._translation_origin is None:
+            self._translation_origin = np.asarray(frame.pose.transl, dtype=np.float64)
         plan = plan_pose_application(
             frame.pose,
             self._limb_filter,
             previous_quaternions=self._previous_quaternions,
             apply_orientation_fix=self._apply_orientation_fix,
+            apply_world_position=self._apply_world_position,
+            translation_origin=self._translation_origin,
         )
         self._writer.apply(plan, insert_keyframes=self._insert_keyframes)
         self._writer.tag_redraw()
@@ -134,6 +141,8 @@ class BpyArmaturePoseWriter:
             bone = _bone_by_name(bones, rotation.bone_name)
             if bone is not None:
                 _write_quaternion(bone, rotation.quaternion, insert_keyframes=insert_keyframes)
+        if plan.world_offset is not None:
+            self._armature.location = tuple(float(value) for value in plan.world_offset)
 
     def tag_redraw(self) -> None:
         if self._redraw is not None:

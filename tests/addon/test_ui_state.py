@@ -631,6 +631,7 @@ class _Settings:
         self.pear_root = ""
         self.record_live_mocap = False
         self.apply_orientation_fix = True
+        self.world_position_experimental = False
 
 
 class _FakeLayout:

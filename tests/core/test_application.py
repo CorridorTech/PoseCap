@@ -104,3 +104,54 @@ def test_plan_quaternions_are_immutable(payload: PosePayload) -> None:
     plan = plan_pose_application(payload, LimbFilter())
     with pytest.raises(ValueError, match="read-only"):
         plan.rotations[0].quaternion[0] = 0.0
+
+
+def test_world_offset_absent_by_default(payload: PosePayload) -> None:
+    plan = plan_pose_application(payload, LimbFilter())
+    assert plan.world_offset is None
+
+
+def test_world_offset_converts_camera_delta_to_blender_axes(payload: PosePayload) -> None:
+    """Camera space (x right, y down, z forward) maps to Blender (x, z, -y)."""
+    moved = PosePayload(
+        global_orient=payload.global_orient,
+        body_pose=payload.body_pose,
+        left_hand_pose=payload.left_hand_pose,
+        right_hand_pose=payload.right_hand_pose,
+        jaw_pose=payload.jaw_pose,
+        betas=payload.betas,
+        expression=payload.expression,
+        transl=[0.5, 0.2, 3.0],
+    )
+    plan = plan_pose_application(
+        moved,
+        LimbFilter(),
+        apply_world_position=True,
+        translation_origin=np.asarray([0.1, 0.0, 2.5]),
+    )
+    assert plan.world_offset is not None
+    assert np.allclose(plan.world_offset, [0.4, 0.5, -0.2])
+    with pytest.raises(ValueError, match="read-only"):
+        plan.world_offset[0] = 0.0
+
+
+def test_world_offset_without_origin_is_absolute(payload: PosePayload) -> None:
+    moved = PosePayload(
+        global_orient=payload.global_orient,
+        body_pose=payload.body_pose,
+        left_hand_pose=payload.left_hand_pose,
+        right_hand_pose=payload.right_hand_pose,
+        jaw_pose=payload.jaw_pose,
+        betas=payload.betas,
+        expression=payload.expression,
+        transl=[1.0, -0.5, 2.0],
+    )
+    plan = plan_pose_application(moved, LimbFilter(), apply_world_position=True)
+    assert plan.world_offset is not None
+    assert np.allclose(plan.world_offset, [1.0, 2.0, 0.5])
+
+
+def test_world_offset_skipped_when_limb_filter_active(payload: PosePayload) -> None:
+    """Filters exclude the pelvis; world position rides the pelvis, so it drops too."""
+    plan = plan_pose_application(payload, LimbFilter(legs_left=True), apply_world_position=True)
+    assert plan.world_offset is None

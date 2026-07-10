@@ -134,6 +134,81 @@ def test_bpy_armature_pose_writer_preserves_existing_keyframes_when_not_recordin
     assert bone.keyframes == [KEYFRAME_DATA_PATH, KEYFRAME_DATA_PATH]
 
 
+def test_pose_apply_timer_world_position_uses_first_frame_as_origin() -> None:
+    first = _payload_with_transl([0.1, 0.0, 2.5])
+    second = _payload_with_transl([0.5, 0.2, 3.0])
+    stream = _FakeStream(
+        [
+            PoseFrame(SCHEMA_VERSION, 1, 100.0, "ok", first),
+            PoseFrame(SCHEMA_VERSION, 2, 100.1, "ok", second),
+        ]
+    )
+    writer = _FakeWriter()
+    timer = PoseApplyTimer(stream, writer, interval_seconds=0.25, apply_world_position=True)
+
+    timer.tick()
+    timer.tick()
+
+    assert len(writer.plans) == 2
+    first_offset = writer.plans[0].world_offset
+    second_offset = writer.plans[1].world_offset
+    assert first_offset is not None and second_offset is not None
+    assert np.allclose(first_offset, [0.0, 0.0, 0.0])
+    assert np.allclose(second_offset, [0.4, 0.5, -0.2])
+
+
+def test_pose_apply_timer_world_position_off_leaves_offset_absent() -> None:
+    stream = _FakeStream([PoseFrame(SCHEMA_VERSION, 1, 100.0, "ok", _payload())])
+    writer = _FakeWriter()
+    timer = PoseApplyTimer(stream, writer, interval_seconds=0.25)
+
+    timer.tick()
+
+    assert writer.plans[0].world_offset is None
+
+
+def test_bpy_armature_pose_writer_applies_world_offset_to_armature_location() -> None:
+    armature = _FakeArmature(["pelvis"])
+    writer = BpyArmaturePoseWriter(armature)
+    offset = np.asarray([0.4, 0.5, -0.2])
+    plan = PoseApplication(
+        clear_bones=frozenset({"pelvis"}),
+        rotations=(BoneRotation("pelvis", np.asarray([1.0, 0.0, 0.0, 0.0])),),
+        world_offset=offset,
+    )
+
+    writer.apply(plan, insert_keyframes=False)
+
+    assert armature.location == (0.4, 0.5, -0.2)
+
+
+def test_bpy_armature_pose_writer_leaves_location_untouched_without_offset() -> None:
+    armature = _FakeArmature(["pelvis"])
+    writer = BpyArmaturePoseWriter(armature)
+    plan = PoseApplication(
+        clear_bones=frozenset({"pelvis"}),
+        rotations=(BoneRotation("pelvis", np.asarray([1.0, 0.0, 0.0, 0.0])),),
+    )
+
+    writer.apply(plan, insert_keyframes=False)
+
+    assert armature.location == (0.0, 0.0, 0.0)
+
+
+def _payload_with_transl(transl: list[float]) -> PosePayload:
+    base = _payload()
+    return PosePayload(
+        global_orient=base.global_orient,
+        body_pose=base.body_pose,
+        left_hand_pose=base.left_hand_pose,
+        right_hand_pose=base.right_hand_pose,
+        jaw_pose=base.jaw_pose,
+        betas=base.betas,
+        expression=base.expression,
+        transl=transl,
+    )
+
+
 def test_bpy_armature_pose_writer_treats_removed_armature_as_invalid() -> None:
     writer = BpyArmaturePoseWriter(_RemovedArmature())
 
@@ -167,6 +242,7 @@ class _FakeStream:
 class _FakeWriter:
     def __init__(self, *, valid_states: list[bool] | None = None) -> None:
         self.applied: list[tuple] = []
+        self.plans: list[PoseApplication] = []
         self.redraws = 0
         self._valid_states = valid_states or [True]
         self._valid_checks = 0
@@ -178,6 +254,7 @@ class _FakeWriter:
 
     def apply(self, plan, *, insert_keyframes: bool) -> None:
         self.applied.append(plan.rotations)
+        self.plans.append(plan)
 
     def tag_redraw(self) -> None:
         self.redraws += 1
@@ -204,6 +281,7 @@ class _ManualClock:
 class _FakeArmature:
     def __init__(self, bone_names: list[str]) -> None:
         self.pose = _FakePose(bone_names)
+        self.location = (0.0, 0.0, 0.0)
         self.redraws: list[str] = []
 
 

@@ -34,6 +34,7 @@ class _LiveStreamSettings(Protocol):
     camera_index: int
     pear_root: str
     apply_orientation_fix: bool
+    world_position_experimental: bool
     record_live_mocap: bool
 
 
@@ -57,6 +58,7 @@ def draw_live_stream_panel(layout: Any, settings: _LiveStreamSettings) -> None:
     column.prop(settings, "camera_index")
     column.prop(settings, "pear_root")
     column.prop(settings, "apply_orientation_fix")
+    column.prop(settings, "world_position_experimental")
 
     actions = layout.row(align=True)
     start = actions.row()
@@ -156,6 +158,15 @@ def _build_blender_classes(bpy_module: Any) -> tuple[type[Any], ...]:
             name="PEAR Orientation Fix",
             description="Apply PoseCap's PEAR-to-SMPL-X orientation correction",
             default=True,
+        ),
+        "world_position_experimental": bpy_module.props.BoolProperty(
+            name="World Position (Experimental)",
+            description=(
+                "Move the armature with the estimated camera-space translation, "
+                "relative to the first streamed frame. Monocular depth is noisy; "
+                "expect drift"
+            ),
+            default=False,
         ),
         "record_live_mocap": bpy_module.props.BoolProperty(
             name="Record Live MoCap",
@@ -264,6 +275,7 @@ def _start_live_stream(context: Any, bpy_module: Any) -> set[str]:
             lifecycle_stream,
             writer,
             apply_orientation_fix=bool(settings.apply_orientation_fix),
+            apply_world_position=bool(settings.world_position_experimental),
             insert_keyframes=bool(settings.record_live_mocap),
             on_warning=lambda message: _handle_apply_warning(settings, message),
             on_recovery=lambda: _handle_apply_recovery(settings),

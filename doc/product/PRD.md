@@ -7,7 +7,7 @@ Owner: alexandremendoncaalvaro
 
 ## Product
 
-PoseCap is a free, open-source Blender plugin that gives animators real-time markerless motion capture from a webcam (PEAR pose estimation). Poses apply pelvis-locked — monocular models cannot recover reliable world position, so world translation is an open problem on the roadmap, not a launch feature. It is the clean-architecture rewrite of Dean's (Corridor Digital) proof of concept, developed privately by Ale and Dean for now, with a public open-source release once the MVP is solid.
+PoseCap is a free, open-source Blender plugin that gives animators real-time markerless motion capture from a webcam (PEAR pose estimation). Poses apply pelvis-locked by default — monocular models cannot recover reliable world position, so trustworthy world translation is an open problem on the roadmap, not a launch feature. An opt-in "World Position (Experimental)" toggle (Ale, 2026-07-10, aligning with Dean's CEB-demo interest) applies the raw camera-space translation relative to the first streamed frame, clearly labeled as drift-prone. It is the clean-architecture rewrite of Dean's (Corridor Digital) proof of concept, developed privately by Ale and Dean for now, with a public open-source release once the MVP is solid.
 
 ## Target User
 
@@ -74,7 +74,7 @@ Next:
 
 Later:
 
-* World position from software — monocular pose is pelvis-locked; candidate approach is camera tracking fused with pose estimation (see the CEB Studios SAM3D-plus-camera-tracking demo Dean flagged: https://youtu.be/MwApuEcO9f8). Replaces the dropped hardware-rig approach.
+* World position from software — monocular pose is pelvis-locked by default; the experimental raw-translation toggle (shipped 2026-07-10) is the stopgap. The solid approach remains camera tracking fused with pose estimation (see the CEB Studios SAM3D-plus-camera-tracking demo Dean flagged: https://youtu.be/MwApuEcO9f8). Replaces the dropped hardware-rig approach.
 * Pose-accuracy eval harness — golden samples scored with metric-and-tolerance comparison; baseline-relative regression gate and the objective scoreboard for backend swaps (PEAR vs Fast-SAM). Deprioritized at product review: Dean's read is that model quality is not the current bottleneck — import experience and distribution are. Synthetic-fixture labeling in task 0003 stays (nearly free), so the harness loses no ground if revisited.
 * Multi-camera estimation (Fast-SAM-3D-Body multi-view fusion).
 * Retargeting to custom and Rigify rigs.
