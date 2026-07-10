@@ -170,6 +170,29 @@ def test_live_command_source_digits_parse_as_camera_index(monkeypatch) -> None:
     assert captured["source"] == 3
 
 
+def test_live_command_source_negative_index_keeps_camera_semantics(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    class FakePearFrameSource:
+        def __init__(self, pear_root: Path, *, source: int | str, **_kwargs: object) -> None:
+            captured["source"] = source
+
+        def frames(self):
+            return iter(())
+
+    monkeypatch.setattr("posecap_engine.cli.PearFrameSource", FakePearFrameSource)
+    monkeypatch.setattr("posecap_engine.cli.serve_once", lambda frames, **kwargs: None)
+
+    code = run(
+        ["live", "--pear-root", "C:/PEAR", "--source", "-1"],
+        stdout=StringIO(),
+        stderr=StringIO(),
+    )
+
+    assert code == 0
+    assert captured["source"] == -1
+
+
 def test_live_command_serves_no_person_frame_from_pear_source(monkeypatch, tmp_path: Path) -> None:
     class FakePearFrameSource:
         def __init__(self, pear_root: Path, **_kwargs: object) -> None:

@@ -12,6 +12,7 @@ import os
 import socket
 import subprocess
 import sys
+import threading
 from pathlib import Path
 
 import pytest
@@ -86,7 +87,12 @@ def _stream_fixture(
     )
     try:
         assert process.stdout is not None
+        assert process.stderr is not None
         listening = json.loads(process.stdout.readline())
+        # Drain both pipes in the background: torch/lightning/ultralytics write
+        # warnings to stderr, and a full pipe buffer would block the engine.
+        for pipe in (process.stdout, process.stderr):
+            threading.Thread(target=pipe.read, daemon=True).start()
         frames: list[PoseFrame] = []
         address = (listening["host"], listening["port"])
         with socket.create_connection(address, timeout=_STREAM_TIMEOUT_SECONDS) as client:

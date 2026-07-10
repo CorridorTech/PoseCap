@@ -97,6 +97,25 @@ def test_pear_frame_source_fails_after_consecutive_camera_read_failures(
     assert runtime.seen_images == 0
 
 
+def test_pear_frame_source_read_failure_error_names_video_file_source(tmp_path: Path) -> None:
+    pear_root = _pear_checkout(tmp_path)
+    capture = _FakeCapture([None, None])
+    source = PearFrameSource(
+        pear_root,
+        source="assets/dance.mp4",
+        runtime_factory=lambda _config: _FakeRuntime([_payload()]),
+        capture_factory=lambda _config: capture,
+        max_camera_read_failures=2,
+    )
+
+    with pytest.raises(
+        CaptureUnavailableError, match="video file assets/dance.mp4 did not return frames"
+    ):
+        next(source.frames())
+
+    assert capture.released
+
+
 def test_pear_frame_source_ends_stream_cleanly_at_video_eof(tmp_path: Path) -> None:
     pear_root = _pear_checkout(tmp_path)
     capture = _FakeFiniteCapture(frame_count=2)

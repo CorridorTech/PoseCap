@@ -57,6 +57,13 @@ RuntimeFactory = Callable[[PearLiveConfig], _PearRuntime]
 CaptureFactory = Callable[[PearLiveConfig], _LiveCapture]
 Clock = Callable[[], float]
 
+
+def _describe_source(source: int | str) -> str:
+    if isinstance(source, str):
+        return f"video file {source}"
+    return f"camera index {source}"
+
+
 _PEAR_MODEL_REPO_ID = "BestWJH/PEAR_models"
 _PEAR_MODEL_FILENAME = "ehm_model_stage1.pt"
 _PEAR_CONFIG_RELATIVE_PATH = Path("configs") / "infer.yaml"
@@ -114,9 +121,8 @@ class PearFrameSource:
                     failed_reads += 1
                     if failed_reads >= self._max_camera_read_failures:
                         raise CaptureUnavailableError(
-                            "camera index "
-                            f"{self._config.source} did not return frames after "
-                            f"{failed_reads} consecutive reads"
+                            f"{_describe_source(self._config.source)} did not return frames "
+                            f"after {failed_reads} consecutive reads"
                         )
                     time.sleep(_CAMERA_READ_RETRY_SECONDS)
                     continue

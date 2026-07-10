@@ -134,9 +134,10 @@ def _frame_source(args: argparse.Namespace) -> FixtureFrameSource | PearFrameSou
 def _parse_source(source: str | None, camera_index: int) -> int | str:
     if source is None:
         return camera_index
-    if source.isdigit():
+    try:
         return int(source)
-    return source
+    except ValueError:
+        return source
 
 
 if __name__ == "__main__":
