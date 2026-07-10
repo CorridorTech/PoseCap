@@ -71,6 +71,22 @@ def test_live_stream_panel_exposes_pose_smoothing_toggle() -> None:
     assert layout.has_property("pose_smoothing")
 
 
+def test_advanced_section_collapsed_hides_tuning_and_expanded_shows_it() -> None:
+    collapsed = _FakeLayout()
+    settings = _Settings(lifecycle_state="STOPPED")
+    settings.show_advanced = False
+    draw_live_stream_panel(collapsed, settings)
+    assert collapsed.has_property("show_advanced")
+    assert not collapsed.has_property("pose_smoothing_min_cutoff")
+    assert not collapsed.has_property("pose_smoothing_beta")
+
+    expanded = _FakeLayout()
+    settings.show_advanced = True
+    draw_live_stream_panel(expanded, settings)
+    assert expanded.has_property("pose_smoothing_min_cutoff")
+    assert expanded.has_property("pose_smoothing_beta")
+
+
 def test_addon_preferences_draw_runtime_defaults() -> None:
     layout = _FakeLayout()
     preferences = _FakeAddonPreferences(
@@ -685,6 +701,9 @@ class _Settings:
         self.apply_orientation_fix = True
         self.world_position_experimental = False
         self.pose_smoothing = True
+        self.show_advanced = False
+        self.pose_smoothing_min_cutoff = 1.0
+        self.pose_smoothing_beta = 0.5
 
 
 class _FakeLayout:
@@ -808,6 +827,9 @@ class _FakeBpyProps:
 
     def BoolProperty(self, **kwargs: object) -> tuple[str, object]:
         return ("BoolProperty", kwargs)
+
+    def FloatProperty(self, **kwargs: object) -> tuple[str, object]:
+        return ("FloatProperty", kwargs)
 
     def PointerProperty(self, **kwargs: object) -> tuple[str, object]:
         return ("PointerProperty", kwargs)

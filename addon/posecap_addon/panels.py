@@ -39,6 +39,9 @@ class _LiveStreamSettings(Protocol):
     apply_orientation_fix: bool
     world_position_experimental: bool
     pose_smoothing: bool
+    show_advanced: bool
+    pose_smoothing_min_cutoff: float
+    pose_smoothing_beta: float
     record_live_mocap: bool
 
 
@@ -64,6 +67,14 @@ def draw_live_stream_panel(layout: Any, settings: _LiveStreamSettings) -> None:
     column.prop(settings, "apply_orientation_fix")
     column.prop(settings, "world_position_experimental")
     column.prop(settings, "pose_smoothing")
+
+    # CK2P progressive disclosure: simple by default, fine control on demand
+    advanced_header = layout.row()
+    advanced_header.prop(settings, "show_advanced", toggle=True)
+    if settings.show_advanced:
+        advanced = layout.box().column()
+        advanced.prop(settings, "pose_smoothing_min_cutoff")
+        advanced.prop(settings, "pose_smoothing_beta")
 
     actions = layout.row(align=True)
     start = actions.row()
@@ -181,6 +192,31 @@ def _build_blender_classes(bpy_module: Any) -> tuple[type[Any], ...]:
             ),
             default=True,
         ),
+        "show_advanced": bpy_module.props.BoolProperty(
+            name="Advanced",
+            description="Show fine-tuning controls; defaults work for most captures",
+            default=False,
+        ),
+        "pose_smoothing_min_cutoff": bpy_module.props.FloatProperty(
+            name="Smoothing Calm",
+            description=(
+                "Min cutoff (Hz): lower = steadier when you hold still, "
+                "higher = more responsive but more jitter"
+            ),
+            default=1.0,
+            min=0.1,
+            max=10.0,
+        ),
+        "pose_smoothing_beta": bpy_module.props.FloatProperty(
+            name="Smoothing Speed Response",
+            description=(
+                "Beta: higher = fast moves tracked with less lag, "
+                "lower = smoother but laggier on quick motion"
+            ),
+            default=0.5,
+            min=0.0,
+            max=5.0,
+        ),
         "record_live_mocap": bpy_module.props.BoolProperty(
             name="Record Live MoCap",
             description="Insert keyframes for applied stream frames",
@@ -291,7 +327,14 @@ def _start_live_stream(context: Any, bpy_module: Any) -> set[str]:
         timer = PoseApplyTimer(
             lifecycle_stream,
             writer,
-            smoother=PoseSmoother() if bool(settings.pose_smoothing) else None,
+            smoother=(
+                PoseSmoother(
+                    min_cutoff=float(settings.pose_smoothing_min_cutoff),
+                    beta=float(settings.pose_smoothing_beta),
+                )
+                if bool(settings.pose_smoothing)
+                else None
+            ),
             apply_orientation_fix=bool(settings.apply_orientation_fix),
             apply_world_position=bool(settings.world_position_experimental),
             insert_keyframes=bool(settings.record_live_mocap),
