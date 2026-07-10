@@ -168,6 +168,47 @@ sub-100 ms p95 latency component holds, the throughput component does not yet.
 Optimization is spike work (per-stage bench prepared; YOLO detector size and
 capture/infer overlap are the leading candidates).
 
+### 2026-07-10 (GUI live demo — two real defects found)
+
+Drove the full extension interactively in Blender 5.0.1 GUI (remote-controlled
+session): extension installed via the extension system, PoseCap panel rendered
+with all settings, Start Stream spawned the engine, lifecycle reached
+Streaming, and the TCP client delivered a complete 1800-frame fixture stream
+into the latest-wins slot (verified live: `seq 1799` waiting in the slot). A
+real streamed pose was applied to the target armature (dance pose visible in
+the viewport). Two defects surfaced:
+
+1. **Blender extension wheel cache ignores same-version updates
+   (release-blocker for updates).** Reinstalling a rebuilt `posecap-0.1.0.zip`
+   kept the previously extracted `posecap_core` in
+   `extensions\.local\lib\python3.11\site-packages` because the vendored wheel
+   filename did not change. Result: new addon code + stale core wheel →
+   `AttributeError: 'PoseApplication' object has no attribute 'world_offset'`
+   inside the apply timer — which bpy silently unregisters on first exception.
+   Symptom: panel says Streaming, armature frozen, no error surfaced to the
+   user. Fix policy: every extension rebuild that touches vendored wheels MUST
+   bump the wheel version (dev suffix, e.g. `0.1.1.dev<n>`), and the apply
+   timer must catch exceptions and surface them in the panel instead of dying
+   silently. Manual workaround validated: clear the two package dirs in
+   `.local` and reinstall.
+
+2. **`bpy.app.timers` starvation in an idle/remote session (needs its own
+   diagnosis).** With the wheel cache fixed, the first frame applied and then
+   the timer never fired again — `bpy.app.timers.is_registered()` returned
+   True while the callback stopped being scheduled, in a session driven by
+   remote input with the Blender window unfocused. Manual `tick()` calls from
+   the Python console applied frames correctly every time (stream, client,
+   planner, and writer all healthy). June's interactive HITL sessions never hit
+   this. Candidate directions: exception-kill on a second code path (timer
+   dies silently — same surfacing fix as above), or event-loop timer
+   starvation specific to unfocused/remote sessions; the POC used a modal
+   operator, which is the natural fallback if timers prove unreliable.
+   Follow-up owns a minimal repro (`/ad-diagnose` material).
+
+Session note: a debug attempt driving the timer via
+`bpy.ops.wm.redraw_timer` from the console crashed Blender — that crash is the
+debug tool's fault, not the addon's; do not use it as a workaround.
+
 ## Definition of Done
 
 All Acceptance Criteria checked, plus:
