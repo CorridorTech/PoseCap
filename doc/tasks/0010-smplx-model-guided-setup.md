@@ -19,16 +19,29 @@ research-licensed — the user must accept MPI/Meshcapade terms personally; we
 may never bundle, redistribute, or headlessly download them. So "automated"
 means: automate EVERYTHING around the one legally-required manual click.
 
-Target flow (maximum legal automation, wizard style):
+Grounded upgrade (2026-07-10, evening): the MPI download endpoint
+(download.is.tue.mpg.de) accepts the USER'S OWN site credentials via POST —
+the established pattern used by community and MPI-affiliated projects
+(ICON fetch_data.sh, WHAM fetch_demo_data.sh, BUDDI, PyMAF). The user
+registers once on smpl-x.is.tue.mpg.de (that registration IS the license
+acceptance); everything after that is automatable with their account.
+
+Target flow (wizard, primary path — credential-based):
 
 1. User clicks **Set Up Body Models** (installer final step and/or PoseCap
    panel button when models are missing).
-2. Wizard opens the official download page in the browser, already telling
-   the user exactly which files to download (names shown, nothing else).
-3. A folder watcher monitors Downloads; when the expected archive(s) appear,
-   the wizard validates (file names + sizes/hashes), extracts, and places
-   them in the exact paths the engine expects — zero manual file moving.
+2. Wizard: "Create your free SMPL-X account (opens official page; the site's
+   sign-up is where you accept the MPI license) — then enter that email and
+   password here."
+3. Wizard downloads the pinned model archive(s) with the user's credentials
+   directly from the official MPI endpoint (HTTPS, in-memory credentials,
+   never persisted, never logged), validates names/sizes/hashes, extracts and
+   places files in the engine's expected paths.
 4. Doctor check runs automatically and shows green "Models installed".
+
+Fallback path (no credentials typed into our UI): wizard opens the official
+download page + a Downloads-folder watcher detects the manual download,
+validates, extracts and places it — zero manual file moving either way.
 
 Plus the immediate low-tech half (Dean's ask): an illustrated step-by-step
 guide (screenshots of the MPI site, which files, one image of the final
@@ -38,10 +51,15 @@ result) in the repo and linked from the installer and the release notes.
 
 - [ ] Panel (and installer final page) shows a "Set Up Body Models" action
       whenever the expected model files are absent; it opens the official
-      source page and displays the exact file list.
-- [ ] Folder watcher detects the downloaded archive in the user's Downloads,
-      validates names/sizes, extracts and installs to the engine's expected
-      paths without any manual file operation.
+      sign-up page and explains that registering there is the license step.
+- [ ] Credential path: with the user's MPI account email/password, the wizard
+      downloads the pinned archives from the official endpoint and installs
+      them end to end; credentials live in memory only — never written to
+      disk, settings, or logs; a wrong password yields a friendly retry
+      message.
+- [ ] Fallback path: folder watcher detects a manually downloaded archive in
+      Downloads, validates names/sizes, extracts and installs to the engine's
+      expected paths without any manual file operation.
 - [ ] Corrupted/wrong download produces a friendly message naming what was
       expected, not a traceback.
 - [ ] Doctor check (models present + loadable) runs after install and its
