@@ -4,14 +4,24 @@ from posecap_engine.preview import PreviewWindow
 
 class _FakeCv2:
     COLOR_RGB2BGR = 4
+    WINDOW_NORMAL = 0
+    WND_PROP_TOPMOST = 5
 
     def __init__(self) -> None:
         self.shown: list[str] = []
         self.waited = 0
         self.destroyed: list[str] = []
+        self.named: list[str] = []
+        self.props: list[tuple[str, int, float]] = []
 
     def cvtColor(self, image, code):  # noqa: N802 - mirrors cv2 name
         return ("bgr", code)
+
+    def namedWindow(self, title: str, _flags: int) -> None:  # noqa: N802
+        self.named.append(title)
+
+    def setWindowProperty(self, title: str, prop: int, value: float) -> None:  # noqa: N802
+        self.props.append((title, prop, value))
 
     def imshow(self, title: str, _image) -> None:
         self.shown.append(title)
@@ -37,6 +47,9 @@ def test_offer_shows_each_frame_and_pumps_the_event_loop() -> None:
 
     assert cv2.shown == ["src", "src"]
     assert cv2.waited >= 2
+    # window created and pinned on top once, on the first frame only.
+    assert cv2.named == ["src"]
+    assert cv2.props == [("src", cv2.WND_PROP_TOPMOST, 1.0)]
 
 
 def test_close_destroys_the_window_once_opened() -> None:

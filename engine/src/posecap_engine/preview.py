@@ -22,6 +22,12 @@ class PreviewWindow:
 
     def offer(self, rgb_image: Any) -> None:
         bgr = self._cv2.cvtColor(rgb_image, self._cv2.COLOR_RGB2BGR)
+        if not self._opened:
+            # Keep it on top so it is visible over a maximized Blender instead
+            # of opening behind it.
+            with suppress(Exception):
+                self._cv2.namedWindow(self._title, self._cv2.WINDOW_NORMAL)
+                self._cv2.setWindowProperty(self._title, self._cv2.WND_PROP_TOPMOST, 1.0)
         self._cv2.imshow(self._title, bgr)
         # waitKey pumps the highgui event loop so the window paints and stays
         # responsive; 1 ms keeps it off the capture rate.
