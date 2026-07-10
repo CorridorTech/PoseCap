@@ -1,6 +1,7 @@
 """Blender UI panel adapters for PoseCap live streaming."""
 
 import importlib
+import logging
 import os
 import tempfile
 from collections.abc import Callable
@@ -268,7 +269,11 @@ def _start_live_stream(context: Any, bpy_module: Any) -> set[str]:
         lifecycle_stream = _LifecyclePoseStream(client, settings)
         writer = _LiveTargetArmaturePoseWriter(
             settings,
-            redraw=lambda: tag_view3d_redraw(context),
+            # Resolve the context at call time: the operator context captured
+            # here dies once execute() returns, and using it from the apply
+            # timer raised on the second tick and silently killed the timer
+            # (2026-07-10 GUI demo root cause).
+            redraw=lambda: tag_view3d_redraw(bpy_module.context),
         )
         logger = configure_addon_logging(_addon_log_path(bpy_module))
         timer = PoseApplyTimer(
@@ -462,7 +467,17 @@ class _LiveStreamSession:
                 self._settings.lifecycle_state = "STOPPED"
                 self._settings.status_message = f"Stream stopped: {stream_error}"
             return None
-        return self._timer.tick()
+        try:
+            return self._timer.tick()
+        except Exception as exc:
+            # bpy silently unregisters a timer whose callback raises; without
+            # this the panel keeps saying Streaming over a dead apply loop
+            # (2026-07-10 GUI demo finding).
+            logging.getLogger("posecap_addon").exception("pose apply tick failed")
+            self.stop(unregister_timer=False, bpy_module=self._bpy_module)
+            self._settings.lifecycle_state = "STOPPED"
+            self._settings.status_message = f"Apply failed: {exc} (see posecap-addon.log)"
+            return None
 
     def stop(self, *, unregister_timer: bool, bpy_module: Any) -> None:
         if self._stopped:

@@ -326,6 +326,50 @@ def test_starting_stream_stops_from_timer_when_client_reports_connect_error(monk
         unregister_blender_ui(bpy)
 
 
+def test_apply_exception_stops_session_and_surfaces_error(monkeypatch) -> None:
+    bpy = _FakeBpy()
+    register_blender_ui(bpy)
+    settings = _Settings(lifecycle_state="STOPPED")
+    settings.pear_root = "C:/PEAR"
+    context = _FakeContext(settings)
+    engine = _FakeEngine()
+    clients: list[_FakeClient] = []
+
+    monkeypatch.setattr(
+        posecap_addon.panels,
+        "start_engine_stream",
+        lambda _command: engine,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        posecap_addon.panels,
+        "TcpPoseStreamClient",
+        lambda host, port, **_kwargs: clients.append(_FakeClient(host, port)) or clients[-1],
+        raising=False,
+    )
+
+    try:
+        start_cls = bpy.utils.registered_class("POSECAP_OT_StartStream")
+        assert start_cls().execute(context) == {"FINISHED"}
+        session = posecap_addon.panels._ACTIVE_SESSION
+        assert session is not None
+
+        def explode() -> float:
+            raise RuntimeError("boom in apply")
+
+        monkeypatch.setattr(session._timer, "tick", explode)
+
+        assert bpy.app.timers.registered[0]() is None
+
+        assert settings.lifecycle_state == "STOPPED"
+        assert "Apply failed" in settings.status_message
+        assert "boom in apply" in settings.status_message
+        assert clients[0].closed
+        assert engine.stopped
+    finally:
+        unregister_blender_ui(bpy)
+
+
 def test_start_stream_real_client_timeout_stops_engine_process(monkeypatch) -> None:
     bpy = _FakeBpy()
     register_blender_ui(bpy)
@@ -718,6 +762,9 @@ class _FakeBpy:
         self.props = _FakeBpyProps()
         self.utils = _FakeBpyUtils()
         self.app = _FakeBpyApp()
+        # Live module context, resolved at call time by the apply-timer redraw
+        # (the operator context dies after execute(); see panels start path).
+        self.context = _FakeContext(_Settings(lifecycle_state="STOPPED"))
 
 
 class _FakeBpyTypes:

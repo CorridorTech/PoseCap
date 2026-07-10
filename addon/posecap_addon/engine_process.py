@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
+from pathlib import Path
 from queue import Empty, Queue
 from threading import Thread
 
@@ -79,7 +81,31 @@ def _popen(command: Sequence[str]) -> subprocess.Popen[str]:
         stderr=subprocess.PIPE,
         text=True,
         shell=False,
+        env=_sanitized_environment(command),
     )
+
+
+def _sanitized_environment(command: Sequence[str]) -> dict[str, str]:
+    """Child environment with a minimal PATH.
+
+    The host application's PATH (Blender's) poisons OpenCV's video-demuxer
+    DLL resolution inside the engine child — the capture then returns the
+    first video frame forever (2026-07-10 diagnosis). Every other variable
+    is inherited; the executable itself is resolved with the parent's PATH
+    before this environment applies.
+    """
+    environment = dict(os.environ)
+    entries: list[str] = []
+    executable_dir = str(Path(command[0]).parent)
+    if executable_dir not in ("", "."):
+        entries.append(executable_dir)
+    # os.environ is case-insensitive on Windows; the plain-dict copy is not.
+    system_root = os.environ.get("SYSTEMROOT", "")
+    if system_root != "":
+        entries.append(str(Path(system_root) / "System32"))
+        entries.append(system_root)
+    environment["PATH"] = os.pathsep.join(entries)
+    return environment
 
 
 def _read_startup_line(process: subprocess.Popen[str], *, timeout_seconds: float) -> str:

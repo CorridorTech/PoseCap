@@ -50,3 +50,36 @@ def test_start_engine_stream_timeout_terminates_process() -> None:
 
     assert len(processes) == 1
     assert processes[0].poll() is not None
+
+
+def test_engine_child_environment_sanitizes_path(monkeypatch) -> None:
+    """The host app's PATH (Blender's) poisons OpenCV video-demuxer DLL
+    resolution in the engine child — frozen-frame capture, 2026-07-10
+    diagnosis. The child keeps every other variable."""
+    from posecap_addon import engine_process as module
+
+    monkeypatch.setenv("PATH", r"C:\HostApp\weird;C:\Other")
+    monkeypatch.setenv("SYSTEMROOT", r"C:\Windows")
+    monkeypatch.setenv("CUDA_VISIBLE_DEVICES", "0")
+
+    environment = module._sanitized_environment(
+        (r"C:\Dev\PoseCap\.venv-pear\Scripts\posecap-engine.exe", "live")
+    )
+
+    assert environment["PATH"].split(";") == [
+        r"C:\Dev\PoseCap\.venv-pear\Scripts",
+        r"C:\Windows\System32",
+        r"C:\Windows",
+    ]
+    assert environment["CUDA_VISIBLE_DEVICES"] == "0"
+    assert "weird" not in environment["PATH"]
+
+
+def test_engine_child_environment_handles_bare_command_name(monkeypatch) -> None:
+    from posecap_addon import engine_process as module
+
+    monkeypatch.setenv("SYSTEMROOT", r"C:\Windows")
+
+    environment = module._sanitized_environment(("posecap-engine", "live"))
+
+    assert environment["PATH"].split(";") == [r"C:\Windows\System32", r"C:\Windows"]
