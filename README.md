@@ -4,6 +4,16 @@ Real-time markerless motion capture for **Blender**: a webcam streams full-body 
 
 Free and open source.
 
+## Demo
+
+Input video on the left; on the right, the SMPL-X body skeleton reconstructed frame-by-frame from the engine's live TCP stream (PEAR inference on an RTX 3080, 100% of frames tracked):
+
+![Dance demo — video left, streamed skeleton right](doc/media/demo_dance.gif)
+
+![Handstand demo — full inversion tracked](doc/media/demo_handstand.gif)
+
+The clips are the repo's own test fixtures ([tests/fixtures/video/](tests/fixtures/video/SOURCES.json)), driven through the real pipeline with `posecap-engine live --source <video>` — the same deterministic path the automated GPU test suite uses. The skeleton viewer uses hand-approximated bone lengths; inside Blender the stream drives a real SMPL-X armature.
+
 ## Status
 
 **Early development — no releases yet.** See the [PRD](doc/product/PRD.md) for scope and roadmap.
