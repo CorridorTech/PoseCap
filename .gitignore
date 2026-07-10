@@ -18,6 +18,8 @@ __pycache__/
 # Media captures / test footage
 assets/
 *.mp4
+# Curated license-clean test fixtures (provenance in SOURCES.json) stay tracked
+!tests/fixtures/video/*.mp4
 
 # Runtime IPC dirs
 input_capture/

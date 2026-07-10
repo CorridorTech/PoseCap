@@ -1,0 +1,63 @@
+{
+  "license": "Pexels License (free for commercial and personal use, no attribution required) — https://www.pexels.com/license/",
+  "processing": "Trimmed to <=10s, scaled to 1280x720, audio stripped, re-encoded libx264 crf26 yuv420p, native frame rate preserved.",
+  "verification": "Camera motion measured per clip: cumulative frame-to-frame affine trajectory (OpenCV LK optical flow + RANSAC, dominant motion = camera). Frames inspected manually: single person, full body in frame.",
+  "fixtures": [
+    {
+      "file": "stretch_slow_static_1280x720_25fps.mp4",
+      "scenario": "slow stretching with forward fold (bent-torso pose case), senior subject (body/age diversity), greenhouse background with plants and water mist (background motion stress, camera fixed)",
+      "source_url": "https://www.pexels.com/video/woman-stretching-her-body-6785253/",
+      "author": "Marcus Aurelius",
+      "pexels_id": 6785253,
+      "original": "3840x2160 25fps 13.0s",
+      "trim": "1s-11s",
+      "camera_motion": "max_zoom_dev=0.18% max_pan=1.8px"
+    },
+    {
+      "file": "handstand_inversion_1280x720_25fps.mp4",
+      "scenario": "full body inversion (handstand splits), hard case for pose orientation, urban background",
+      "source_url": "https://www.pexels.com/video/a-man-doing-a-handstand-5362057/",
+      "author": "Allan Mas",
+      "pexels_id": 5362057,
+      "original": "3840x2160 25fps 6.2s",
+      "trim": "full clip",
+      "camera_motion": "max_zoom_dev=0.46% max_pan=21.3px"
+    },
+    {
+      "file": "dance_fast_indoor_1280x720_30fps.mp4",
+      "scenario": "fast full-body dance movement, indoor home environment (matches real user scenario), full body with feet visible",
+      "source_url": "https://www.pexels.com/video/a-woman-dancing-at-home-6003772/",
+      "author": "Artem Podrez",
+      "pexels_id": 6003772,
+      "original": "3840x2160 30fps 10.6s",
+      "trim": "0s-10s",
+      "camera_motion": "max_zoom_dev=0.42% max_pan=33.3px"
+    }
+  ],
+  "rejected": [
+    {
+      "pexels_id": 3327959,
+      "reason": "slow zoom-in: max_zoom_dev=18.76%, max_pan=121px — fails static-camera requirement"
+    },
+    {
+      "pexels_id": 3760969,
+      "reason": "camera walks through scene: max_zoom_dev=36.19%, max_pan=2581px"
+    },
+    {
+      "pexels_id": 6616339,
+      "reason": "feet cropped out of frame — not full body"
+    },
+    {
+      "pexels_id": 8233704,
+      "reason": "vertical orientation — webcam scenario is landscape"
+    },
+    {
+      "pexels_id": 6525485,
+      "reason": "marginal motion (1.61% zoom, 72px pan) and only 4.8s"
+    },
+    {
+      "pexels_id": 7570258,
+      "reason": "vertical orientation"
+    }
+  ]
+}
