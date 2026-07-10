@@ -16,7 +16,7 @@ The clips are the repo's own test fixtures ([tests/fixtures/video/](tests/fixtur
 
 ## Status
 
-**Early development — no releases yet.** See the [PRD](doc/product/PRD.md) for scope and roadmap.
+**Early development — first installable preview available.** Grab the Windows installer from the [latest release](https://github.com/CorridorTech/PoseCap/releases/latest); see the [PRD](doc/product/PRD.md) for scope and roadmap.
 
 ## What it is
 
