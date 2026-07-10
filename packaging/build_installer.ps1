@@ -81,7 +81,8 @@ Invoke-Checked -Label 'repack pytorch3d wheel' -Command @(
 Invoke-Checked -Label 'build Blender extension' -Command @(
     'uv', 'run', 'python', (Join-Path $RepoRoot 'tools\build_extension.py'),
     '--output-dir', (Join-Path $Staging 'extension'),
-    '--staging-dir', (Join-Path $ScriptRoot 'work\extension-stage')
+    '--staging-dir', (Join-Path $ScriptRoot 'work\extension-stage'),
+    '--release'
 )
 
 # Bootstrap, lockfiles, manifest, licenses.
