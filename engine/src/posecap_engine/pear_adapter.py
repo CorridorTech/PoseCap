@@ -30,11 +30,28 @@ from .errors import CaptureUnavailableError
 
 
 @dataclass(frozen=True)
+class CameraSource:
+    """A live webcam selected by OpenCV device index."""
+
+    index: int
+
+
+@dataclass(frozen=True)
+class VideoFileSource:
+    """A finite video file; EOF ends the stream instead of retrying."""
+
+    path: str
+
+
+LiveSource = CameraSource | VideoFileSource
+
+
+@dataclass(frozen=True)
 class PearLiveConfig:
     """Runtime settings for PEAR live inference."""
 
     pear_root: Path
-    source: int | str
+    source: LiveSource
     width: int = 1280
     height: int = 720
     yolo_threshold: float = 0.3
@@ -58,10 +75,10 @@ CaptureFactory = Callable[[PearLiveConfig], _LiveCapture]
 Clock = Callable[[], float]
 
 
-def _describe_source(source: int | str) -> str:
-    if isinstance(source, str):
-        return f"video file {source}"
-    return f"camera index {source}"
+def _describe_source(source: LiveSource) -> str:
+    if isinstance(source, VideoFileSource):
+        return f"video file {source.path}"
+    return f"camera index {source.index}"
 
 
 _PEAR_MODEL_REPO_ID = "BestWJH/PEAR_models"
@@ -81,7 +98,7 @@ class PearFrameSource:
         self,
         pear_root: Path,
         *,
-        source: int | str,
+        source: LiveSource,
         width: int = 1280,
         height: int = 720,
         yolo_threshold: float = 0.3,
@@ -154,12 +171,14 @@ class _PearModules:
 
 class _OpenCvLiveCapture:
     def __init__(self, config: PearLiveConfig, cv2: Any) -> None:
+        if not isinstance(config.source, CameraSource):
+            raise ValueError("_OpenCvLiveCapture requires a CameraSource")
         self._cv2 = cv2
         self.exhausted = False
-        self._capture = cv2.VideoCapture(config.source)
+        self._capture = cv2.VideoCapture(config.source.index)
         if not bool(self._capture.isOpened()):
             self._capture.release()
-            raise CaptureUnavailableError(f"could not open camera index {config.source}")
+            raise CaptureUnavailableError(f"could not open camera index {config.source.index}")
         self._capture.set(cv2.CAP_PROP_FRAME_WIDTH, config.width)
         self._capture.set(cv2.CAP_PROP_FRAME_HEIGHT, config.height)
 
@@ -177,12 +196,14 @@ class _VideoFileCapture:
     """Finite frame source for a video file; EOF ends the stream instead of retrying."""
 
     def __init__(self, config: PearLiveConfig, cv2: Any) -> None:
+        if not isinstance(config.source, VideoFileSource):
+            raise ValueError("_VideoFileCapture requires a VideoFileSource")
         self._cv2 = cv2
         self.exhausted = False
-        self._capture = cv2.VideoCapture(str(config.source))
+        self._capture = cv2.VideoCapture(config.source.path)
         if not bool(self._capture.isOpened()):
             self._capture.release()
-            raise CaptureUnavailableError(f"could not open video file {config.source}")
+            raise CaptureUnavailableError(f"could not open video file {config.source.path}")
 
     def read_rgb(self) -> object | None:
         ok, frame = self._capture.read()
@@ -307,7 +328,7 @@ def _pear_working_directory(pear_root: Path) -> Generator[None, None, None]:
 
 def _open_live_capture(config: PearLiveConfig) -> _OpenCvLiveCapture | _VideoFileCapture:
     cv2 = _import_optional("cv2", "OpenCV")
-    if isinstance(config.source, str):
+    if isinstance(config.source, VideoFileSource):
         return _VideoFileCapture(config, cv2)
     return _OpenCvLiveCapture(config, cv2)
 

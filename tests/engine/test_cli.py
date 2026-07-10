@@ -12,6 +12,7 @@ from posecap_engine import PEAR_MODELS_REVISION, PEAR_REVISION
 from posecap_engine.capture import CameraDevice
 from posecap_engine.cli import run
 from posecap_engine.errors import CaptureUnavailableError
+from posecap_engine.pear_adapter import CameraSource, VideoFileSource
 
 
 def test_devices_command_prints_json_for_addon_dropdown(monkeypatch) -> None:
@@ -116,7 +117,7 @@ def test_live_command_passes_pear_options_to_frame_source(monkeypatch) -> None:
     assert stderr.getvalue() == ""
     assert captured["source"] == {
         "pear_root": Path("C:/PEAR"),
-        "source": 4,
+        "source": CameraSource(4),
         "width": 640,
         "height": 480,
         "yolo_threshold": 0.45,
@@ -144,7 +145,7 @@ def test_live_command_source_accepts_video_file_path(monkeypatch) -> None:
     )
 
     assert code == 0
-    assert captured["source"] == "assets/dance.mp4"
+    assert captured["source"] == VideoFileSource("assets/dance.mp4")
 
 
 def test_live_command_source_digits_parse_as_camera_index(monkeypatch) -> None:
@@ -167,7 +168,7 @@ def test_live_command_source_digits_parse_as_camera_index(monkeypatch) -> None:
     )
 
     assert code == 0
-    assert captured["source"] == 3
+    assert captured["source"] == CameraSource(3)
 
 
 def test_live_command_source_negative_index_keeps_camera_semantics(monkeypatch) -> None:
@@ -190,7 +191,7 @@ def test_live_command_source_negative_index_keeps_camera_semantics(monkeypatch) 
     )
 
     assert code == 0
-    assert captured["source"] == -1
+    assert captured["source"] == CameraSource(-1)
 
 
 def test_live_command_serves_no_person_frame_from_pear_source(monkeypatch, tmp_path: Path) -> None:

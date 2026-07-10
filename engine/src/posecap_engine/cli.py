@@ -14,7 +14,7 @@ from .doctor import encode_doctor_report, run_doctor
 from .errors import EngineError
 from .frame_sources import FixtureFrameSource
 from .logging_config import configure_logging
-from .pear_adapter import PearFrameSource
+from .pear_adapter import CameraSource, LiveSource, PearFrameSource, VideoFileSource
 from .stream_server import serve_once
 from .watchdog import ParentWatchdog
 
@@ -131,13 +131,13 @@ def _frame_source(args: argparse.Namespace) -> FixtureFrameSource | PearFrameSou
     )
 
 
-def _parse_source(source: str | None, camera_index: int) -> int | str:
+def _parse_source(source: str | None, camera_index: int) -> LiveSource:
     if source is None:
-        return camera_index
+        return CameraSource(camera_index)
     try:
-        return int(source)
+        return CameraSource(int(source))
     except ValueError:
-        return source
+        return VideoFileSource(source)
 
 
 if __name__ == "__main__":

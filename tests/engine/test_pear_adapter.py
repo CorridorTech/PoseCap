@@ -13,11 +13,16 @@ from posecap_contracts import (
 from posecap_engine import pear_adapter
 from posecap_engine.config import PEAR_MODELS_REVISION
 from posecap_engine.errors import CaptureUnavailableError
-from posecap_engine.pear_adapter import PearFrameSource, PearLiveConfig
+from posecap_engine.pear_adapter import (
+    CameraSource,
+    PearFrameSource,
+    PearLiveConfig,
+    VideoFileSource,
+)
 
 
 def test_pear_frame_source_reports_missing_external_checkout(tmp_path: Path) -> None:
-    source = PearFrameSource(tmp_path / "missing-pear", source=0)
+    source = PearFrameSource(tmp_path / "missing-pear", source=CameraSource(0))
 
     with pytest.raises(CaptureUnavailableError, match="PEAR checkout not found"):
         next(source.frames())
@@ -29,7 +34,7 @@ def test_pear_frame_source_emits_no_person_status_and_releases_capture(tmp_path:
     runtime = _FakeRuntime([None])
     source = PearFrameSource(
         pear_root,
-        source=2,
+        source=CameraSource(2),
         runtime_factory=lambda _config: runtime,
         capture_factory=lambda _config: capture,
         clock=lambda: 123.5,
@@ -57,7 +62,7 @@ def test_pear_frame_source_emits_ok_frame_after_no_person(tmp_path: Path) -> Non
     runtime = _FakeRuntime([None, _payload()])
     source = PearFrameSource(
         pear_root,
-        source=0,
+        source=CameraSource(0),
         runtime_factory=lambda _config: runtime,
         capture_factory=lambda _config: _FakeCapture(),
         clock=_FakeClock([10.0, 10.5]),
@@ -83,7 +88,7 @@ def test_pear_frame_source_fails_after_consecutive_camera_read_failures(
     runtime = _FakeRuntime([_payload()])
     source = PearFrameSource(
         pear_root,
-        source=2,
+        source=CameraSource(2),
         runtime_factory=lambda _config: runtime,
         capture_factory=lambda _config: capture,
         max_camera_read_failures=2,
@@ -102,7 +107,7 @@ def test_pear_frame_source_read_failure_error_names_video_file_source(tmp_path: 
     capture = _FakeCapture([None, None])
     source = PearFrameSource(
         pear_root,
-        source="assets/dance.mp4",
+        source=VideoFileSource("assets/dance.mp4"),
         runtime_factory=lambda _config: _FakeRuntime([_payload()]),
         capture_factory=lambda _config: capture,
         max_camera_read_failures=2,
@@ -122,7 +127,7 @@ def test_pear_frame_source_ends_stream_cleanly_at_video_eof(tmp_path: Path) -> N
     runtime = _FakeRuntime([_payload(), _payload()])
     source = PearFrameSource(
         pear_root,
-        source="assets/dance.mp4",
+        source=VideoFileSource("assets/dance.mp4"),
         runtime_factory=lambda _config: runtime,
         capture_factory=lambda _config: capture,
         clock=_FakeClock([1.0, 2.0]),
@@ -138,7 +143,7 @@ def test_pear_frame_source_ends_stream_cleanly_at_video_eof(tmp_path: Path) -> N
 
 def test_video_file_capture_opens_path_reads_rgb_and_flags_eof() -> None:
     cv2 = _FakeCv2(frames=[np.zeros((2, 2, 3), dtype=np.uint8)])
-    config = PearLiveConfig(pear_root=Path("pear"), source="assets/dance.mp4")
+    config = PearLiveConfig(pear_root=Path("pear"), source=VideoFileSource("assets/dance.mp4"))
 
     capture = pear_adapter._VideoFileCapture(config, cv2)
 
@@ -152,7 +157,7 @@ def test_video_file_capture_opens_path_reads_rgb_and_flags_eof() -> None:
 
 def test_video_file_capture_reports_unopenable_file() -> None:
     cv2 = _FakeCv2(frames=[], openable=False)
-    config = PearLiveConfig(pear_root=Path("pear"), source="missing.mp4")
+    config = PearLiveConfig(pear_root=Path("pear"), source=VideoFileSource("missing.mp4"))
 
     with pytest.raises(CaptureUnavailableError, match="could not open video file missing.mp4"):
         pear_adapter._VideoFileCapture(config, cv2)
@@ -165,10 +170,10 @@ def test_open_live_capture_selects_by_source_type(monkeypatch: pytest.MonkeyPatc
     monkeypatch.setattr(pear_adapter, "_import_optional", lambda _name, _display: cv2)
 
     file_capture = pear_adapter._open_live_capture(
-        PearLiveConfig(pear_root=Path("pear"), source="assets/dance.mp4")
+        PearLiveConfig(pear_root=Path("pear"), source=VideoFileSource("assets/dance.mp4"))
     )
     camera_capture = pear_adapter._open_live_capture(
-        PearLiveConfig(pear_root=Path("pear"), source=0)
+        PearLiveConfig(pear_root=Path("pear"), source=CameraSource(0))
     )
 
     assert isinstance(file_capture, pear_adapter._VideoFileCapture)
@@ -183,7 +188,7 @@ def test_load_pear_runtime_requires_cuda(tmp_path: Path, monkeypatch: pytest.Mon
     monkeypatch.setattr(pear_adapter, "_load_pear_modules", lambda _pear_root: modules)
 
     with pytest.raises(CaptureUnavailableError, match="requires CUDA"):
-        pear_adapter._load_pear_runtime(PearLiveConfig(pear_root=pear_root, source=0))
+        pear_adapter._load_pear_runtime(PearLiveConfig(pear_root=pear_root, source=CameraSource(0)))
 
 
 def test_load_pear_runtime_uses_pinned_weights_revision(
@@ -239,7 +244,7 @@ def test_load_pear_runtime_uses_pinned_weights_revision(
     )
     monkeypatch.setattr(pear_adapter, "_load_pear_modules", lambda _pear_root: modules)
 
-    pear_adapter._load_pear_runtime(PearLiveConfig(pear_root=pear_root, source=0))
+    pear_adapter._load_pear_runtime(PearLiveConfig(pear_root=pear_root, source=CameraSource(0)))
 
     assert calls["hf_download"] == {
         "repo_id": "BestWJH/PEAR_models",
@@ -292,7 +297,7 @@ def test_load_pear_runtime_uses_ultralytics_model_name_when_local_yolo_is_absent
     )
     monkeypatch.setattr(pear_adapter, "_load_pear_modules", lambda _pear_root: modules)
 
-    pear_adapter._load_pear_runtime(PearLiveConfig(pear_root=pear_root, source=0))
+    pear_adapter._load_pear_runtime(PearLiveConfig(pear_root=pear_root, source=CameraSource(0)))
 
     assert calls["yolo_path"] == "yolov8x.pt"
 
@@ -352,7 +357,9 @@ def test_load_pear_runtime_runs_upstream_initialization_from_pear_root(
 
     monkeypatch.setattr(pear_adapter, "_load_pear_modules", fake_load_modules)
 
-    pear_adapter._load_pear_runtime(PearLiveConfig(pear_root=relative_pear_root, source=0))
+    pear_adapter._load_pear_runtime(
+        PearLiveConfig(pear_root=relative_pear_root, source=CameraSource(0))
+    )
 
     assert calls["load_root"] == pear_root
     assert calls["model_cwd"] == pear_root
