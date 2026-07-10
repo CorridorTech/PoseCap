@@ -490,61 +490,21 @@ def test_camera_mode_also_offers_the_preview_toggle() -> None:
     assert layout.has_property("preview_enabled")
 
 
-class _FakePreviewCollection(dict):
-    def __init__(self) -> None:
-        super().__init__()
-        self.calls: list[object] = []
-
-    def clear(self) -> None:  # type: ignore[override]
-        self.calls.append("clear")
-        super().clear()
-
-    def load(self, name: str, path: str, kind: str, force_reload: bool = False):
-        self.calls.append(("load", name, path, kind, force_reload))
-        self[name] = object()
-        return self[name]
-
-
-def test_refresh_source_preview_clears_then_loads_from_the_file(monkeypatch, tmp_path) -> None:
-    frame = tmp_path / "prev.jpg"
-    frame.write_bytes(b"jpeg")
-    pcoll = _FakePreviewCollection()
-    monkeypatch.setattr(posecap_addon.panels, "_PREVIEW_COLLECTION", pcoll)
-    monkeypatch.setattr(posecap_addon.panels, "_PREVIEW_PATH", str(frame))
-
-    posecap_addon.panels.refresh_source_preview()
-
-    # force_reload in place (no clear) so the icon never goes empty / flickers.
-    assert "clear" not in pcoll.calls
-    load_call = pcoll.calls[0]
-    assert isinstance(load_call, tuple)
-    assert load_call[0] == "load" and load_call[1] == "source" and load_call[4] is True
-
-
-def test_refresh_source_preview_is_a_noop_when_the_frame_is_missing(monkeypatch) -> None:
-    pcoll = _FakePreviewCollection()
-    monkeypatch.setattr(posecap_addon.panels, "_PREVIEW_COLLECTION", pcoll)
-    monkeypatch.setattr(posecap_addon.panels, "_PREVIEW_PATH", "C:/nope/missing.jpg")
-
-    posecap_addon.panels.refresh_source_preview()
-
-    assert pcoll.calls == []
-
-
-def test_engine_command_passes_preview_path_only_when_preview_enabled() -> None:
+def test_engine_command_requests_the_preview_window_only_when_enabled() -> None:
     settings = _Settings(lifecycle_state="STOPPED")
     settings.pear_root = "C:/PEAR"
+
     settings.preview_enabled = True
     command = posecap_addon.panels._engine_command(
-        settings, None, environ={}, path_exists=lambda _p: True, preview_path="C:/t/prev.jpg"
+        settings, None, environ={}, path_exists=lambda _p: True
     )
-    assert command[command.index("--preview-path") + 1] == "C:/t/prev.jpg"
+    assert "--preview-window" in command
 
     settings.preview_enabled = False
     command = posecap_addon.panels._engine_command(
-        settings, None, environ={}, path_exists=lambda _p: True, preview_path="C:/t/prev.jpg"
+        settings, None, environ={}, path_exists=lambda _p: True
     )
-    assert "--preview-path" not in command
+    assert "--preview-window" not in command
 
 
 def test_engine_command_errors_with_where_to_fix_when_nothing_resolves() -> None:

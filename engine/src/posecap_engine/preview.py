@@ -1,57 +1,38 @@
-"""Side-channel preview frames for the live UI.
+"""Live source-preview window for the engine.
 
-This is NOT the pose wire format — it is an operational artifact (like the
-log): the engine drops the current camera/video frame as a small JPEG so the
-addon can show a live thumbnail in the panel during streaming. Works the same
-for a webcam and a video file because both flow through the one read path.
+Grounded on how Blender webcam-mocap tools actually show the feed: a separate
+OpenCV window (BlendArMocap uses cv2.imshow; the Corridor POC previewed the
+camera engine-side, never inside a Blender panel). bpy.utils.previews is a
+thumbnail cache and cannot do live video — this replaces that dead end.
 """
 
 from __future__ import annotations
 
-import os
-from pathlib import Path
+from contextlib import suppress
 from typing import Any
 
 
-class PreviewFrameWriter:
-    """Publish every Nth frame as a downscaled JPEG, written atomically."""
+class PreviewWindow:
+    """Show each captured frame in an OpenCV window; close on teardown."""
 
-    def __init__(
-        self,
-        path: Path,
-        cv2: Any,
-        *,
-        interval: int = 6,
-        max_width: int = 360,
-    ) -> None:
-        if interval <= 0:
-            raise ValueError("interval must be positive")
-        self._path = Path(path)
+    def __init__(self, cv2: Any, *, title: str = "PoseCap source preview") -> None:
         self._cv2 = cv2
-        self._interval = interval
-        self._max_width = max_width
-        self._count = 0
+        self._title = title
+        self._opened = False
 
-    def offer(self, rgb_image: Any) -> bool:
-        """Publish the frame if it lands on the interval; return whether it wrote."""
-        self._count += 1
-        if self._count % self._interval != 0:
-            return False
-        return self._write(rgb_image)
+    def offer(self, rgb_image: Any) -> None:
+        bgr = self._cv2.cvtColor(rgb_image, self._cv2.COLOR_RGB2BGR)
+        self._cv2.imshow(self._title, bgr)
+        # waitKey pumps the highgui event loop so the window paints and stays
+        # responsive; 1 ms keeps it off the capture rate.
+        self._cv2.waitKey(1)
+        self._opened = True
 
-    def _write(self, rgb_image: Any) -> bool:
-        image = self._downscale(rgb_image)
-        bgr = self._cv2.cvtColor(image, self._cv2.COLOR_RGB2BGR)
-        # cv2 picks the encoder from the extension, so the temp keeps ".jpg".
-        temporary = self._path.with_name(f"{self._path.stem}.partial{self._path.suffix}")
-        if not self._cv2.imwrite(str(temporary), bgr):
-            return False
-        os.replace(temporary, self._path)
-        return True
-
-    def _downscale(self, rgb_image: Any) -> Any:
-        height, width = rgb_image.shape[:2]
-        if width <= self._max_width:
-            return rgb_image
-        scale = self._max_width / float(width)
-        return self._cv2.resize(rgb_image, (self._max_width, max(1, int(height * scale))))
+    def close(self) -> None:
+        if not self._opened:
+            return
+        self._opened = False
+        with suppress(Exception):
+            self._cv2.destroyWindow(self._title)
+        with suppress(Exception):
+            self._cv2.waitKey(1)

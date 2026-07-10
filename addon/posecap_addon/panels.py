@@ -41,16 +41,6 @@ ADDON_ID = (
 _REGISTERED_CLASSES: tuple[type[Any], ...] = ()
 _ACTIVE_SESSION: "_LiveStreamSession | None" = None
 _RECONNECTABLE_STATES = frozenset({"STREAMING", "RECORDING"})
-_STREAMING_STATES = frozenset({"STARTING", "STREAMING", "RECORDING", "RECONNECTING", "WARNING"})
-
-# Live source preview: the engine drops the current frame here, the panel shows
-# it. Set while a preview-enabled stream runs; the previews collection holds the
-# loaded thumbnail (created at register on real bpy, None under the test fakes).
-_PREVIEW_COLLECTION: Any = None
-_PREVIEW_PATH: str = ""
-_PREVIEW_ICON_NAME = "source"
-# Refresh the preview a few times a second, not every apply tick (~60 Hz).
-_PREVIEW_REFRESH_EVERY_TICKS = 6
 
 # First Start Stream pulls the pinned PEAR pose weight (~2.7 GB) before the
 # first frame; without this the panel sits on "Starting" for minutes and a
@@ -158,40 +148,6 @@ def _draw_source(column: Any, settings: _LiveStreamSettings) -> None:
     else:
         column.prop(settings, "camera_index", text="Camera")
     column.prop(settings, "preview_enabled")
-    _draw_source_preview(column, settings)
-
-
-def _draw_source_preview(column: Any, settings: _LiveStreamSettings) -> None:
-    """Show the source thumbnail in the panel (draw only reads the icon).
-
-    The image is (re)loaded on the apply timer, never here — Blender draw
-    callbacks must not do file I/O or mutate data. Grounded on the VirtuCamera
-    addon (previews + template_icon) and the bpy.utils.previews docs.
-    """
-    if _PREVIEW_COLLECTION is None or not bool(settings.preview_enabled):
-        return
-    if settings.lifecycle_state not in _STREAMING_STATES:
-        return
-    if _PREVIEW_ICON_NAME not in _PREVIEW_COLLECTION:
-        return
-    column.template_icon(icon_value=_PREVIEW_COLLECTION[_PREVIEW_ICON_NAME].icon_id, scale=8.0)
-
-
-def refresh_source_preview() -> None:
-    """Reload the preview thumbnail from the engine's frame file (timer only).
-
-    Refresh is clear() + load() per the bpy.utils.previews docs and the
-    VirtuCamera reference — del-by-key raises, and reloading in place does not
-    refresh the cached thumbnail.
-    """
-    if _PREVIEW_COLLECTION is None or _PREVIEW_PATH == "":
-        return
-    path = Path(_PREVIEW_PATH)
-    if not path.is_file():
-        return
-    # force_reload re-reads the same name in place (docs), so the icon never
-    # goes empty between frames — clear()+load() flickers a loading spinner.
-    _PREVIEW_COLLECTION.load(_PREVIEW_ICON_NAME, str(path), "IMAGE", force_reload=True)
 
 
 def draw_addon_preferences(layout: Any, preferences: _AddonPreferences) -> None:
@@ -230,7 +186,6 @@ def register_blender_ui(bpy_module: Any) -> None:
         WM_MODEL_SETUP_PROPERTY_NAME,
         bpy_module.props.PointerProperty(type=model_setup_group),
     )
-    _create_preview_collection(bpy_module)
     _REGISTERED_CLASSES = classes
 
 
@@ -238,7 +193,6 @@ def unregister_blender_ui(bpy_module: Any) -> None:
     """Unregister PoseCap UI classes against a bpy-like module."""
     global _REGISTERED_CLASSES
     _stop_active_session(bpy_module)
-    _remove_preview_collection(bpy_module)
     if hasattr(bpy_module.types.Scene, SCENE_PROPERTY_NAME):
         delattr(bpy_module.types.Scene, SCENE_PROPERTY_NAME)
     if hasattr(bpy_module.types.WindowManager, WM_MODEL_SETUP_PROPERTY_NAME):
@@ -248,35 +202,6 @@ def unregister_blender_ui(bpy_module: Any) -> None:
     for cls in reversed(_REGISTERED_CLASSES):
         bpy_module.utils.unregister_class(cls)
     _REGISTERED_CLASSES = ()
-
-
-def _previews_module(bpy_module: Any) -> Any:
-    """Resolve bpy.utils.previews (a submodule needing an explicit import).
-
-    Returns None under the test fakes so the preview stays inert there.
-    """
-    previews = getattr(getattr(bpy_module, "utils", None), "previews", None)
-    if previews is not None:
-        return previews
-    if getattr(bpy_module, "__name__", "") == "bpy":
-        with suppress(ImportError):
-            return importlib.import_module("bpy.utils.previews")
-    return None
-
-
-def _create_preview_collection(bpy_module: Any) -> None:
-    global _PREVIEW_COLLECTION
-    previews = _previews_module(bpy_module)
-    if previews is not None and _PREVIEW_COLLECTION is None:
-        _PREVIEW_COLLECTION = previews.new()
-
-
-def _remove_preview_collection(bpy_module: Any) -> None:
-    global _PREVIEW_COLLECTION
-    previews = _previews_module(bpy_module)
-    if previews is not None and _PREVIEW_COLLECTION is not None:
-        previews.remove(_PREVIEW_COLLECTION)
-    _PREVIEW_COLLECTION = None
 
 
 def _build_blender_classes(bpy_module: Any) -> tuple[type[Any], ...]:
@@ -443,8 +368,8 @@ def _build_blender_classes(bpy_module: Any) -> tuple[type[Any], ...]:
             subtype="FILE_PATH",
         ),
         "preview_enabled": bpy_module.props.BoolProperty(
-            name="Show Preview",
-            description="Show the live camera/video frame in this panel while streaming",
+            name="Show Preview Window",
+            description="Open a separate window showing the live camera/video while streaming",
             default=False,
         ),
     }
@@ -582,10 +507,7 @@ def _start_live_stream(context: Any, bpy_module: Any) -> set[str]:
     engine = None
     try:
         preferences = _addon_preferences(context)
-        preview_path = _prepare_preview_path(bpy_module, settings)
-        engine = start_engine_stream(
-            _engine_command(settings, preferences, preview_path=preview_path)
-        )
+        engine = start_engine_stream(_engine_command(settings, preferences))
         client = TcpPoseStreamClient(
             engine.endpoint.host,
             engine.endpoint.port,
@@ -659,28 +581,12 @@ _INSTALLER_ENGINE_SUBPATH = ("PoseCap", "runtime", "venv", "Scripts", "posecap-e
 PathExists = Callable[[Path], bool]
 
 
-def _prepare_preview_path(bpy_module: Any, settings: _LiveStreamSettings) -> str:
-    """Pick the preview-frame file, clear any stale one, and remember it for draw."""
-    global _PREVIEW_PATH
-    if not bool(getattr(settings, "preview_enabled", False)):
-        _PREVIEW_PATH = ""
-        return ""
-    tempdir = str(getattr(bpy_module.app, "tempdir", "")).strip()
-    root = Path(tempdir) if tempdir != "" else Path(tempfile.gettempdir())
-    path = root / "posecap-source-preview.jpg"
-    with suppress(OSError):
-        path.unlink()
-    _PREVIEW_PATH = str(path)
-    return _PREVIEW_PATH
-
-
 def _engine_command(
     settings: _LiveStreamSettings,
     preferences: _AddonPreferences | None = None,
     *,
     environ: dict[str, str] | None = None,
     path_exists: PathExists | None = None,
-    preview_path: str | None = None,
 ) -> tuple[str, ...]:
     env = environ if environ is not None else dict(os.environ)
     exists = path_exists if path_exists is not None else (lambda path: path.exists())
@@ -715,8 +621,8 @@ def _engine_command(
         video_source = str(getattr(settings, "video_source", "")).strip()
         if video_source != "":
             command += ["--source", video_source]
-    if bool(getattr(settings, "preview_enabled", False)) and preview_path:
-        command += ["--preview-path", preview_path]
+    if bool(getattr(settings, "preview_enabled", False)):
+        command += ["--preview-window"]
     return tuple(command)
 
 
@@ -891,7 +797,6 @@ class _LiveStreamSession:
         self._timer = timer
         self._stopped = False
         self._started_at = _now()
-        self._preview_ticks = 0
         self.timer_callback: Callable[[], float | None] = self._tick
 
     def _tick(self) -> float | None:
@@ -930,18 +835,7 @@ class _LiveStreamSession:
             self._settings.status_message = f"Apply failed: {exc} (see posecap-addon.log)"
             return None
         self._flag_long_start_if_stalled()
-        self._refresh_preview_if_due()
         return result
-
-    def _refresh_preview_if_due(self) -> None:
-        """Reload the source thumbnail a few times a second, off the draw path."""
-        if not bool(getattr(self._settings, "preview_enabled", False)):
-            return
-        self._preview_ticks += 1
-        if self._preview_ticks % _PREVIEW_REFRESH_EVERY_TICKS != 0:
-            return
-        refresh_source_preview()
-        tag_view3d_redraw(self._bpy_module.context)
 
     def _flag_long_start_if_stalled(self) -> None:
         """Explain the silent ~2.7 GB first-run weight download without faking detection."""

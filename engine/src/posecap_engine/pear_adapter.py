@@ -9,7 +9,7 @@ import os
 import sys
 import time
 from collections.abc import Callable, Generator
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
@@ -162,6 +162,9 @@ class PearFrameSource:
                 seq += 1
         finally:
             capture.release()
+            if self._preview_writer is not None:
+                with suppress(Exception):
+                    self._preview_writer.close()
 
 
 @dataclass(frozen=True)
