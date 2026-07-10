@@ -1,12 +1,12 @@
 ---
 name: ad-philosophy
-description: Universal agent behavior and documentation discipline — think before coding, ground in real patterns, prefer simplicity, make surgical changes, define verifiable goals, verify before claiming done, and write documentation that captures only definitions and decisions. Auto-invokes on non-trivial changes, refactors, debugging, "think before coding", "ground before coding", "verify done", "before implementing", on documentation work — "writing docs", "writing readme", "writing architecture", "writing adr", "writing task", "audit docs" — or whenever the task is ambiguous enough that guardrails matter.
-summary: Universal agent guardrails (think before coding, verify before claiming done). Auto-loads on non-trivial work.
+description: Universal agent behavior and documentation discipline — think before coding, decide when grounded (only ask on judgment calls), ground in real patterns, prefer simplicity, make surgical changes, define verifiable goals, verify before claiming done, and write documentation that captures only definitions and decisions. Auto-invokes on non-trivial changes, refactors, debugging, "think before coding", "ground before coding", "verify done", "decide when grounded", "employee not co-pilot", "before implementing", on documentation work — "writing docs", "writing readme", "writing architecture", "writing adr", "writing task", "audit docs" — or whenever the task is ambiguous enough that guardrails matter.
+summary: Universal agent guardrails (think, decide when grounded, verify done). Auto-loads on non-trivial work.
 ---
 
 # /ad-philosophy
 
-Six behaviors apply to every non-trivial change. Bias toward caution over speed; for trivial diffs, use judgment. A separate Documentation Discipline section at the end applies to every document the agent writes.
+Seven behaviors apply to every non-trivial change. Bias toward caution over speed; for trivial diffs, use judgment. A separate Documentation Discipline section at the end applies to every document the agent writes.
 
 ## Think Before Coding
 
@@ -14,16 +14,38 @@ Six behaviors apply to every non-trivial change. Bias toward caution over speed;
 
 Before implementing:
 
-- State your assumptions explicitly. If uncertain, ask.
-- If multiple interpretations exist, present them — don't pick silently.
+- State your assumptions explicitly. Then apply *Decide When Grounded* below — if grounding resolves the uncertainty, decide; if it does not and the spec itself is fuzzy, route to `/ad-grill` instead of a raw open question.
+- If multiple interpretations remain after grounding, present them — don't pick silently.
 - If a simpler approach exists, say so. Push back when warranted.
-- If something is unclear, stop. Name what's confusing. Ask.
+- If something is unclear *and grounding cannot resolve it*, stop. Name what's confusing. Ask through `/ad-grill` when the ambiguity is spec-level; otherwise a single focused question with a recommended answer.
 
 ## Ground Before Coding
 
 **Anchor in real patterns before writing code.**
 
 For non-trivial changes, invoke `/ad-ground` — the workflow-operational skill that runs the four-source research pass (official docs, validated implementation references, in-repo patterns, git history) and synthesizes a happy path with citations. The skill carries the prescriptive deviation gate; this section carries the posture only. Skip for diffs you can describe in one sentence.
+
+## Decide When Grounded, Ask When Judgment
+
+Universal rule; [WORKFLOW.md §7](../../../../WORKFLOW.md) subsection *Decide when grounded, ask when judgment* is the canonical source.
+
+**The engineer is the boss, not the co-pilot.** They are not reading every file, doc, or line the agent read to arrive at a recommendation. Bring decisions with a recommendation — do not punt every fork back to them.
+
+Default is decide, not ask:
+
+- `/ad-ground` returned a canonical happy path with citations — take it. Do not ask.
+- Three approaches, one wins on the picked criterion (§9 TDG) — pick it. Do not survey.
+- Well-established industry pattern, canonical library, statistically dominant shape — take it. Do not ask.
+- Deterministic outcome (type-check, tests, gate scripts all green) — state the result. Do not ask whether it counts as done.
+
+Ask only when:
+
+- **Design or taste.** UX shape, product tradeoff, naming that carries brand.
+- **Irreversible / high blast radius.** Destructive git ops, shared-state mutations, force-pushes, deletions. Match the confirmation to the blast radius, not to the diff size.
+- **Genuinely close calls.** Two options tie on the picked criterion; the tie-break is a preference the agent cannot ground.
+- **Fuzzy spec.** Route to `/ad-grill`, not a raw open question.
+
+Shape of the ask: one question, recommended answer first, why the alternatives are weaker. Not a survey of every option the agent considered — that pushes synthesis work back onto the boss.
 
 ## Simplicity First
 
@@ -105,7 +127,7 @@ When generating or auditing a document, walk this list before declaring done.
 
 ## Next
 
-- Continue current work with the six behaviors active. This skill is posture, not a one-shot task.
+- Continue current work with the seven behaviors active. This skill is posture, not a one-shot task.
 - `/ad-ground` for non-trivial research before code.
 - `/ad-next` when uncertain where to go in the workflow.
 - `/ad-review` before merging non-trivial diffs.

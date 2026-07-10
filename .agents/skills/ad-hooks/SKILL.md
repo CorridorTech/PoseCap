@@ -43,7 +43,14 @@ Step 3 — scaffold the runner config. Write the runner-specific config file:
 
 Step 4 — update `AGENTS.md` Quality Gates. Append or refresh the section with: pre-commit gate list, pre-push gate list, runner name + config path, bootstrap command, CI status if known, no-bypass policy. Honor existing managed markers if `ad-bootstrap` already wrote Quality Gates.
 
-Step 5 — tell the user the bootstrap command. Output the exact one-line command the user runs. The skill does not execute it.
+Step 5 — mirror CI locally. WORKFLOW §11: "CI failure is a local gate gap." Read the CI config and compare:
+1. Detect CI surface in order: `.github/workflows/*.yml`, `.gitlab-ci.yml`, `.circleci/config.yml`, `azure-pipelines.yml`, `.buildkite/pipeline.yml`. If none, note the gap and skip — mirror check has no target.
+2. Extract CI commands from `run:` / `script:` steps — test / lint / typecheck / build. Skip checkout, setup, cache, publish.
+3. Extract CI matrix — language versions, OS runners, feature flags. These become pre-push matrix requirements when they change the failure surface.
+4. Diff against pre-push. For each CI command not covered locally, warn: `CI runs <cmd> — pre-push does not. Add to pre-push or CI will catch what local won't.` For each matrix dimension CI covers that pre-push does not, warn: `CI matrix <dim>=<values>, pre-push runs <value>.`
+5. Offer to close the gap. Propose specific edits to the runner config; ask the user before writing (matrix mirroring can be expensive).
+
+Step 6 — tell the user the bootstrap command. Output the exact one-line command the user runs. The skill does not execute it.
 </instructions>
 
 <output_contract>
@@ -64,7 +71,7 @@ Documentation discipline rules apply at write time:
 
 ## Next
 
-- Run the runner's bootstrap command (cited in Step 5 — e.g., `npm install`, `lefthook install`, `pre-commit install`).
+- Run the runner's bootstrap command (cited in Step 6 — e.g., `npm install`, `lefthook install`, `pre-commit install`).
 - Verify a deliberately-failing edit (e.g., a known lint violation) gets blocked at commit.
 - Add a redundant CI gate so contributors cannot bypass via `--no-verify`. WORKFLOW §11 binding.
 - `/ad-audit` periodically to confirm hooks stay wired as the project evolves.

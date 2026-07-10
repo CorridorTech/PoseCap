@@ -73,7 +73,19 @@ Deterministic enforcement — agent cannot skip.
 
 Honor the existing managed-skills / managed-quality-gates markers if `ad-bootstrap` already wrote a Quality Gates section. The skill refreshes the section in place; user content outside the markers is preserved.
 
-## Step 5 — Tell the user what to run
+## Step 5 — Mirror CI locally (drift check)
+
+Local gates must mirror what CI runs — same commands, same matrix. WORKFLOW §11: "CI failure is a local gate gap." Read the CI config and compare.
+
+1. **Detect the CI surface.** In order: `.github/workflows/*.yml` (GitHub Actions), `.gitlab-ci.yml` (GitLab CI), `.circleci/config.yml` (Circle), `azure-pipelines.yml` (Azure), `.buildkite/pipeline.yml` (Buildkite). If none, note the gap and stop this step — the mirror check has no target.
+2. **Extract CI commands.** Parse the `run:` / `script:` steps from the CI config. Focus on test / lint / typecheck / build invocations; ignore checkout, setup, cache, publish steps.
+3. **Extract CI matrix.** Language versions (Node 20 / 22, Python 3.11 / 3.12, Go 1.22, etc.), OS runners (`ubuntu-latest`, `macos-latest`), feature flags. These become the pre-push matrix requirement when they change the failure surface.
+4. **Diff against the pre-push tier.** For each CI command not covered by pre-push, warn: `CI runs <cmd> — pre-push does not. Add to pre-push or CI will catch what local won't.` For each matrix dimension CI covers that pre-push does not (e.g., pre-push runs Node 22 only, CI runs 20 + 22), warn: `CI matrix <dim>=<values>, pre-push runs <value>. Failures under <missing-value> will only surface in CI.`
+5. **Offer to close the gap.** If gaps exist, propose specific edits to the runner config (extra commands, matrix loop via `Node --version` iteration, feature-flag pass). Ask the user before writing — matrix mirroring can be expensive; the user picks.
+
+The mirror check runs after Step 4 wrote the config, so gap edits layer on top of a working scaffold. If the CI surface is absent, note: "No CI config detected — pre-push is the only gate. Add CI so contributors cannot bypass via `--no-verify` and re-run this skill to re-mirror."
+
+## Step 6 — Tell the user what to run
 
 After writing the config, output exactly the bootstrap command the user must run (e.g., `npm install` for Husky, `lefthook install` for lefthook, `pre-commit install` for pre-commit). The skill does not execute the bootstrap — that is the user's call.
 
@@ -99,7 +111,7 @@ A narrative document, so the documentation discipline rules apply at write time:
 
 ## Next
 
-- Run the runner's bootstrap command (cited in Step 5 — e.g., `npm install`, `lefthook install`, `pre-commit install`).
+- Run the runner's bootstrap command (cited in Step 6 — e.g., `npm install`, `lefthook install`, `pre-commit install`).
 - Verify a deliberately-failing edit (e.g., a known lint violation) gets blocked at commit. The gate is real only when it actually fires.
 - Add a redundant CI gate (`.github/workflows/`, GitLab CI, or equivalent) so contributors cannot bypass via `--no-verify`. WORKFLOW §11 binding.
 - `/ad-audit` periodically to confirm hooks stay wired as the project evolves.
