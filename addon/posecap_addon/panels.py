@@ -9,9 +9,14 @@ from contextlib import suppress
 from pathlib import Path
 from typing import Any, Protocol
 
-from posecap_core import PoseSmoother
+from posecap_core import LimbFilter, PoseSmoother
 
 from .apply_timer import BpyArmaturePoseWriter, PoseApplyTimer, tag_view3d_redraw
+from .character_setup_panel import (
+    CHARACTER_PRESET_ITEMS,
+    build_character_setup_classes,
+    draw_character_setup_section,
+)
 from .engine_process import start_engine_stream
 from .instrumentation import ApplyTimeInstrumentation, configure_addon_logging
 from .model_setup_panel import (
@@ -50,6 +55,15 @@ class _LiveStreamSettings(Protocol):
     pose_smoothing_min_cutoff: float
     pose_smoothing_beta: float
     record_live_mocap: bool
+    detection_confidence: float
+    detector_model: str
+    capture_width: int
+    capture_height: int
+    apply_arms: bool
+    apply_legs: bool
+    apply_torso: bool
+    character_preset: str
+    character_mapping_json: str
 
 
 class _AddonPreferences(Protocol):
@@ -80,8 +94,20 @@ def draw_live_stream_panel(layout: Any, settings: _LiveStreamSettings) -> None:
     advanced_header.prop(settings, "show_advanced", toggle=True)
     if settings.show_advanced:
         advanced = layout.box().column()
+        advanced.label(text="Smoothing", icon="SMOOTHCURVE")
         advanced.prop(settings, "pose_smoothing_min_cutoff")
         advanced.prop(settings, "pose_smoothing_beta")
+        advanced.label(text="Engine", icon="SETTINGS")
+        advanced.prop(settings, "detection_confidence")
+        advanced.prop(settings, "detector_model")
+        resolution = advanced.row(align=True)
+        resolution.prop(settings, "capture_width")
+        resolution.prop(settings, "capture_height")
+        advanced.label(text="Apply Capture To", icon="FILTER")
+        limbs = advanced.row(align=True)
+        limbs.prop(settings, "apply_arms", toggle=True)
+        limbs.prop(settings, "apply_legs", toggle=True)
+        limbs.prop(settings, "apply_torso", toggle=True)
 
     actions = layout.row(align=True)
     start = actions.row()
@@ -237,6 +263,68 @@ def _build_blender_classes(bpy_module: Any) -> tuple[type[Any], ...]:
             description="Insert keyframes for applied stream frames",
             default=False,
         ),
+        "detection_confidence": bpy_module.props.FloatProperty(
+            name="Detection Confidence",
+            description=(
+                "Person-detector confidence threshold: lower finds people in "
+                "harder shots, higher rejects false detections"
+            ),
+            default=0.3,
+            min=0.05,
+            max=0.95,
+        ),
+        "detector_model": bpy_module.props.EnumProperty(
+            name="Detector",
+            description="Person-detector size: speed versus detection quality",
+            items=(
+                ("yolov8n", "Fastest", "Smallest detector; lowest quality"),
+                ("yolov8s", "Balanced (30 FPS)", "Default; reaches the 30 FPS budget"),
+                ("yolov8m", "High Quality", "Bigger detector; slower"),
+                ("yolov8x", "Max Quality", "Largest detector; slowest"),
+            ),
+            default="yolov8s",
+        ),
+        "capture_width": bpy_module.props.IntProperty(
+            name="Capture Width",
+            description="Webcam capture width in pixels",
+            default=1280,
+            min=320,
+            max=3840,
+        ),
+        "capture_height": bpy_module.props.IntProperty(
+            name="Capture Height",
+            description="Webcam capture height in pixels",
+            default=720,
+            min=240,
+            max=2160,
+        ),
+        "apply_arms": bpy_module.props.BoolProperty(
+            name="Arms",
+            description="Apply captured arm and hand motion",
+            default=True,
+        ),
+        "apply_legs": bpy_module.props.BoolProperty(
+            name="Legs",
+            description="Apply captured leg and foot motion",
+            default=True,
+        ),
+        "apply_torso": bpy_module.props.BoolProperty(
+            name="Torso",
+            description="Apply captured spine, neck and head motion",
+            default=True,
+        ),
+        "character_preset": bpy_module.props.EnumProperty(
+            name="Skeleton",
+            description="Skeleton family of the character to convert",
+            items=CHARACTER_PRESET_ITEMS,
+            default="AUTO",
+        ),
+        "character_mapping_json": bpy_module.props.StringProperty(
+            name="Mapping File",
+            description="JSON file mapping SMPL-X joint names to bone names",
+            default="",
+            subtype="FILE_PATH",
+        ),
     }
 
     class POSECAP_AP_AddonPreferences(bpy_module.types.AddonPreferences):
@@ -325,6 +413,7 @@ def _build_blender_classes(bpy_module: Any) -> tuple[type[Any], ...]:
     }
 
     setup_operator_classes = build_model_setup_classes(bpy_module)
+    character_operator_classes = build_character_setup_classes(bpy_module)
 
     return (
         POSECAP_PG_LiveStreamSettings,
@@ -333,6 +422,7 @@ def _build_blender_classes(bpy_module: Any) -> tuple[type[Any], ...]:
         POSECAP_OT_StartStream,
         POSECAP_OT_StopStream,
         *setup_operator_classes,
+        *character_operator_classes,
         POSECAP_PT_LiveStream,
     )
 
@@ -350,6 +440,7 @@ def _draw_main_panel(layout: Any, context: Any) -> None:
             session=active_model_setup_session(),
         )
     draw_live_stream_panel(layout, settings)
+    draw_character_setup_section(layout, settings)
 
 
 def _settings_from_context(context: Any) -> Any:
@@ -388,6 +479,7 @@ def _start_live_stream(context: Any, bpy_module: Any) -> set[str]:
         timer = PoseApplyTimer(
             lifecycle_stream,
             writer,
+            limb_filter=_limb_filter_from(settings),
             smoother=(
                 PoseSmoother(
                     min_cutoff=float(settings.pose_smoothing_min_cutoff),
@@ -452,6 +544,34 @@ def _engine_command(
         str(int(settings.camera_index)),
         "--parent-pid",
         str(os.getpid()),
+        "--yolo-threshold",
+        _format_float(settings.detection_confidence),
+        "--yolo-model",
+        str(settings.detector_model),
+        "--width",
+        str(int(settings.capture_width)),
+        "--height",
+        str(int(settings.capture_height)),
+    )
+
+
+def _format_float(value: Any) -> str:
+    return f"{float(value):g}"
+
+
+def _limb_filter_from(settings: _LiveStreamSettings) -> LimbFilter | None:
+    """Checkbox semantics: all limbs checked means no filtering at all."""
+    arms = bool(settings.apply_arms)
+    legs = bool(settings.apply_legs)
+    torso = bool(settings.apply_torso)
+    if arms and legs and torso:
+        return None
+    return LimbFilter(
+        arms_left=arms,
+        arms_right=arms,
+        legs_left=legs,
+        legs_right=legs,
+        torso=torso,
     )
 
 

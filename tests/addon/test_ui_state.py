@@ -87,6 +87,125 @@ def test_advanced_section_collapsed_hides_tuning_and_expanded_shows_it() -> None
     assert expanded.has_property("pose_smoothing_beta")
 
 
+def test_advanced_section_exposes_engine_settings_and_limb_filters() -> None:
+    settings = _Settings(lifecycle_state="STOPPED")
+    collapsed = _FakeLayout()
+    settings.show_advanced = False
+    draw_live_stream_panel(collapsed, settings)
+    for name in ("detection_confidence", "detector_model", "capture_width", "apply_arms"):
+        assert not collapsed.has_property(name)
+
+    expanded = _FakeLayout()
+    settings.show_advanced = True
+    draw_live_stream_panel(expanded, settings)
+    for name in (
+        "detection_confidence",
+        "detector_model",
+        "capture_width",
+        "capture_height",
+        "apply_arms",
+        "apply_legs",
+        "apply_torso",
+    ):
+        assert expanded.has_property(name)
+
+
+def test_start_stream_passes_engine_settings_from_the_advanced_section(monkeypatch) -> None:
+    bpy = _FakeBpy()
+    register_blender_ui(bpy)
+    settings = _Settings(lifecycle_state="STOPPED")
+    settings.pear_root = "C:/PEAR"
+    settings.detection_confidence = 0.55
+    settings.detector_model = "yolov8x"
+    settings.capture_width = 1920
+    settings.capture_height = 1080
+    context = _FakeContext(settings)
+    engine = _FakeEngine()
+    commands: list[tuple[str, ...]] = []
+
+    monkeypatch.setattr(
+        posecap_addon.panels,
+        "start_engine_stream",
+        lambda command: commands.append(tuple(command)) or engine,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        posecap_addon.panels,
+        "TcpPoseStreamClient",
+        lambda host, port, **_kwargs: _FakeClient(host, port),
+        raising=False,
+    )
+
+    try:
+        start_cls = bpy.utils.registered_class("POSECAP_OT_StartStream")
+        assert start_cls().execute(context) == {"FINISHED"}
+
+        command = commands[0]
+        assert command[command.index("--yolo-threshold") + 1] == "0.55"
+        assert command[command.index("--yolo-model") + 1] == "yolov8x"
+        assert command[command.index("--width") + 1] == "1920"
+        assert command[command.index("--height") + 1] == "1080"
+    finally:
+        unregister_blender_ui(bpy)
+
+
+def test_start_stream_builds_the_limb_filter_from_the_apply_checkboxes(monkeypatch) -> None:
+    from posecap_core import LimbFilter
+
+    captured: list[dict[str, object]] = []
+
+    class _RecordingTimer:
+        def __init__(self, stream, writer, **kwargs) -> None:
+            captured.append(kwargs)
+            self._stream = stream
+
+        def tick(self) -> float:
+            return 1.0 / 60.0
+
+        def stop(self) -> None:
+            self._stream.close()
+
+    def run_start(settings: _Settings) -> None:
+        bpy = _FakeBpy()
+        register_blender_ui(bpy)
+        context = _FakeContext(settings)
+        monkeypatch.setattr(
+            posecap_addon.panels,
+            "start_engine_stream",
+            lambda _command: _FakeEngine(),
+            raising=False,
+        )
+        monkeypatch.setattr(
+            posecap_addon.panels,
+            "TcpPoseStreamClient",
+            lambda host, port, **_kwargs: _FakeClient(host, port),
+            raising=False,
+        )
+        monkeypatch.setattr(posecap_addon.panels, "PoseApplyTimer", _RecordingTimer, raising=False)
+        try:
+            start_cls = bpy.utils.registered_class("POSECAP_OT_StartStream")
+            assert start_cls().execute(context) == {"FINISHED"}
+        finally:
+            unregister_blender_ui(bpy)
+
+    all_on = _Settings(lifecycle_state="STOPPED")
+    all_on.pear_root = "C:/PEAR"
+    run_start(all_on)
+    assert captured[0]["limb_filter"] is None, "all checkboxes on = no filtering"
+
+    torso_off = _Settings(lifecycle_state="STOPPED")
+    torso_off.pear_root = "C:/PEAR"
+    torso_off.apply_torso = False
+    run_start(torso_off)
+    limb_filter = captured[1]["limb_filter"]
+    assert isinstance(limb_filter, LimbFilter)
+    assert limb_filter.is_active()
+    allowed = limb_filter.allowed_bones()
+    assert allowed is not None
+    assert {"left_shoulder", "right_wrist", "left_hip", "right_foot"} <= allowed
+    assert "spine1" not in allowed
+
+
 def test_addon_preferences_draw_runtime_defaults() -> None:
     layout = _FakeLayout()
     preferences = _FakeAddonPreferences(
@@ -113,6 +232,7 @@ def test_blender_ui_registration_adds_scene_state_and_unregisters_cleanly() -> N
         "POSECAP_OT_StopStream",
         "POSECAP_OT_SetupBodyModels",
         "POSECAP_OT_WatchModelDownloads",
+        "POSECAP_OT_ConvertCharacter",
         "POSECAP_PT_LiveStream",
     ]
     preferences_cls = bpy.utils.registered_class("POSECAP_AP_AddonPreferences")
@@ -127,6 +247,7 @@ def test_blender_ui_registration_adds_scene_state_and_unregisters_cleanly() -> N
     assert not hasattr(bpy.types.WindowManager, "posecap_model_setup")
     assert [cls.__name__ for cls in bpy.utils.unregistered] == [
         "POSECAP_PT_LiveStream",
+        "POSECAP_OT_ConvertCharacter",
         "POSECAP_OT_WatchModelDownloads",
         "POSECAP_OT_SetupBodyModels",
         "POSECAP_OT_StopStream",
@@ -188,6 +309,14 @@ def test_start_and_stop_operators_own_stream_runtime(monkeypatch) -> None:
                 "4",
                 "--parent-pid",
                 str(os.getpid()),
+                "--yolo-threshold",
+                "0.3",
+                "--yolo-model",
+                "yolov8s",
+                "--width",
+                "1280",
+                "--height",
+                "720",
             )
         ]
         assert clients[0].endpoint == ("127.0.0.1", 42321)
@@ -258,6 +387,14 @@ def test_start_stream_uses_addon_preferences_when_scene_runtime_fields_are_empty
                 "4",
                 "--parent-pid",
                 str(os.getpid()),
+                "--yolo-threshold",
+                "0.3",
+                "--yolo-model",
+                "yolov8s",
+                "--width",
+                "1280",
+                "--height",
+                "720",
             )
         ]
         assert clients[0].started
@@ -712,6 +849,15 @@ class _Settings:
         self.show_advanced = False
         self.pose_smoothing_min_cutoff = 1.0
         self.pose_smoothing_beta = 0.5
+        self.detection_confidence = 0.3
+        self.detector_model = "yolov8s"
+        self.capture_width = 1280
+        self.capture_height = 720
+        self.apply_arms = True
+        self.apply_legs = True
+        self.apply_torso = True
+        self.character_preset = "AUTO"
+        self.character_mapping_json = ""
 
 
 class _FakeLayout:
