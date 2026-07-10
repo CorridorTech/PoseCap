@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 import posecap_addon.panels
+import pytest
 from posecap_addon.engine_process import EngineEndpoint, EngineProcess
 from posecap_addon.panels import (
     ADDON_ID,
@@ -400,6 +401,75 @@ def test_starting_shows_first_run_download_hint_after_ten_seconds(monkeypatch) -
         assert settings.status_message == "Streaming"
     finally:
         unregister_blender_ui(bpy)
+
+
+def test_engine_command_resolves_pear_root_from_env_var_when_unset() -> None:
+    settings = _Settings(lifecycle_state="STOPPED")  # pear_root == ""
+    environ = {"POSECAP_PEAR_ROOT": "D:/pear-checkout"}
+    existing = {Path("D:/pear-checkout")}
+
+    command = posecap_addon.panels._engine_command(
+        settings, None, environ=environ, path_exists=existing.__contains__
+    )
+
+    assert command[command.index("--pear-root") + 1] == "D:/pear-checkout"
+
+
+def test_engine_command_resolves_installer_paths_for_a_fresh_install() -> None:
+    # Emmet's case: clean v0.1.2 install, nothing typed, engine pref at default.
+    settings = _Settings(lifecycle_state="STOPPED")
+    preferences = _FakeAddonPreferences(pear_root="", engine_executable="posecap-engine")
+    local = "C:/Users/Corridor/AppData/Local"
+    environ = {"LOCALAPPDATA": local}
+    installer_pear = Path(local, "PoseCap", "pear")
+    installer_exe = Path(local, "PoseCap", "runtime", "venv", "Scripts", "posecap-engine.exe")
+    existing = {installer_pear, installer_exe}
+
+    command = posecap_addon.panels._engine_command(
+        settings, preferences, environ=environ, path_exists=existing.__contains__
+    )
+
+    assert command[command.index("--pear-root") + 1] == str(installer_pear)
+    assert command[0] == str(installer_exe)
+
+
+def test_engine_command_errors_with_where_to_fix_when_nothing_resolves() -> None:
+    settings = _Settings(lifecycle_state="STOPPED")
+    with pytest.raises(ValueError, match="panel or the addon preferences"):
+        posecap_addon.panels._engine_command(
+            settings, None, environ={}, path_exists=lambda _path: False
+        )
+
+
+def test_engine_command_prefers_explicit_paths_over_fallbacks() -> None:
+    settings = _Settings(lifecycle_state="STOPPED")
+    settings.pear_root = "E:/typed/pear"
+    preferences = _FakeAddonPreferences(
+        pear_root="", engine_executable="E:/typed/posecap-engine.exe"
+    )
+    environ = {"POSECAP_PEAR_ROOT": "D:/env-pear", "LOCALAPPDATA": "C:/Users/x/AppData/Local"}
+    # Even though the explicit engine path does not "exist", an explicit user
+    # value must win over installer discovery.
+    existing = {Path("E:/typed/posecap-engine.exe")}
+
+    command = posecap_addon.panels._engine_command(
+        settings, preferences, environ=environ, path_exists=existing.__contains__
+    )
+
+    assert command[command.index("--pear-root") + 1] == "E:/typed/pear"
+    assert command[0] == "E:/typed/posecap-engine.exe"
+
+
+def test_engine_command_falls_back_to_path_name_for_dev_without_installer() -> None:
+    settings = _Settings(lifecycle_state="STOPPED")
+    settings.pear_root = "F:/dev/pear"
+    preferences = _FakeAddonPreferences(pear_root="", engine_executable="posecap-engine")
+
+    command = posecap_addon.panels._engine_command(
+        settings, preferences, environ={}, path_exists=lambda _path: False
+    )
+
+    assert command[0] == "posecap-engine"
 
 
 def test_start_stream_uses_addon_preferences_when_scene_runtime_fields_are_empty(

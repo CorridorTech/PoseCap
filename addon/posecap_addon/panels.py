@@ -538,17 +538,31 @@ def _stop_active_session(bpy_module: Any) -> None:
         session.stop(unregister_timer=True, bpy_module=bpy_module)
 
 
+# Mirrors engine POSECAP_PEAR_ROOT_ENV; the addon must not import posecap_engine.
+POSECAP_PEAR_ROOT_ENV = "POSECAP_PEAR_ROOT"
+# Default install layout (Inno {localappdata}\PoseCap): a fresh install works
+# with nothing typed, and this even repairs installs made before this fallback.
+_INSTALLER_PEAR_SUBPATH = ("PoseCap", "pear")
+_INSTALLER_ENGINE_SUBPATH = ("PoseCap", "runtime", "venv", "Scripts", "posecap-engine.exe")
+
+PathExists = Callable[[Path], bool]
+
+
 def _engine_command(
     settings: _LiveStreamSettings,
     preferences: _AddonPreferences | None = None,
+    *,
+    environ: dict[str, str] | None = None,
+    path_exists: PathExists | None = None,
 ) -> tuple[str, ...]:
-    pear_root = _first_nonempty(settings.pear_root, getattr(preferences, "pear_root", ""))
+    env = environ if environ is not None else dict(os.environ)
+    exists = path_exists if path_exists is not None else (lambda path: path.exists())
+    pear_root = _resolve_pear_root(settings, preferences, env, exists)
     if pear_root == "":
-        raise ValueError("PEAR Root is required")
-    engine_executable = _first_nonempty(
-        getattr(preferences, "engine_executable", ""),
-        "posecap-engine",
-    )
+        raise ValueError(
+            "PEAR Root is required — set PEAR Root in the PoseCap panel or the addon preferences."
+        )
+    engine_executable = _resolve_engine_executable(preferences, env, exists)
     return (
         engine_executable,
         "live",
@@ -567,6 +581,52 @@ def _engine_command(
         "--height",
         str(int(settings.capture_height)),
     )
+
+
+def _resolve_pear_root(
+    settings: _LiveStreamSettings,
+    preferences: _AddonPreferences | None,
+    env: dict[str, str],
+    exists: PathExists,
+) -> str:
+    """Resolve the PEAR checkout, falling back so the user need not type a path.
+
+    Order: explicit panel/preferences value, then the POSECAP_PEAR_ROOT env
+    var, then the installer's default location. Empty only when none resolve.
+    """
+    explicit = _first_nonempty(settings.pear_root, getattr(preferences, "pear_root", ""))
+    if explicit != "":
+        return explicit
+    env_root = env.get(POSECAP_PEAR_ROOT_ENV, "").strip()
+    if env_root != "" and exists(Path(env_root)):
+        return env_root
+    installer_root = _installer_path(env, _INSTALLER_PEAR_SUBPATH)
+    if installer_root is not None and exists(installer_root):
+        return str(installer_root)
+    return ""
+
+
+def _resolve_engine_executable(
+    preferences: _AddonPreferences | None,
+    env: dict[str, str],
+    exists: PathExists,
+) -> str:
+    """Resolve the engine launcher: an explicit existing path wins, then the
+    installer's app-local venv exe (which is not on PATH), then the bare name."""
+    candidate = _first_nonempty(getattr(preferences, "engine_executable", ""))
+    if candidate != "" and exists(Path(candidate)):
+        return candidate
+    installer_exe = _installer_path(env, _INSTALLER_ENGINE_SUBPATH)
+    if installer_exe is not None and exists(installer_exe):
+        return str(installer_exe)
+    return candidate if candidate != "" else "posecap-engine"
+
+
+def _installer_path(env: dict[str, str], subpath: tuple[str, ...]) -> Path | None:
+    local_app_data = env.get("LOCALAPPDATA", "").strip()
+    if local_app_data == "":
+        return None
+    return Path(local_app_data, *subpath)
 
 
 def _format_float(value: Any) -> str:

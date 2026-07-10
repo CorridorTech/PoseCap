@@ -186,6 +186,39 @@ figure is duplicated across doctor / panel / guide with no shared constant
 (the guide is markdown and cannot import one); the STARTING-hint clock is
 injected via a private `_now` module seam rather than the constructor.
 
+### 2026-07-10 (field friction — Emmet, clean v0.1.2 install, ~18:07)
+
+On a clean install, clicking Start Stream with a freshly installed panel
+raised "Start failed: PEAR Root is required" — the user had typed nothing.
+`addon/posecap_addon/panels.py` `_engine_command` only resolved
+`settings.pear_root` → `preferences.pear_root` and errored when both were
+empty, even though the installer knows the paths (Emmet's:
+`C:\Users\Corridor\AppData\Local\PoseCap\pear` and
+`...\PoseCap\runtime\venv\Scripts\posecap-engine.exe`).
+
+Ground (read, not assumed): the doctor resolves the checkout from the
+`POSECAP_PEAR_ROOT` env var (`engine/src/posecap_engine/doctor.py`), but the
+installer does NOT persist that env var — the "PoseCap Doctor" Start Menu
+shortcut passes `--pear-root '{app}\pear'` explicitly (`posecap.iss.template`
+line 52), and the bootstrap runs doctor with an explicit `--pear-root` flag
+(`bootstrap_install.ps1` line 179). Install dir is Inno `{localappdata}\PoseCap`.
+
+Fix (addon-only, TDD): `_engine_command` now resolves PEAR Root by
+explicit-value → `POSECAP_PEAR_ROOT` env (if the dir exists) →
+`%LOCALAPPDATA%\PoseCap\pear` (if it exists); and the engine launcher by
+explicit-existing-path → `%LOCALAPPDATA%\PoseCap\runtime\venv\Scripts\posecap-engine.exe`
+(the app-local venv exe is not on PATH, so the old "posecap-engine" default
+could never have launched a real install) → bare "posecap-engine". The error
+fires only when nothing resolves and now says where to fill it in.
+
+Decision on installer env-var persistence (task step 3): NOT adding `setx`
+to the bootstrap. The `%LOCALAPPDATA%\PoseCap` fallback deterministically
+fixes both future installs AND already-made v0.1.2 installs (Emmet's) with
+zero installer change; a persisted env var adds surface (per-user scope,
+uninstall cleanup, leak into unrelated processes) for redundancy the
+fallback already covers. Env-var READ support is kept for free in case a dev
+sets it.
+
 ## Definition of Done
 
 All Acceptance Criteria checked, plus:
