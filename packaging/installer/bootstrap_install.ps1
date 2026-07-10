@@ -156,20 +156,20 @@ Step -Label "Fetch YOLO person-detection weights" `
     -Fix "Check your internet connection, then re-run setup." `
     -Action {
         $modelZoo = Join-Path $PearDir "model_zoo"
-        $yolo = Join-Path $modelZoo "yolov8x.pt"
+        $yolo = Join-Path $modelZoo "yolov8s.pt"
         if (Test-Path $yolo) {
             Write-Host "    already present -- skipping download"
             return
         }
         New-Item -ItemType Directory -Force -Path $modelZoo | Out-Null
-        $fetch = "from ultralytics import YOLO; YOLO('yolov8x.pt')"
+        $fetch = "from ultralytics import YOLO; YOLO('yolov8s.pt')"
         Push-Location $modelZoo
         try {
             & $VenvPython -c $fetch | Out-Host
             if ($LASTEXITCODE -ne 0) { throw "ultralytics download exited with code $LASTEXITCODE" }
         }
         finally { Pop-Location }
-        if (-not (Test-Path $yolo)) { throw "yolov8x.pt did not appear in $modelZoo" }
+        if (-not (Test-Path $yolo)) { throw "yolov8s.pt did not appear in $modelZoo" }
     }
 
 $LicensedModelsPending = $false
