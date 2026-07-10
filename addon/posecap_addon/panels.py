@@ -56,6 +56,18 @@ def _now() -> float:
     return time.monotonic()
 
 
+def _open_path(path: str) -> None:
+    """Open a file with the OS default application (the video Preview button)."""
+    opener = getattr(os, "startfile", None)
+    if opener is not None:
+        opener(path)  # Windows — the project's target platform
+        return
+    import webbrowser
+    from pathlib import Path
+
+    webbrowser.open(Path(path).resolve().as_uri())
+
+
 class _LiveStreamSettings(Protocol):
     lifecycle_state: LifecycleState
     status_message: str
@@ -78,6 +90,7 @@ class _LiveStreamSettings(Protocol):
     apply_torso: bool
     character_preset: str
     character_mapping_json: str
+    source_kind: str
     video_source: str
 
 
@@ -98,7 +111,7 @@ def draw_live_stream_panel(layout: Any, settings: _LiveStreamSettings) -> None:
 
     column = layout.column()
     column.prop(settings, "target_armature")
-    column.prop(settings, "camera_index")
+    _draw_source(column, settings)
     column.prop(settings, "pear_root")
     column.prop(settings, "apply_orientation_fix")
     column.prop(settings, "world_position_experimental")
@@ -123,8 +136,6 @@ def draw_live_stream_panel(layout: Any, settings: _LiveStreamSettings) -> None:
         limbs.prop(settings, "apply_arms", toggle=True)
         limbs.prop(settings, "apply_legs", toggle=True)
         limbs.prop(settings, "apply_torso", toggle=True)
-        advanced.label(text="Test Source", icon="FILE_MOVIE")
-        advanced.prop(settings, "video_source")
 
     actions = layout.row(align=True)
     start = actions.row()
@@ -138,6 +149,18 @@ def draw_live_stream_panel(layout: Any, settings: _LiveStreamSettings) -> None:
     record = layout.row()
     record.enabled = controls.can_record
     record.prop(settings, "record_live_mocap", toggle=True)
+
+
+def _draw_source(column: Any, settings: _LiveStreamSettings) -> None:
+    """One place to pick the capture source: a webcam or a recorded video file."""
+    column.prop(settings, "source_kind", text="Source")
+    if str(settings.source_kind) == "VIDEO":
+        column.prop(settings, "video_source", text="Video File")
+        preview = column.row()
+        preview.enabled = str(settings.video_source).strip() != ""
+        preview.operator("posecap.preview_source", text="Preview Video", icon="PLAY")
+        return
+    column.prop(settings, "camera_index", text="Camera")
 
 
 def draw_addon_preferences(layout: Any, preferences: _AddonPreferences) -> None:
@@ -342,12 +365,18 @@ def _build_blender_classes(bpy_module: Any) -> tuple[type[Any], ...]:
             default="",
             subtype="FILE_PATH",
         ),
+        "source_kind": bpy_module.props.EnumProperty(
+            name="Source",
+            description="Where capture comes from: a webcam or a recorded video file",
+            items=(
+                ("CAMERA", "Camera", "Live webcam"),
+                ("VIDEO", "Video File", "A recorded video — a virtual camera for testing"),
+            ),
+            default="CAMERA",
+        ),
         "video_source": bpy_module.props.StringProperty(
             name="Video File",
-            description=(
-                "Drive capture from a recorded video instead of the webcam — "
-                "a virtual camera for repeatable testing. Leave empty to use the camera"
-            ),
+            description="Recorded video that drives capture when Source is Video File",
             default="",
             subtype="FILE_PATH",
         ),
@@ -401,6 +430,25 @@ def _build_blender_classes(bpy_module: Any) -> tuple[type[Any], ...]:
         def execute(self, context: Any) -> set[str]:
             return _stop_live_stream(context, bpy_module)
 
+    class POSECAP_OT_PreviewSource(bpy_module.types.Operator):
+        bl_idname = "posecap.preview_source"
+        bl_label = "Preview Video"
+        bl_description = "Open the selected video file in your default player to check it"
+        bl_options = {"REGISTER"}
+
+        def execute(self, context: Any) -> set[str]:
+            settings = _settings_from_context(context)
+            path = str(settings.video_source).strip()
+            if path == "":
+                self.report({"ERROR"}, "Choose a video file first.")
+                return {"CANCELLED"}
+            try:
+                _open_path(path)
+            except OSError as exc:
+                self.report({"ERROR"}, f"Could not open the video: {exc}")
+                return {"CANCELLED"}
+            return {"FINISHED"}
+
     class POSECAP_PT_LiveStream(bpy_module.types.Panel):
         bl_label = "PoseCap"
         bl_idname = "POSECAP_PT_live_stream"
@@ -447,6 +495,7 @@ def _build_blender_classes(bpy_module: Any) -> tuple[type[Any], ...]:
         POSECAP_AP_AddonPreferences,
         POSECAP_OT_StartStream,
         POSECAP_OT_StopStream,
+        POSECAP_OT_PreviewSource,
         *setup_operator_classes,
         *character_operator_classes,
         POSECAP_PT_LiveStream,
@@ -593,12 +642,13 @@ def _engine_command(
         "--height",
         str(int(settings.capture_height)),
     ]
-    # A recorded clip stands in for the webcam — a "virtual camera" for
-    # repeatable end-to-end testing. The engine treats --source as taking
+    # Video-file source ("virtual camera") only when the user selected it, so a
+    # stale path can't hijack a camera run. The engine treats --source as taking
     # precedence over --camera-index.
-    video_source = str(getattr(settings, "video_source", "")).strip()
-    if video_source != "":
-        command += ["--source", video_source]
+    if str(getattr(settings, "source_kind", "CAMERA")) == "VIDEO":
+        video_source = str(getattr(settings, "video_source", "")).strip()
+        if video_source != "":
+            command += ["--source", video_source]
     return tuple(command)
 
 

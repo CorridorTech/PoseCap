@@ -244,6 +244,7 @@ def test_blender_ui_registration_adds_scene_state_and_unregisters_cleanly() -> N
         "POSECAP_AP_AddonPreferences",
         "POSECAP_OT_StartStream",
         "POSECAP_OT_StopStream",
+        "POSECAP_OT_PreviewSource",
         "POSECAP_OT_SetupBodyModels",
         "POSECAP_OT_WatchModelDownloads",
         "POSECAP_OT_ConvertCharacter",
@@ -265,6 +266,7 @@ def test_blender_ui_registration_adds_scene_state_and_unregisters_cleanly() -> N
         "POSECAP_OT_ConvertCharacter",
         "POSECAP_OT_WatchModelDownloads",
         "POSECAP_OT_SetupBodyModels",
+        "POSECAP_OT_PreviewSource",
         "POSECAP_OT_StopStream",
         "POSECAP_OT_StartStream",
         "POSECAP_AP_AddonPreferences",
@@ -433,9 +435,10 @@ def test_engine_command_resolves_installer_paths_for_a_fresh_install() -> None:
     assert command[0] == str(installer_exe)
 
 
-def test_engine_command_passes_video_source_when_set() -> None:
+def test_engine_command_passes_video_source_only_in_video_mode() -> None:
     settings = _Settings(lifecycle_state="STOPPED")
     settings.pear_root = "C:/PEAR"
+    settings.source_kind = "VIDEO"
     settings.video_source = "C:/clips/dance.mp4"
 
     command = posecap_addon.panels._engine_command(
@@ -447,9 +450,11 @@ def test_engine_command_passes_video_source_when_set() -> None:
     assert "--camera-index" in command
 
 
-def test_engine_command_omits_source_flag_when_video_source_empty() -> None:
+def test_engine_command_camera_mode_ignores_a_stale_video_path() -> None:
     settings = _Settings(lifecycle_state="STOPPED")
     settings.pear_root = "C:/PEAR"
+    settings.source_kind = "CAMERA"
+    settings.video_source = "C:/clips/old.mp4"  # left over, must not hijack a camera run
 
     command = posecap_addon.panels._engine_command(
         settings, None, environ={}, path_exists=lambda _path: True
@@ -458,12 +463,62 @@ def test_engine_command_omits_source_flag_when_video_source_empty() -> None:
     assert "--source" not in command
 
 
-def test_advanced_section_exposes_the_video_source_field() -> None:
+def test_source_selector_camera_mode_shows_index_not_video() -> None:
     settings = _Settings(lifecycle_state="STOPPED")
-    settings.show_advanced = True
+    settings.source_kind = "CAMERA"
     layout = _FakeLayout()
     draw_live_stream_panel(layout, settings)
+    assert layout.has_property("source_kind")
+    assert layout.has_property("camera_index")
+    assert not layout.has_property("video_source")
+
+
+def test_source_selector_video_mode_shows_path_and_preview_not_index() -> None:
+    settings = _Settings(lifecycle_state="STOPPED")
+    settings.source_kind = "VIDEO"
+    layout = _FakeLayout()
+    draw_live_stream_panel(layout, settings)
+    assert layout.has_property("source_kind")
     assert layout.has_property("video_source")
+    assert not layout.has_property("camera_index")
+    assert layout.enabled_for_operator("posecap.preview_source") in (True, False)
+
+
+def test_preview_operator_opens_the_selected_video(monkeypatch) -> None:
+    bpy = _FakeBpy()
+    register_blender_ui(bpy)
+    settings = _Settings(lifecycle_state="STOPPED")
+    settings.source_kind = "VIDEO"
+    settings.video_source = "C:/clips/dance.mp4"
+    context = _FakeContext(settings)
+    opened: list[str] = []
+    monkeypatch.setattr(posecap_addon.panels, "_open_path", opened.append, raising=False)
+    try:
+        preview_cls = bpy.utils.registered_class("POSECAP_OT_PreviewSource")
+        assert preview_cls().execute(context) == {"FINISHED"}
+        assert opened == ["C:/clips/dance.mp4"]
+    finally:
+        unregister_blender_ui(bpy)
+
+
+def test_preview_operator_errors_without_a_video_path(monkeypatch) -> None:
+    bpy = _FakeBpy()
+    register_blender_ui(bpy)
+    settings = _Settings(lifecycle_state="STOPPED")
+    settings.source_kind = "VIDEO"
+    settings.video_source = ""
+    context = _FakeContext(settings)
+    monkeypatch.setattr(posecap_addon.panels, "_open_path", lambda _p: _fail(), raising=False)
+    try:
+        preview_cls = bpy.utils.registered_class("POSECAP_OT_PreviewSource")
+        operator = preview_cls()
+        assert operator.execute(context) == {"CANCELLED"}
+    finally:
+        unregister_blender_ui(bpy)
+
+
+def _fail() -> None:
+    raise AssertionError("_open_path must not be called without a video path")
 
 
 def test_engine_command_errors_with_where_to_fix_when_nothing_resolves() -> None:
@@ -1023,6 +1078,7 @@ class _Settings:
         self.apply_torso = True
         self.character_preset = "AUTO"
         self.character_mapping_json = ""
+        self.source_kind = "CAMERA"
         self.video_source = ""
 
 
@@ -1126,7 +1182,8 @@ class _FakeBpyTypes:
         pass
 
     class Operator:
-        pass
+        def report(self, _levels, _message):
+            return None
 
     class Object:
         pass
