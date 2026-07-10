@@ -69,7 +69,7 @@ def test_live_command_passes_pear_options_to_frame_source(monkeypatch) -> None:
             self,
             pear_root: Path,
             *,
-            camera_index: int,
+            source: int | str,
             width: int,
             height: int,
             yolo_threshold: float,
@@ -77,7 +77,7 @@ def test_live_command_passes_pear_options_to_frame_source(monkeypatch) -> None:
         ) -> None:
             captured["source"] = {
                 "pear_root": pear_root,
-                "camera_index": camera_index,
+                "source": source,
                 "width": width,
                 "height": height,
                 "yolo_threshold": yolo_threshold,
@@ -116,12 +116,58 @@ def test_live_command_passes_pear_options_to_frame_source(monkeypatch) -> None:
     assert stderr.getvalue() == ""
     assert captured["source"] == {
         "pear_root": Path("C:/PEAR"),
-        "camera_index": 4,
+        "source": 4,
         "width": 640,
         "height": 480,
         "yolo_threshold": 0.45,
         "crop_ratio": 1.5,
     }
+
+
+def test_live_command_source_accepts_video_file_path(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    class FakePearFrameSource:
+        def __init__(self, pear_root: Path, *, source: int | str, **_kwargs: object) -> None:
+            captured["source"] = source
+
+        def frames(self):
+            return iter(())
+
+    monkeypatch.setattr("posecap_engine.cli.PearFrameSource", FakePearFrameSource)
+    monkeypatch.setattr("posecap_engine.cli.serve_once", lambda frames, **kwargs: None)
+
+    code = run(
+        ["live", "--pear-root", "C:/PEAR", "--source", "assets/dance.mp4"],
+        stdout=StringIO(),
+        stderr=StringIO(),
+    )
+
+    assert code == 0
+    assert captured["source"] == "assets/dance.mp4"
+
+
+def test_live_command_source_digits_parse_as_camera_index(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    class FakePearFrameSource:
+        def __init__(self, pear_root: Path, *, source: int | str, **_kwargs: object) -> None:
+            captured["source"] = source
+
+        def frames(self):
+            return iter(())
+
+    monkeypatch.setattr("posecap_engine.cli.PearFrameSource", FakePearFrameSource)
+    monkeypatch.setattr("posecap_engine.cli.serve_once", lambda frames, **kwargs: None)
+
+    code = run(
+        ["live", "--pear-root", "C:/PEAR", "--source", "3", "--camera-index", "7"],
+        stdout=StringIO(),
+        stderr=StringIO(),
+    )
+
+    assert code == 0
+    assert captured["source"] == 3
 
 
 def test_live_command_serves_no_person_frame_from_pear_source(monkeypatch, tmp_path: Path) -> None:

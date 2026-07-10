@@ -17,7 +17,7 @@ from posecap_engine.pear_adapter import PearFrameSource, PearLiveConfig
 
 
 def test_pear_frame_source_reports_missing_external_checkout(tmp_path: Path) -> None:
-    source = PearFrameSource(tmp_path / "missing-pear", camera_index=0)
+    source = PearFrameSource(tmp_path / "missing-pear", source=0)
 
     with pytest.raises(CaptureUnavailableError, match="PEAR checkout not found"):
         next(source.frames())
@@ -29,7 +29,7 @@ def test_pear_frame_source_emits_no_person_status_and_releases_capture(tmp_path:
     runtime = _FakeRuntime([None])
     source = PearFrameSource(
         pear_root,
-        camera_index=2,
+        source=2,
         runtime_factory=lambda _config: runtime,
         capture_factory=lambda _config: capture,
         clock=lambda: 123.5,
@@ -57,7 +57,7 @@ def test_pear_frame_source_emits_ok_frame_after_no_person(tmp_path: Path) -> Non
     runtime = _FakeRuntime([None, _payload()])
     source = PearFrameSource(
         pear_root,
-        camera_index=0,
+        source=0,
         runtime_factory=lambda _config: runtime,
         capture_factory=lambda _config: _FakeCapture(),
         clock=_FakeClock([10.0, 10.5]),
@@ -83,7 +83,7 @@ def test_pear_frame_source_fails_after_consecutive_camera_read_failures(
     runtime = _FakeRuntime([_payload()])
     source = PearFrameSource(
         pear_root,
-        camera_index=2,
+        source=2,
         runtime_factory=lambda _config: runtime,
         capture_factory=lambda _config: capture,
         max_camera_read_failures=2,
@@ -97,6 +97,65 @@ def test_pear_frame_source_fails_after_consecutive_camera_read_failures(
     assert runtime.seen_images == 0
 
 
+def test_pear_frame_source_ends_stream_cleanly_at_video_eof(tmp_path: Path) -> None:
+    pear_root = _pear_checkout(tmp_path)
+    capture = _FakeFiniteCapture(frame_count=2)
+    runtime = _FakeRuntime([_payload(), _payload()])
+    source = PearFrameSource(
+        pear_root,
+        source="assets/dance.mp4",
+        runtime_factory=lambda _config: runtime,
+        capture_factory=lambda _config: capture,
+        clock=_FakeClock([1.0, 2.0]),
+    )
+
+    frames = list(source.frames())
+
+    assert [frame.seq for frame in frames] == [0, 1]
+    assert all(frame.status == "ok" for frame in frames)
+    assert capture.released
+    assert runtime.seen_images == 2
+
+
+def test_video_file_capture_opens_path_reads_rgb_and_flags_eof() -> None:
+    cv2 = _FakeCv2(frames=[np.zeros((2, 2, 3), dtype=np.uint8)])
+    config = PearLiveConfig(pear_root=Path("pear"), source="assets/dance.mp4")
+
+    capture = pear_adapter._VideoFileCapture(config, cv2)
+
+    assert cv2.opened_with == "assets/dance.mp4"
+    assert cv2.prop_sets == []
+    assert not capture.exhausted
+    assert capture.read_rgb() is not None
+    assert capture.read_rgb() is None
+    assert capture.exhausted
+
+
+def test_video_file_capture_reports_unopenable_file() -> None:
+    cv2 = _FakeCv2(frames=[], openable=False)
+    config = PearLiveConfig(pear_root=Path("pear"), source="missing.mp4")
+
+    with pytest.raises(CaptureUnavailableError, match="could not open video file missing.mp4"):
+        pear_adapter._VideoFileCapture(config, cv2)
+
+    assert cv2.capture_released
+
+
+def test_open_live_capture_selects_by_source_type(monkeypatch: pytest.MonkeyPatch) -> None:
+    cv2 = _FakeCv2(frames=[])
+    monkeypatch.setattr(pear_adapter, "_import_optional", lambda _name, _display: cv2)
+
+    file_capture = pear_adapter._open_live_capture(
+        PearLiveConfig(pear_root=Path("pear"), source="assets/dance.mp4")
+    )
+    camera_capture = pear_adapter._open_live_capture(
+        PearLiveConfig(pear_root=Path("pear"), source=0)
+    )
+
+    assert isinstance(file_capture, pear_adapter._VideoFileCapture)
+    assert isinstance(camera_capture, pear_adapter._OpenCvLiveCapture)
+
+
 def test_load_pear_runtime_requires_cuda(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     pear_root = _pear_checkout(tmp_path)
     modules = SimpleNamespace(
@@ -105,7 +164,7 @@ def test_load_pear_runtime_requires_cuda(tmp_path: Path, monkeypatch: pytest.Mon
     monkeypatch.setattr(pear_adapter, "_load_pear_modules", lambda _pear_root: modules)
 
     with pytest.raises(CaptureUnavailableError, match="requires CUDA"):
-        pear_adapter._load_pear_runtime(PearLiveConfig(pear_root=pear_root, camera_index=0))
+        pear_adapter._load_pear_runtime(PearLiveConfig(pear_root=pear_root, source=0))
 
 
 def test_load_pear_runtime_uses_pinned_weights_revision(
@@ -161,7 +220,7 @@ def test_load_pear_runtime_uses_pinned_weights_revision(
     )
     monkeypatch.setattr(pear_adapter, "_load_pear_modules", lambda _pear_root: modules)
 
-    pear_adapter._load_pear_runtime(PearLiveConfig(pear_root=pear_root, camera_index=0))
+    pear_adapter._load_pear_runtime(PearLiveConfig(pear_root=pear_root, source=0))
 
     assert calls["hf_download"] == {
         "repo_id": "BestWJH/PEAR_models",
@@ -214,7 +273,7 @@ def test_load_pear_runtime_uses_ultralytics_model_name_when_local_yolo_is_absent
     )
     monkeypatch.setattr(pear_adapter, "_load_pear_modules", lambda _pear_root: modules)
 
-    pear_adapter._load_pear_runtime(PearLiveConfig(pear_root=pear_root, camera_index=0))
+    pear_adapter._load_pear_runtime(PearLiveConfig(pear_root=pear_root, source=0))
 
     assert calls["yolo_path"] == "yolov8x.pt"
 
@@ -274,7 +333,7 @@ def test_load_pear_runtime_runs_upstream_initialization_from_pear_root(
 
     monkeypatch.setattr(pear_adapter, "_load_pear_modules", fake_load_modules)
 
-    pear_adapter._load_pear_runtime(PearLiveConfig(pear_root=relative_pear_root, camera_index=0))
+    pear_adapter._load_pear_runtime(PearLiveConfig(pear_root=relative_pear_root, source=0))
 
     assert calls["load_root"] == pear_root
     assert calls["model_cwd"] == pear_root
@@ -351,6 +410,7 @@ def _payload() -> PosePayload:
 class _FakeCapture:
     def __init__(self, images: list[object | None] | None = None) -> None:
         self._images = images or [np.zeros((2, 2, 3), dtype=np.uint8)]
+        self.exhausted = False
         self.reads = 0
         self.released = False
 
@@ -361,6 +421,59 @@ class _FakeCapture:
 
     def release(self) -> None:
         self.released = True
+
+
+class _FakeFiniteCapture:
+    """Mimics _VideoFileCapture: yields frame_count frames, then EOF with exhausted set."""
+
+    def __init__(self, frame_count: int) -> None:
+        self._remaining = frame_count
+        self.exhausted = False
+        self.released = False
+
+    def read_rgb(self) -> object | None:
+        if self._remaining <= 0:
+            self.exhausted = True
+            return None
+        self._remaining -= 1
+        return np.zeros((2, 2, 3), dtype=np.uint8)
+
+    def release(self) -> None:
+        self.released = True
+
+
+class _FakeCv2:
+    CAP_PROP_FRAME_WIDTH = 3
+    CAP_PROP_FRAME_HEIGHT = 4
+    COLOR_BGR2RGB = 4
+
+    def __init__(self, frames: list[object], *, openable: bool = True) -> None:
+        self._frames = list(frames)
+        self._openable = openable
+        self.opened_with: object | None = None
+        self.prop_sets: list[tuple[int, object]] = []
+        self.capture_released = False
+
+    def VideoCapture(self, source: object) -> "_FakeCv2":  # noqa: N802 - mimics cv2 API
+        self.opened_with = source
+        return self
+
+    def isOpened(self) -> bool:  # noqa: N802 - mimics cv2 API
+        return self._openable
+
+    def read(self) -> tuple[bool, object | None]:
+        if not self._frames:
+            return False, None
+        return True, self._frames.pop(0)
+
+    def set(self, prop: int, value: object) -> None:
+        self.prop_sets.append((prop, value))
+
+    def cvtColor(self, frame: object, code: int) -> object:  # noqa: N802 - mimics cv2 API
+        return frame
+
+    def release(self) -> None:
+        self.capture_released = True
 
 
 class _FakeRuntime:

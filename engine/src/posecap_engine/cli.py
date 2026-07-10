@@ -54,6 +54,10 @@ def _build_parser() -> argparse.ArgumentParser:
     live.add_argument("--fixture-frame-interval", type=float, default=0.0)
     live.add_argument("--pear-root", type=Path)
     live.add_argument("--camera-index", type=int, default=0)
+    live.add_argument(
+        "--source",
+        help="camera index or video file path; takes precedence over --camera-index",
+    )
     live.add_argument("--width", type=int, default=1280)
     live.add_argument("--height", type=int, default=720)
     live.add_argument("--yolo-threshold", type=float, default=0.3)
@@ -119,12 +123,20 @@ def _frame_source(args: argparse.Namespace) -> FixtureFrameSource | PearFrameSou
         raise EngineError("live requires either --fixture or --pear-root")
     return PearFrameSource(
         args.pear_root,
-        camera_index=args.camera_index,
+        source=_parse_source(args.source, args.camera_index),
         width=args.width,
         height=args.height,
         yolo_threshold=args.yolo_threshold,
         crop_ratio=args.crop_ratio,
     )
+
+
+def _parse_source(source: str | None, camera_index: int) -> int | str:
+    if source is None:
+        return camera_index
+    if source.isdigit():
+        return int(source)
+    return source
 
 
 if __name__ == "__main__":

@@ -34,7 +34,7 @@ class PearLiveConfig:
     """Runtime settings for PEAR live inference."""
 
     pear_root: Path
-    camera_index: int
+    source: int | str
     width: int = 1280
     height: int = 720
     yolo_threshold: float = 0.3
@@ -46,6 +46,8 @@ class _PearRuntime(Protocol):
 
 
 class _LiveCapture(Protocol):
+    exhausted: bool
+
     def read_rgb(self) -> object | None: ...
 
     def release(self) -> None: ...
@@ -72,7 +74,7 @@ class PearFrameSource:
         self,
         pear_root: Path,
         *,
-        camera_index: int,
+        source: int | str,
         width: int = 1280,
         height: int = 720,
         yolo_threshold: float = 0.3,
@@ -86,7 +88,7 @@ class PearFrameSource:
             raise ValueError("max_camera_read_failures must be positive")
         self._config = PearLiveConfig(
             pear_root=pear_root,
-            camera_index=camera_index,
+            source=source,
             width=width,
             height=height,
             yolo_threshold=yolo_threshold,
@@ -107,11 +109,13 @@ class PearFrameSource:
             while True:
                 rgb_image = capture.read_rgb()
                 if rgb_image is None:
+                    if capture.exhausted:
+                        return
                     failed_reads += 1
                     if failed_reads >= self._max_camera_read_failures:
                         raise CaptureUnavailableError(
                             "camera index "
-                            f"{self._config.camera_index} did not return frames after "
+                            f"{self._config.source} did not return frames after "
                             f"{failed_reads} consecutive reads"
                         )
                     time.sleep(_CAMERA_READ_RETRY_SECONDS)
@@ -145,16 +149,39 @@ class _PearModules:
 class _OpenCvLiveCapture:
     def __init__(self, config: PearLiveConfig, cv2: Any) -> None:
         self._cv2 = cv2
-        self._capture = cv2.VideoCapture(config.camera_index)
+        self.exhausted = False
+        self._capture = cv2.VideoCapture(config.source)
         if not bool(self._capture.isOpened()):
             self._capture.release()
-            raise CaptureUnavailableError(f"could not open camera index {config.camera_index}")
+            raise CaptureUnavailableError(f"could not open camera index {config.source}")
         self._capture.set(cv2.CAP_PROP_FRAME_WIDTH, config.width)
         self._capture.set(cv2.CAP_PROP_FRAME_HEIGHT, config.height)
 
     def read_rgb(self) -> object | None:
         ok, frame = self._capture.read()
         if not bool(ok):
+            return None
+        return self._cv2.cvtColor(frame, self._cv2.COLOR_BGR2RGB)
+
+    def release(self) -> None:
+        self._capture.release()
+
+
+class _VideoFileCapture:
+    """Finite frame source for a video file; EOF ends the stream instead of retrying."""
+
+    def __init__(self, config: PearLiveConfig, cv2: Any) -> None:
+        self._cv2 = cv2
+        self.exhausted = False
+        self._capture = cv2.VideoCapture(str(config.source))
+        if not bool(self._capture.isOpened()):
+            self._capture.release()
+            raise CaptureUnavailableError(f"could not open video file {config.source}")
+
+    def read_rgb(self) -> object | None:
+        ok, frame = self._capture.read()
+        if not bool(ok):
+            self.exhausted = True
             return None
         return self._cv2.cvtColor(frame, self._cv2.COLOR_BGR2RGB)
 
@@ -272,8 +299,11 @@ def _pear_working_directory(pear_root: Path) -> Generator[None, None, None]:
         os.chdir(original_cwd)
 
 
-def _open_live_capture(config: PearLiveConfig) -> _OpenCvLiveCapture:
-    return _OpenCvLiveCapture(config, _import_optional("cv2", "OpenCV"))
+def _open_live_capture(config: PearLiveConfig) -> _OpenCvLiveCapture | _VideoFileCapture:
+    cv2 = _import_optional("cv2", "OpenCV")
+    if isinstance(config.source, str):
+        return _VideoFileCapture(config, cv2)
+    return _OpenCvLiveCapture(config, cv2)
 
 
 def _resolve_yolo_model(pear_root: Path) -> str:
