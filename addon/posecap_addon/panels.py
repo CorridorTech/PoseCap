@@ -48,6 +48,9 @@ _STREAMING_STATES = frozenset({"STARTING", "STREAMING", "RECORDING", "RECONNECTI
 # loaded thumbnail (created at register on real bpy, None under the test fakes).
 _PREVIEW_COLLECTION: Any = None
 _PREVIEW_PATH: str = ""
+_PREVIEW_ICON_NAME = "source"
+# Refresh the preview a few times a second, not every apply tick (~60 Hz).
+_PREVIEW_REFRESH_EVERY_TICKS = 6
 
 # First Start Stream pulls the pinned PEAR pose weight (~2.7 GB) before the
 # first frame; without this the panel sits on "Starting" for minutes and a
@@ -159,19 +162,35 @@ def _draw_source(column: Any, settings: _LiveStreamSettings) -> None:
 
 
 def _draw_source_preview(column: Any, settings: _LiveStreamSettings) -> None:
-    """Show the live source thumbnail in the panel while streaming (bpy only)."""
+    """Show the source thumbnail in the panel (draw only reads the icon).
+
+    The image is (re)loaded on the apply timer, never here — Blender draw
+    callbacks must not do file I/O or mutate data. Grounded on the VirtuCamera
+    addon (previews + template_icon) and the bpy.utils.previews docs.
+    """
     if _PREVIEW_COLLECTION is None or not bool(settings.preview_enabled):
         return
     if settings.lifecycle_state not in _STREAMING_STATES:
         return
-    path = Path(_PREVIEW_PATH)
-    if _PREVIEW_PATH == "" or not path.is_file():
+    if _PREVIEW_ICON_NAME not in _PREVIEW_COLLECTION:
         return
-    # previews cache by name; reload each draw so the thumbnail advances.
-    with suppress(KeyError):
-        del _PREVIEW_COLLECTION["source"]
-    preview = _PREVIEW_COLLECTION.load("source", str(path), "IMAGE")
-    column.template_icon(icon_value=preview.icon_id, scale=8.0)
+    column.template_icon(icon_value=_PREVIEW_COLLECTION[_PREVIEW_ICON_NAME].icon_id, scale=8.0)
+
+
+def refresh_source_preview() -> None:
+    """Reload the preview thumbnail from the engine's frame file (timer only).
+
+    Refresh is clear() + load() per the bpy.utils.previews docs and the
+    VirtuCamera reference — del-by-key raises, and reloading in place does not
+    refresh the cached thumbnail.
+    """
+    if _PREVIEW_COLLECTION is None or _PREVIEW_PATH == "":
+        return
+    path = Path(_PREVIEW_PATH)
+    if not path.is_file():
+        return
+    _PREVIEW_COLLECTION.clear()
+    _PREVIEW_COLLECTION.load(_PREVIEW_ICON_NAME, str(path), "IMAGE")
 
 
 def draw_addon_preferences(layout: Any, preferences: _AddonPreferences) -> None:
@@ -230,16 +249,30 @@ def unregister_blender_ui(bpy_module: Any) -> None:
     _REGISTERED_CLASSES = ()
 
 
+def _previews_module(bpy_module: Any) -> Any:
+    """Resolve bpy.utils.previews (a submodule needing an explicit import).
+
+    Returns None under the test fakes so the preview stays inert there.
+    """
+    previews = getattr(getattr(bpy_module, "utils", None), "previews", None)
+    if previews is not None:
+        return previews
+    if getattr(bpy_module, "__name__", "") == "bpy":
+        with suppress(ImportError):
+            return importlib.import_module("bpy.utils.previews")
+    return None
+
+
 def _create_preview_collection(bpy_module: Any) -> None:
     global _PREVIEW_COLLECTION
-    previews = getattr(getattr(bpy_module, "utils", None), "previews", None)
+    previews = _previews_module(bpy_module)
     if previews is not None and _PREVIEW_COLLECTION is None:
         _PREVIEW_COLLECTION = previews.new()
 
 
 def _remove_preview_collection(bpy_module: Any) -> None:
     global _PREVIEW_COLLECTION
-    previews = getattr(getattr(bpy_module, "utils", None), "previews", None)
+    previews = _previews_module(bpy_module)
     if previews is not None and _PREVIEW_COLLECTION is not None:
         previews.remove(_PREVIEW_COLLECTION)
     _PREVIEW_COLLECTION = None
@@ -857,6 +890,7 @@ class _LiveStreamSession:
         self._timer = timer
         self._stopped = False
         self._started_at = _now()
+        self._preview_ticks = 0
         self.timer_callback: Callable[[], float | None] = self._tick
 
     def _tick(self) -> float | None:
@@ -895,7 +929,18 @@ class _LiveStreamSession:
             self._settings.status_message = f"Apply failed: {exc} (see posecap-addon.log)"
             return None
         self._flag_long_start_if_stalled()
+        self._refresh_preview_if_due()
         return result
+
+    def _refresh_preview_if_due(self) -> None:
+        """Reload the source thumbnail a few times a second, off the draw path."""
+        if not bool(getattr(self._settings, "preview_enabled", False)):
+            return
+        self._preview_ticks += 1
+        if self._preview_ticks % _PREVIEW_REFRESH_EVERY_TICKS != 0:
+            return
+        refresh_source_preview()
+        tag_view3d_redraw(self._bpy_module.context)
 
     def _flag_long_start_if_stalled(self) -> None:
         """Explain the silent ~2.7 GB first-run weight download without faking detection."""

@@ -490,6 +490,46 @@ def test_camera_mode_also_offers_the_preview_toggle() -> None:
     assert layout.has_property("preview_enabled")
 
 
+class _FakePreviewCollection(dict):
+    def __init__(self) -> None:
+        super().__init__()
+        self.calls: list[object] = []
+
+    def clear(self) -> None:  # type: ignore[override]
+        self.calls.append("clear")
+        super().clear()
+
+    def load(self, name: str, path: str, kind: str):
+        self.calls.append(("load", name, path, kind))
+        self[name] = object()
+        return self[name]
+
+
+def test_refresh_source_preview_clears_then_loads_from_the_file(monkeypatch, tmp_path) -> None:
+    frame = tmp_path / "prev.jpg"
+    frame.write_bytes(b"jpeg")
+    pcoll = _FakePreviewCollection()
+    monkeypatch.setattr(posecap_addon.panels, "_PREVIEW_COLLECTION", pcoll)
+    monkeypatch.setattr(posecap_addon.panels, "_PREVIEW_PATH", str(frame))
+
+    posecap_addon.panels.refresh_source_preview()
+
+    assert pcoll.calls[0] == "clear"
+    load_call = pcoll.calls[1]
+    assert isinstance(load_call, tuple)
+    assert load_call[0] == "load" and load_call[1] == "source"
+
+
+def test_refresh_source_preview_is_a_noop_when_the_frame_is_missing(monkeypatch) -> None:
+    pcoll = _FakePreviewCollection()
+    monkeypatch.setattr(posecap_addon.panels, "_PREVIEW_COLLECTION", pcoll)
+    monkeypatch.setattr(posecap_addon.panels, "_PREVIEW_PATH", "C:/nope/missing.jpg")
+
+    posecap_addon.panels.refresh_source_preview()
+
+    assert pcoll.calls == []
+
+
 def test_engine_command_passes_preview_path_only_when_preview_enabled() -> None:
     settings = _Settings(lifecycle_state="STOPPED")
     settings.pear_root = "C:/PEAR"
