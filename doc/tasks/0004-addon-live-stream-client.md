@@ -15,7 +15,7 @@ The Blender-side half of the live slice. Threading model is the grounded happy p
 
 Verifiable conditions. Each as a checkbox so progress is point-editable.
 
-- [ ] Extension zip builds with vendored pure-Python wheels; installs via Blender's extension system on 4.2 LTS and a 5.x build.
+- [x] Extension zip builds with vendored pure-Python wheels; installs via Blender's extension system on 4.2 LTS and a 5.x build.
 - [x] Start Stream spawns the engine by process handle, connects with bounded retry, and the UI passes Starting → Streaming; connect timeout lands in Stopped with a reported reason.
 - [x] Poses apply at the stream rate with stale frames dropped (latest-wins); per-limb filters and orientation fix work; existing keyframes untouched (automated count before/after).
 - [x] Deleting the armature mid-stream produces a warning state and no unhandled exception; selecting a valid target resumes without restart.
@@ -142,6 +142,31 @@ Added a public pose-orientation diagnostic after iVCam HITL showed visually inve
 TDD coverage lives in `tests/tools/test_pose_orientation_diagnostic.py`. The red step failed on the missing diagnostic script; the green step passed with `uv run pytest tests\tools\test_pose_orientation_diagnostic.py -q` (`1 passed`). Focused ruff and Windows pyright checks also passed for the new test/tool pair.
 
 Full verification for this slice passed: `uv run ruff check .`, `uv run ruff format --check .`, `uv run pyright --pythonplatform Windows`, `uv run pyright --pythonplatform Linux`, `uv run lint-imports`, `uv run pytest -q` (`130 passed, 2 deselected`), `POSECAP_BLENDER=... uv run pytest tests/e2e/test_blender_addon_smoke.py -q -m e2e` (`1 passed`), a fresh extension build to `.agentic/extension-dist/posecap-0.1.0.zip`, and Blender 5.0 `extension validate`. Blender 4.2 LTS remains unverified on this workstation because no 4.2 install exists under `C:\Program Files\Blender Foundation`.
+
+### 2026-07-09
+
+Closed the Blender 4.2 half of the extension install matrix using the official
+Blender 4.2.22 LTS portable build (downloaded from download.blender.org, run
+from a scratch directory — nothing installed system-wide). With
+`POSECAP_BLENDER` pointing at it, the headless e2e smoke passed
+(`uv run pytest tests/e2e/test_blender_addon_smoke.py -q -m e2e`, `1 passed in
+6.88s` — register/unregister double-toggle plus a simulated frame apply on the
+bundled extension zip). With `BLENDER_USER_RESOURCES` isolated to
+`.agentic/blender-user-resources-4.2`, `blender --command extension
+install-file --repo user_default --enable .agentic/extension-dist/posecap-0.1.0.zip`
+exited 0 and `extension list` reported `posecap [installed]`. Together with the
+2026-07-01 Blender 5.0.1 evidence, the 4.2 LTS + 5.x install acceptance is now
+covered headlessly on both versions; interactive GUI verification (panel
+visible, stream connects) remains the HITL half.
+
+Realtime measurement (engine side, RTX 3080, `--source` video fixture and
+physical camera index 0): NET steady-state inference 22.6 FPS on the 30fps
+dance fixture (inter-frame p50 40.0 ms, p95 41.5 ms — flat, compute-bound) and
+18.9 FPS on the live camera (p50 47.5 ms, p95 53.0 ms — capture read serializes
+on top of inference). Both below the 30 FPS / sub-100 ms spec target; the
+sub-100 ms p95 latency component holds, the throughput component does not yet.
+Optimization is spike work (per-stage bench prepared; YOLO detector size and
+capture/infer overlap are the leading candidates).
 
 ## Definition of Done
 
