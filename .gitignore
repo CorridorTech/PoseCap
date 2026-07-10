@@ -34,3 +34,11 @@ output_capture/
 Thumbs.db
 .agentic/
 .coverage
+
+# build artifacts
+build/
+dist/
+
+# build artifacts
+build/
+dist/
