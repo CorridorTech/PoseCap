@@ -1,7 +1,7 @@
-; PoseCap — Windows installer template (task 0006; mirrors the CK2P pattern).
+; PoseCap -- Windows installer template (task 0006; mirrors the CK2P pattern).
 ;
 ; Light flavor by design (Ale, 2026-07-09): the setup exe bundles only what has
-; no canonical hosted source — the PoseCap wheels, the repacked PyTorch3D wheel,
+; no canonical hosted source -- the PoseCap wheels, the repacked PyTorch3D wheel,
 ; the Blender extension zip, uv.exe, and the bootstrap script. Everything heavy
 ; (CPython, torch cu124, PyPI deps, PEAR code, model weights) is downloaded by
 ; the bootstrap step from pinned canonical sources (python-build-standalone,
@@ -10,7 +10,7 @@
 ; prerequisites are an NVIDIA driver and Blender.
 ;
 ; SMPL-X body models are licensed (MPI/Meshcapade) and are neither bundled nor
-; downloaded — ADR-0006.
+; downloaded -- ADR-0006.
 ;
 ; Rendered by build_installer.ps1 (tokens replaced); do not compile directly.
 
@@ -52,7 +52,7 @@ Name: "{userprograms}\PoseCap\PoseCap Setup (repair)"; Filename: "powershell.exe
 Name: "{userprograms}\PoseCap\PoseCap Doctor"; Filename: "powershell.exe"; Parameters: "-ExecutionPolicy Bypass -NoExit -Command ""& '{app}\runtime\venv\Scripts\python.exe' -m posecap_engine.cli doctor --pear-root '{app}\pear'"""; WorkingDir: "{app}"
 
 [Run]
-Filename: "powershell.exe"; Parameters: "-ExecutionPolicy Bypass -File ""{app}\bootstrap\bootstrap_install.ps1"""; StatusMsg: "Setting up the GPU runtime (downloads about 4 GB — this is the long step)..."; Flags: waituntilterminated
+Filename: "powershell.exe"; Parameters: "-ExecutionPolicy Bypass -File ""{app}\bootstrap\bootstrap_install.ps1"""; StatusMsg: "Setting up the GPU runtime (downloads about 4 GB -- this is the long step)..."; Flags: waituntilterminated
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}\python"

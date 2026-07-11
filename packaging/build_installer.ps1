@@ -119,7 +119,9 @@ downloaded by this installer.
 
 # --- Render + compile -----------------------------------------------------------
 $outputBase = "PoseCap_v${displayLabel}_Windows_Setup"
-$template = Get-Content (Join-Path $ScriptRoot 'installer\posecap.iss.template') -Raw
+# -Encoding UTF8: PS 5.1 Get-Content defaults to the ANSI codepage, which turns
+# any non-ASCII (an em-dash) into mojibake baked into the compiled installer.
+$template = Get-Content (Join-Path $ScriptRoot 'installer\posecap.iss.template') -Raw -Encoding UTF8
 $rendered = $template `
     -replace '@@APP_VERSION@@', $displayLabel `
     -replace '@@BASE_VERSION@@', $baseVersion `
