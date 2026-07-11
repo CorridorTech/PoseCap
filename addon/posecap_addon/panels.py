@@ -118,7 +118,9 @@ def draw_live_stream_panel(
     )
 
     box = layout.box()
-    box.label(text=controls.status_text, icon="INFO")
+    # The status line carries long messages too (the first-run "downloads the AI
+    # model (~2.7 GB)" hint), so it wraps like the rest rather than truncating.
+    draw_wrapped_label(box, controls.status_text, chars=wrap_chars, icon="INFO")
 
     column = layout.column()
     column.prop(settings, "target_armature")

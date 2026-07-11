@@ -59,10 +59,16 @@ def wrap_lines(text: str, chars: int) -> list[str]:
     """Word-wrap ``text`` to lines of at most ``chars`` characters.
 
     Preserves explicit newlines and never returns an empty list, so a status
-    message always draws at least one (possibly empty) label.
+    message always draws at least one (possibly empty) label. A token longer
+    than the width (a filename like ``SMPL_NEUTRAL.pkl`` at a narrow panel) is
+    kept whole on its own line rather than split mid-word — the identifier a
+    user must recognize stays readable, and overflowing one line is harmless.
     """
     width = max(1, chars)
     lines: list[str] = []
     for paragraph in text.split("\n"):
-        lines.extend(textwrap.wrap(paragraph, width=width) or [""])
+        wrapped = textwrap.wrap(
+            paragraph, width=width, break_long_words=False, break_on_hyphens=False
+        )
+        lines.extend(wrapped or [""])
     return lines or [""]
