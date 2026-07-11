@@ -73,3 +73,28 @@ def test_wrong_content_names_the_expected_file() -> None:
 def test_valid_looking_download_passes_validation() -> None:
     head = b"PK\x03\x04" + b"\x00" * 64
     assert download_failure_reason(_SMPLX_NPZ, head, _SMPLX_NPZ.min_bytes + 1) is None
+
+
+_SMPL_PKL = next(
+    asset for asset in REQUIRED_MODEL_ASSETS if asset.target_path[-1] == "SMPL_NEUTRAL.pkl"
+)
+
+
+def test_protocol_0_pickle_passes_validation() -> None:
+    # SMPL ships SMPL_NEUTRAL.pkl as a protocol-0 (ASCII) pickle that opens with
+    # "(dp0" — real bytes from the official model. A magic check accepting only
+    # 0x80 (protocol 2+) falsely rejected it as "does not look like the file".
+    protocol_0 = b"(dp0\nS'J_regressor_prior'\np1\n" + b"\x00" * 64
+    assert download_failure_reason(_SMPL_PKL, protocol_0, _SMPL_PKL.min_bytes + 1) is None
+
+
+def test_protocol_2_pickle_passes_validation() -> None:
+    protocol_2 = b"\x80\x02}q\x01(" + b"\x00" * 64
+    assert download_failure_reason(_SMPL_PKL, protocol_2, _SMPL_PKL.min_bytes + 1) is None
+
+
+def test_a_pkl_that_is_not_a_pickle_is_still_rejected() -> None:
+    head = b"\x00\x01\x02\x03 not a pickle at all " + b"\x00" * 64
+    reason = download_failure_reason(_SMPL_PKL, head, _SMPL_PKL.min_bytes + 1)
+    assert reason is not None
+    assert "SMPL_NEUTRAL.pkl" in reason
