@@ -128,7 +128,7 @@ def build_keyframe_manager_classes(bpy_module: Any) -> tuple[type[Any], ...]:
         bl_options = {"REGISTER", "UNDO"}
 
         def execute(self, context: Any) -> set[str]:
-            return _add_all_active(context)
+            return _add_all_active(self, context)
 
     class POSECAP_OT_BakeRetainKeyPoses(bpy_module.types.Operator):
         bl_idname = "posecap.bake_and_retain_key_poses"
@@ -150,7 +150,7 @@ def build_keyframe_manager_classes(bpy_module: Any) -> tuple[type[Any], ...]:
     )
 
 
-def draw_keyframe_manager_section(layout: Any, key_poses: Any, scene: Any) -> None:
+def draw_keyframe_manager_section(layout: Any, scene: Any) -> None:
     """Draw the key-pose list and cleanup actions."""
     box = layout.box()
     box.label(text="Keyframe Manager", icon="KEYFRAME")
@@ -181,13 +181,14 @@ def _remove_selected(context: Any) -> set[str]:
     if not 0 <= index < len(key_poses):
         return {"CANCELLED"}
     key_poses.remove(index)
-    setattr(scene, KEY_POSES_INDEX_PROPERTY, min(index, len(key_poses) - 1))
+    setattr(scene, KEY_POSES_INDEX_PROPERTY, max(0, min(index, len(key_poses) - 1)))
     return {"FINISHED"}
 
 
-def _add_all_active(context: Any) -> set[str]:
+def _add_all_active(operator: Any, context: Any) -> set[str]:
     armature = _target_armature(context)
     if armature is None:
+        operator.report({"WARNING"}, "Set the target armature first.")
         return {"CANCELLED"}
     key_poses = context.scene.posecap_key_poses
     set_key_pose_frames(key_poses, [*key_pose_frames(key_poses), *keyed_frames(armature)])
@@ -203,7 +204,11 @@ def _bake_and_retain(operator: Any, context: Any, bpy_module: Any) -> set[str]:
     if not frames:
         operator.report({"WARNING"}, "No key poses marked to retain.")
         return {"CANCELLED"}
-    _visual_bake(context, bpy_module, armature, min(frames), max(frames))
+    try:
+        _visual_bake(context, bpy_module, armature, min(frames), max(frames))
+    except Exception as error:  # bpy edge: nla.bake failure must not leak a traceback
+        operator.report({"ERROR"}, f"Bake failed: {error}")
+        return {"CANCELLED"}
     deleted = retain_only(fcurves_for(armature), frames)
     operator.report({"INFO"}, f"Retained {len(frames)} key poses; deleted {deleted} keys.")
     return {"FINISHED"}
@@ -214,25 +219,29 @@ def _visual_bake(context: Any, bpy_module: Any, armature: Any, first: int, last:
 
     nla.bake needs the armature active and in pose mode with bones selected, so
     this stages that context and puts it back (POC operators/keyframes.py:149-166).
+    The restore runs in a finally so a bake failure cannot strand the armature in
+    pose mode.
     """
     view_layer = context.view_layer
     previous_active = view_layer.objects.active
     previous_mode = getattr(armature, "mode", "OBJECT")
     view_layer.objects.active = armature
-    bpy_module.ops.object.mode_set(mode="POSE")
-    bpy_module.ops.pose.select_all(action="SELECT")
-    bpy_module.ops.nla.bake(
-        frame_start=first,
-        frame_end=last,
-        step=1,
-        only_selected=True,
-        visual_keying=True,
-        clear_constraints=True,
-        use_current_action=True,
-        bake_types={"POSE"},
-    )
-    bpy_module.ops.object.mode_set(mode=previous_mode)
-    view_layer.objects.active = previous_active
+    try:
+        bpy_module.ops.object.mode_set(mode="POSE")
+        bpy_module.ops.pose.select_all(action="SELECT")
+        bpy_module.ops.nla.bake(
+            frame_start=first,
+            frame_end=last,
+            step=1,
+            only_selected=True,
+            visual_keying=True,
+            clear_constraints=True,
+            use_current_action=True,
+            bake_types={"POSE"},
+        )
+    finally:
+        bpy_module.ops.object.mode_set(mode=previous_mode)
+        view_layer.objects.active = previous_active
 
 
 def _target_armature(context: Any) -> Any | None:

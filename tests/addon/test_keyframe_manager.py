@@ -228,15 +228,15 @@ def test_add_all_active_marks_every_existing_rotation_key() -> None:
     assert key_pose_frames(key_poses) == [5, 10, 15]
 
 
-def test_add_all_active_cancels_without_a_target_armature() -> None:
+def test_add_all_active_warns_and_cancels_without_a_target_armature() -> None:
     key_poses = _FakeKeyPoses()
     bpy_module, _ = _fake_bpy()
 
-    result = _classes(bpy_module)["POSECAP_OT_AddAllActiveKeyframes"]().execute(
-        _context(key_poses, armature=None)
-    )
+    operator = _classes(bpy_module)["POSECAP_OT_AddAllActiveKeyframes"]()
+    result = operator.execute(_context(key_poses, armature=None))
 
     assert result == {"CANCELLED"}
+    assert operator.reports and operator.reports[0][0] == {"WARNING"}
 
 
 def test_bake_and_retain_cancels_when_no_key_poses_marked() -> None:
@@ -267,6 +267,31 @@ def test_bake_and_retain_bakes_the_span_and_deletes_non_key_frames() -> None:
     assert [round(kp.co.x) for kp in fcurve.keyframe_points] == [10, 30]
 
 
+def test_bake_and_retain_reports_error_and_restores_state_when_bake_fails() -> None:
+    key_poses = _FakeKeyPoses()
+    set_key_pose_frames(key_poses, [10, 30])
+    fcurve = _FCurve('pose.bones["pelvis"].rotation_quaternion', [10, 20, 30])
+    armature = _armature([fcurve])
+    bpy_module, _ = _fake_bpy()
+
+    def boom(**_kwargs: object) -> None:
+        raise RuntimeError("bake context is incorrect")
+
+    bpy_module.ops.nla.bake = boom
+    context = _context(key_poses, armature=armature)
+    context.view_layer.objects.active = "previous"
+
+    operator = _classes(bpy_module)["POSECAP_OT_BakeRetainKeyPoses"]()
+    result = operator.execute(context)
+
+    assert result == {"CANCELLED"}
+    assert operator.reports and operator.reports[-1][0] == {"ERROR"}
+    # The finally restores the active object even though the bake raised.
+    assert context.view_layer.objects.active == "previous"
+    # No keys were deleted — retain never ran after the failed bake.
+    assert [round(kp.co.x) for kp in fcurve.keyframe_points] == [10, 20, 30]
+
+
 def test_retain_only_keeps_marked_frames_and_smooths_them() -> None:
     fcurve = _FCurve("rotation_quaternion", [1, 2, 3, 4])
 
@@ -292,9 +317,8 @@ def test_keyed_frames_reads_rotation_quaternion_curves_only() -> None:
 
 def test_draw_section_lists_key_poses_and_offers_every_manager_action() -> None:
     layout = _DrawLayout()
-    key_poses = _FakeKeyPoses()
 
-    draw_keyframe_manager_section(layout, key_poses, scene=SimpleNamespace())
+    draw_keyframe_manager_section(layout, SimpleNamespace())
 
     assert layout.lists, "the key-pose list is rendered"
     for operator_id in (

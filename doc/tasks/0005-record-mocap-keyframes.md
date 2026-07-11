@@ -101,6 +101,39 @@ F-curves.
 
 Task complete — all six ACs met. Density decision: key per streamed frame.
 
+### 2026-07-11 — Fresh-context review fixes (/ad-review main..HEAD)
+
+Two-axis review found one real Blocker on both axes plus cheap correctness
+Concerns. All addressed:
+
+- **Blocker — stream stop did not finalize recording (Standards + Spec).** The
+  `record_live_mocap` flag was cleared only by Stop Recording and the Stop Stream
+  button; an abnormal stop (engine crash, apply error) left it set, so the next
+  stream silently recorded — the POC's exact defect. And Stop Stream mid-recording
+  left the timeline playing over a dead apply loop. Fix: `_LiveStreamSession.stop`
+  (the single teardown point for every path) now clears the flag;
+  `_start_live_stream` also resets it defensively; `_stop_live_stream` pauses
+  playback via the new `recording.pause_playback`. Regression test:
+  `test_start_and_stop_operators_own_stream_runtime` now asserts a stale flag is
+  cleared on start.
+- Recording operators gained `poll()` gating (STREAMING for start, RECORDING for
+  stop) so F3/keymap invocation cannot force a bad lifecycle state.
+- `bake_and_retain` wraps the bake in try/except and translates failure to
+  `report({'ERROR'}) + CANCELLED`; `_visual_bake` restores active/mode in a
+  finally so a bake failure cannot strand the armature in pose mode.
+- `add_all_active` now reports a warning (was a silent cancel) when no armature
+  is set. `_remove_selected` clamps the index to `max(0, ...)`. Dropped the unused
+  `key_poses` param from `draw_keyframe_manager_section`.
+
+Corrections to earlier claims in this task:
+- **AC4 "verified on 4.2 and 5.x":** HITL was run on Blender **5.0.1 only** (the
+  risky slotted-action / channelbag path). The 4.2 legacy `action.fcurves` branch
+  is unit-tested via a fake, not live-run — no 4.2 install on this machine. A 4.2
+  live check folds into the clean-machine gate (Dean's test).
+- **AC5 density:** now backed by a test
+  (`test_recording_inserts_one_key_per_applied_frame_not_resampled`), not rationale
+  alone.
+
 ## Definition of Done
 
 All Acceptance Criteria checked, plus:
