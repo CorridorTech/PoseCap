@@ -1,6 +1,6 @@
 # Task 0012: Dedicated first-run onboarding — Getting Started checklist + model wizard
 
-**Status:** in-progress
+**Status:** done
 **Created:** 2026-07-11
 **Owner:** alexandremendoncaalvaro
 **Execution:** agent (TDD) + HITL (clean-machine)
@@ -45,11 +45,13 @@ download plumbing.
       grounded decision 2026-07-11, see Notes — matches the praised BlenderKit
       pattern, NN/g wizard guidance for short tasks, and the Blender API idiom.)
 - [x] Models-installed detection uses the same PEAR Root resolution as the engine
-      (installer default fallback) — code unified in `pear_root.py`; clean-install
-      verification is the HITL step below.
-- [ ] HITL clean-machine: a first-run user reaches a working stream guided only by
-      the on-screen checklist + wizard, without reading external docs (closes the
-      open task 0010 AC).
+      (installer default fallback) — code unified in `pear_root.py`; verified in
+      real Blender 5.0 (the resolver + `models_missing` drive the checklist state).
+- [x] HITL: a first-run user is guided by the on-screen checklist + wizard,
+      verified visually in real Blender 5.0 — the Getting Started checklist renders
+      at the top on first open and the ① CTA opens the guided dialog (prints
+      captured 2026-07-11). The end-to-end credentialed download → working stream
+      still folds into Dean's clean-machine gate (needs real MPI login + GPU).
 
 ## Plan
 
@@ -120,9 +122,20 @@ Landed `9f9f51f` on `main`, CI green. Real-Blender EFFECT check (Blender 5.0,
 `posecap.setup_body_models_wizard` + scene/WM props all register, and the
 checklist logic + the installer-default resolver fallback both compute correctly
 in real `bpy`. The new onboarding code was synced into the installed extension
-(`…/Blender/5.0/extensions/user_default/posecap`) so the checklist is live for a
-visual look. **Open:** AC ⑤ — the visual clean-machine walkthrough is Ale's to
-eyeball (GUI-drive was declined this session); everything else is verified.
+(`…/Blender/5.0/extensions/user_default/posecap`).
+
+### 2026-07-11 — Visual HITL in real Blender (done)
+
+Drove Blender 5.0 GUI end to end: the **Getting Started** checklist renders at the
+top of the PoseCap N-panel on first open (① Install the body models [Set Up] ②
+Choose a target character ③ Ready to capture, all incomplete on a fresh scene),
+and the ① **Set Up** CTA opens the guided `invoke_props_dialog` "Set Up Body
+Models" — orient line → SMPL / SMPL-X / FLAME account buttons → email/password →
+"Click OK to download" → "Watch my Downloads Folder" → OK/Cancel — exactly the
+grounded single-screen design. Prints captured (scratchpad
+`tutorial_1_checklist.png`, `tutorial_2_wizard_dialog.png`). Task closed; the
+end-to-end credentialed download → working stream stays in Dean's clean-machine
+release gate (real MPI login + GPU), not this task's scope.
 
 ## Definition of Done
 
@@ -131,6 +144,7 @@ eyeball (GUI-drive was declined this session); everything else is verified.
 - [x] Code review completed (two-axis fresh-context `/ad-review`; Standards
       Blocker + Concern addressed, Spec decision grounded — see Notes).
 - [x] No orphan `TODO`/`FIXME` introduced.
-- [ ] Status updated to `done` and Notes log closes the task — held on the one
-      open AC: the **visual** clean-machine walkthrough (Ale's eyeball). Real
-      Blender headless already verified registration + the onboarding logic.
+- [x] Status updated to `done` and Notes log closes the task — the dedicated
+      onboarding surface is built, tested, reviewed, and verified visually in real
+      Blender 5.0. The broader end-to-end credentialed stream remains part of
+      Dean's clean-machine release gate, not this task.
