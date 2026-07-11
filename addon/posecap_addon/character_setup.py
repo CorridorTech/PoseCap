@@ -3,9 +3,11 @@
 Implements doc/workflows.md § "Target armature requirements" for armatures
 that don't follow it: (1) optionally re-rest the arms to a T-pose, (2)
 rename mapped bones to SMPL-X joint names (vertex groups follow), (3)
-reorient mapped bones (+Z tails, local z toward -Y) so pose-bone local axes
-equal the SMPL-X joint frame, then (4) self-verify with synthetic
-left_shoulder raise/swing probes.
+reorient mapped bones to a fixed world frame (bone axis +Z, local z toward -Y,
+pulled back through the object's rotation so a Y-up or Z-up import both land
+right) so pose-bone local axes equal the SMPL-X joint frame, then (4) self-verify
+with synthetic left_shoulder raise/swing probes. Assumes the armature's object
+transform is a pure rotation with uniform, non-mirrored scale (checked).
 
 The pure retarget domain (skeleton presets, family detection, mapping tables,
 validation, probe expectations) lives in ``posecap_core.retarget`` and the
@@ -80,6 +82,14 @@ def convert_armature(
     if missing_joints:
         raise ConversionError(f"mapping is missing SMPL-X joints: {', '.join(missing_joints)}")
     mesh_objs = _resolve_meshes(bpy, arm_obj, preset.mapping)
+    # The reorient reads the object's rotation to place bones in a fixed world
+    # frame; a mirrored (negative-scale) object transform has no pure-rotation
+    # quaternion, so fail loudly with a fix instead of silently mis-orienting.
+    if arm_obj.matrix_world.is_negative:
+        raise ConversionError(
+            "the armature has a mirrored (negative) scale — apply "
+            "Object > Apply > Rotation & Scale, then convert again"
+        )
     needs_re_rest = not preset.already_t_pose if re_rest_t_pose is None else re_rest_t_pose
     if needs_re_rest:
         _re_rest_tpose(bpy, arm_obj, mesh_objs, preset.arm_chains)
@@ -156,13 +166,29 @@ def _rename_and_reorient(bpy, arm_obj, mesh_objs, mapping, bone_length):
             if group is not None:
                 group.name = smpl_name
 
+    # Reorient to a fixed WORLD frame (+Z bone axis, local z toward -Y), not a
+    # fixed armature-local one. Edit-bone geometry is armature-local, so the
+    # target directions are pulled back through the object's rotation: a Z-up
+    # import (UE, object rotation identity) is unchanged, while a Y-up import
+    # (Mixamo, object rotation +90 deg X) gets the matching local tilt instead
+    # of a frame that is 90 deg off (task 0008 Mixamo validation).
+    inverse_object_rotation = arm_obj.matrix_world.to_quaternion().inverted()
+    tail_direction = inverse_object_rotation @ Vector((0.0, 0.0, 1.0))
+    roll_direction = inverse_object_rotation @ Vector((0.0, -1.0, 0.0))
+
     bpy.context.view_layer.objects.active = arm_obj
     bpy.ops.object.mode_set(mode="EDIT")
+    # Detach every bone's head from its parent's tail first. Mixamo (and other
+    # FBX) skeletons import connected, so retargeting a bone's tail would drag
+    # its child's head off the joint and collapse the anatomy into the reorient
+    # axis; UE armatures import disconnected and were unaffected.
+    for edit_bone in arm_obj.data.edit_bones:
+        edit_bone.use_connect = False
     for smpl_name in mapping:
         edit_bone = arm_obj.data.edit_bones[smpl_name]
         head = edit_bone.head.copy()
-        edit_bone.tail = head + Vector((0.0, 0.0, bone_length))
-        edit_bone.align_roll(Vector((0.0, -1.0, 0.0)))
+        edit_bone.tail = head + tail_direction * bone_length
+        edit_bone.align_roll(roll_direction)
     bpy.ops.object.mode_set(mode="OBJECT")
 
 

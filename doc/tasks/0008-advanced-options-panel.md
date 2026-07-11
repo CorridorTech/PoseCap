@@ -130,6 +130,47 @@ dev-CLI constraint, not a release blocker).
 
 Open: HITL screenshot pass of collapsed vs expanded panel for Ale.
 
+### 2026-07-11 (Mixamo converter validated on real characters + bug fixed)
+
+The highest-risk claim ("Mixamo unlocks Adobe's free character library") was
+validated end to end on two REAL Mixamo downloads (X Bot, Y Bot, FBX) — and it
+was **broken**. Diagnosis (`/ad-diagnose`, feedback loop = load the workspace
+`character_setup` in `blender --background`, import the .fbx, run
+`convert_armature` at high tolerance, read the self-verification probe deltas):
+
+- Mixamo FBX imports **connected** (each bone's head locked to its parent's
+  tail). `_rename_and_reorient` retargets each bone's tail to a fixed direction
+  and length, which **dragged every child's head off its joint**, collapsing the
+  arm/leg anatomy into the reorient axis. The probes then measured a degenerate
+  skeleton (elbow offset became the +bone_length reorient axis, not the real
+  arm), so `raise_z`/`swing_y` failed (err 0.1 vs 0.005 tol). UE/Fortnite import
+  **disconnected**, so the same reorient never dragged anything — which is why
+  the UE path passed and Mixamo had never been exercised.
+- Second, subtler issue surfaced while fixing: the reorient targeted a fixed
+  *armature-local* frame (+Z tails), correct only when the object rotation is
+  identity (UE). Mixamo imports Y-up with a +90°X object rotation, so the same
+  local target is a 90° off world frame.
+
+Fix (`addon/posecap_addon/character_setup.py::_rename_and_reorient`): (1)
+disconnect every bone before retargeting so heads stay on their joints; (2)
+compute the reorient tail/roll in the **world** frame and pull them back through
+the object's rotation, so the result is the same world frame regardless of
+import up-axis (identical to the old code when the object rotation is identity —
+UE unchanged by construction; corrects the Mixamo Y-up case).
+
+Verified: probe MAXERR **0.0000** on both X and Y bot; the shipped one-click
+`posecap.convert_character` operator AUTO-detects `mixamo` and returns FINISHED
+on both; a converted X Bot (with skin) was driven by real captured PEAR video
+poses through the live core apply path and rendered a natural dancing character.
+
+Regression seam (per `/ad-diagnose`): the correct reproduction needs a
+connected-bone, Y-up, T-pose skeleton with a bound mesh — i.e. a real Mixamo
+`.fbx`, which is licensed and cannot enter the repo. No committable pytest/e2e
+seam exists without either that asset or a faithful synthetic rebuild; the guard
+is therefore the HITL operator validation on a real Mixamo download (documented
+here, passing on X+Y bot). Flagged for a future synthetic-armature e2e test if
+one can be built without a licensed asset.
+
 ## Definition of Done
 
 All Acceptance Criteria checked, plus:
