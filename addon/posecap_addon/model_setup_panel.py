@@ -33,6 +33,12 @@ MODEL_SIGNUP_URLS = {
 _POLL_INTERVAL_SECONDS = 0.5
 _MISSING_CACHE_TTL_SECONDS = 2.0
 
+# The Set Up dialog is a fixed width, so its own status/error line wraps to this
+# many characters instead of truncating (the panel measures its region; a popup
+# cannot). Sized for the dialog width below.
+_WIZARD_DIALOG_WIDTH = 600
+_WIZARD_WRAP_CHARS = 64
+
 _ACTIVE_SESSION: ModelSetupSession | None = None
 _MISSING_CACHE: dict[str, tuple[float, bool]] = {}
 
@@ -43,9 +49,14 @@ def active_model_setup_session() -> ModelSetupSession | None:
 
 
 def models_missing(pear_root: str) -> bool:
-    """Cheap draw-time check whether required models are absent (2s cache)."""
+    """Cheap draw-time check whether required models are absent (2s cache).
+
+    An unresolved PEAR Root (empty) means we cannot confirm the models exist, so
+    it counts as missing — the checklist then guides the user to set them up
+    instead of falsely ticking "Install the body models" as done.
+    """
     if pear_root == "":
-        return False
+        return True
     now = time.monotonic()
     cached = _MISSING_CACHE.get(pear_root)
     if cached is not None and now - cached[0] < _MISSING_CACHE_TTL_SECONDS:
@@ -63,21 +74,21 @@ def draw_model_setup_status(
     The setup wizard is a transient dialog: once the user clicks OK the
     credential install runs in the background, so its status needs a home on
     the always-visible panel. Nothing renders while there is no active run.
-    Status and error text wrap so a failure ("…does not contain
-    SMPL_NEUTRAL.pkl. Please retry…") is fully readable, not truncated.
+    Every message wraps so it stays fully readable — the progress text rides a
+    wrapped label above a purely-visual bar, not inside the bar (whose own text
+    truncates as badly as a plain label).
     """
     if session is None:
         return
     if session.state in ("RUNNING", "WATCHING"):
         box = layout.box()
         box.label(text="Body Models", icon="ARMATURE_DATA")
+        draw_wrapped_label(box, session.status_message, chars=wrap_chars, icon="TIME")
         fraction = getattr(session, "progress_fraction", None)
         if fraction is not None:
             # A real bar (Blender 4.0+ layout.progress) so the user sees the
-            # download move instead of guessing whether it hung.
-            box.progress(factor=float(fraction), type="BAR", text=session.status_message)
-            return
-        draw_wrapped_label(box, session.status_message, chars=wrap_chars, icon="TIME")
+            # download move; the readable text is the wrapped label above it.
+            box.progress(factor=float(fraction), type="BAR", text="")
         return
     if session.state in ("DONE", "FAILED"):
         icon = "CHECKMARK" if session.state == "DONE" else "ERROR"
@@ -94,7 +105,7 @@ def draw_body_models_wizard(layout: Any, wm_group: Any) -> None:
     column = layout.column()
     column.label(text="PoseCap needs the licensed body models — a free, one-time setup.")
     if wm_group.status != "":
-        column.label(text=wm_group.status, icon="INFO")
+        draw_wrapped_label(column, wm_group.status, chars=_WIZARD_WRAP_CHARS, icon="INFO")
     column.label(text="1. Create free accounts (use the same email + password):")
     signup_row = column.row(align=True)
     for site_name, url in MODEL_SIGNUP_URLS.items():
@@ -142,7 +153,8 @@ def build_model_setup_classes(bpy_module: Any) -> tuple[type[Any], ...]:
         def invoke(self, context: Any, _event: Any) -> set[str]:
             # A dedicated popup is the guided surface: one obvious dialog the
             # user cannot miss, over the same install pipeline as the operator.
-            return context.window_manager.invoke_props_dialog(self, width=480)
+            # Wide enough that the guidance lines fit without truncating.
+            return context.window_manager.invoke_props_dialog(self, width=_WIZARD_DIALOG_WIDTH)
 
         def draw(self, context: Any) -> None:
             wm_group = context.window_manager.posecap_model_setup

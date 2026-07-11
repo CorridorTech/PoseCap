@@ -9,6 +9,7 @@ from posecap_addon.model_setup_panel import (
     build_model_setup_classes,
     draw_body_models_wizard,
     draw_model_setup_status,
+    models_missing,
 )
 
 
@@ -83,6 +84,13 @@ def test_wizard_form_offers_signup_credentials_and_manual_path() -> None:
     assert "posecap.watch_model_downloads" in layout.operator_ids
 
 
+def test_unresolved_pear_root_counts_as_models_missing() -> None:
+    # A blank PEAR Root can't confirm the models exist, so it must read as
+    # missing — otherwise the checklist falsely ticks "Install the body models"
+    # done and hides the Set Up button (observed on an env without LOCALAPPDATA).
+    assert models_missing("") is True
+
+
 def test_status_is_empty_when_no_session() -> None:
     layout = _FakeLayout()
 
@@ -141,7 +149,9 @@ def test_status_shows_a_progress_bar_while_a_download_has_a_measurable_fraction(
     draw_model_setup_status(layout, session)
 
     assert layout.progress_factors == [0.27], "a measurable download draws a real bar"
-    assert any("45 / 167 MB" in text for text in layout.labels)
+    # The readable text rides a wrapped label (the bar's own text truncates), so
+    # the byte-count is present across the labels, not necessarily on one line.
+    assert "45 / 167 MB" in " ".join(layout.labels)
 
 
 class _FakeSession:
@@ -314,7 +324,7 @@ def test_wizard_operator_opens_a_props_dialog() -> None:
 
     assert result == {"RUNNING_MODAL"}
     assert calls and calls[0]["operator"] is operator
-    assert calls[0]["width"] == 480
+    assert calls[0]["width"] == 600, "the dialog is wide enough for its guidance lines"
 
 
 def test_wizard_operator_draws_the_guided_form() -> None:

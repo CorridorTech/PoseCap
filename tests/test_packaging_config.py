@@ -36,6 +36,23 @@ def test_pypi_lock_pins_every_line_exactly() -> None:
     assert not any("pytorch3d" in line for line in lines)
 
 
+def test_iss_template_is_ascii_only() -> None:
+    # A non-ASCII char (an em-dash) in the template is read by PowerShell 5.1
+    # Get-Content as the ANSI codepage and baked into the compiled installer as
+    # mojibake ("â€"). The renderer reads it as UTF-8, but keeping the template
+    # ASCII-only is the belt-and-suspenders guard so it can never reappear.
+    template = _read("installer/posecap.iss.template")
+    non_ascii = sorted({character for character in template if ord(character) > 127})
+    assert non_ascii == [], f"non-ASCII characters in the Inno template: {non_ascii}"
+
+
+def test_installer_build_reads_template_as_utf8() -> None:
+    # The renderer must decode the template as UTF-8; the ANSI default silently
+    # corrupts any non-ASCII an author later adds.
+    build = _read("build_installer.ps1")
+    assert "posecap.iss.template') -Raw -Encoding UTF8" in build
+
+
 def test_iss_template_tokens_match_renderer() -> None:
     template = _read("installer/posecap.iss.template")
     tokens = set(re.findall(r"@@([A-Z_]+)@@", template))

@@ -88,6 +88,33 @@ def test_capture_actions_enabled_once_onboarding_is_complete() -> None:
     assert not any("Finish Getting Started" in text for text in layout._labels)
 
 
+def test_capture_hint_wraps_at_a_narrow_panel_width() -> None:
+    layout = _FakeLayout()
+
+    draw_live_stream_panel(
+        layout, _Settings(lifecycle_state="STOPPED"), capture_ready=False, wrap_chars=18
+    )
+
+    # The hint is fully present but spans several labels — nothing truncated.
+    hint = [text for text in layout._labels if "Finish" in text or "enable capture" in text]
+    assert len(hint) >= 2, "a narrow panel wraps the hint instead of truncating it"
+    assert "Finish Getting Started above to enable capture." in " ".join(layout._labels)
+
+
+def test_panel_wrap_chars_reads_region_width_and_ui_scale() -> None:
+    from posecap_addon.panels import _panel_wrap_chars
+
+    def _context(width: int, ui_scale: float = 1.0) -> SimpleNamespace:
+        return SimpleNamespace(
+            region=SimpleNamespace(width=width),
+            preferences=SimpleNamespace(system=SimpleNamespace(ui_scale=ui_scale)),
+        )
+
+    assert _panel_wrap_chars(_context(520)) > _panel_wrap_chars(_context(260))
+    # A context missing the region or preferences must fall back, never crash.
+    assert _panel_wrap_chars(SimpleNamespace()) >= 14
+
+
 def test_live_stream_panel_offers_record_when_streaming_and_stop_when_recording() -> None:
     streaming = _FakeLayout()
     draw_live_stream_panel(streaming, _Settings(lifecycle_state="STREAMING"))
