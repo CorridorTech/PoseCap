@@ -51,8 +51,15 @@ class ModelAsset:
     source: MpiDownload | PublicDownload
 
 
+# A pickle stream opens with the PROTO opcode (0x80) for protocol 2+, OR a
+# printable opcode for the protocol-0/1 ASCII pickles that SMPL ships: a pickled
+# dict/tuple opens with MARK "(", an object with GLOBAL "c", a list/dict with
+# "]"/"}". Accepting only 0x80 falsely rejected the real neutral model (SMPL's
+# SMPL_NEUTRAL.pkl is a protocol-0 pickle starting with "("). HTML error pages
+# are already rejected before this check, so a permissive pickle magic is safe.
+_PICKLE_MAGIC = (b"\x80", b"(", b"c", b"]", b"}")
 _MAGIC_BY_EXTENSION = {
-    ".pkl": (b"\x80",),
+    ".pkl": _PICKLE_MAGIC,
     ".npz": (b"PK\x03\x04",),
     ".zip": (b"PK\x03\x04",),
 }

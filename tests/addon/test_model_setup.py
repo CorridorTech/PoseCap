@@ -14,6 +14,7 @@ from posecap_addon.model_setup import (
     ModelSetupError,
     ModelSetupSession,
     MpiCredentials,
+    _urllib_fetch,
     find_downloaded_model_archives,
     install_from_downloaded_archive,
     install_missing_models,
@@ -22,6 +23,29 @@ from posecap_addon.model_setup import (
 from posecap_contracts import MPI_DOWNLOAD_URL, REQUIRED_MODEL_ASSETS, PublicDownload
 
 CREDENTIALS = MpiCredentials(email="emmet@corridor.example", password="s3cret!pw")
+
+
+def test_forbidden_download_is_reported_as_an_authorization_problem(monkeypatch, tmp_path) -> None:
+    # A 403 (HTTPError, a URLError subclass) is the server refusing the account,
+    # not a connectivity problem — the message must not send the user to check
+    # their internet when the real fix is the credentials/verification/rate limit.
+    import urllib.error
+    import urllib.request
+
+    class _ForbiddenOpener:
+        def open(self, request, timeout=0.0):  # noqa: A003 - mirrors urllib API
+            raise urllib.error.HTTPError(request.full_url, 403, "Forbidden", {}, None)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(urllib.request, "build_opener", lambda *a, **k: _ForbiddenOpener())
+
+    with pytest.raises(ModelSetupError) as raised:
+        _urllib_fetch(
+            "https://download.example/download.php", b"user=x", tmp_path / "f", lambda d, t: None
+        )
+
+    message = str(raised.value).lower()
+    assert "internet" not in message, "a 403 is not a connectivity error"
+    assert "authorized" in message or "password" in message
 
 
 @cache

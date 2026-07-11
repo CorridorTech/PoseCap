@@ -549,6 +549,21 @@ def _urllib_fetch(
                     sink.write(chunk)
                     done += len(chunk)
                     progress(done, total)
+    except urllib.error.HTTPError as exc:
+        # HTTPError is a URLError subclass, so it must be handled first. A refused
+        # request is not a connection problem: 401/403 means the credentials, an
+        # unconfirmed account, or rate-limiting after repeated downloads — saying
+        # "check your internet" would send the user down the wrong path.
+        if exc.code in (401, 403):
+            raise ModelSetupError(
+                "The download server refused the request (the account is not "
+                "authorized). Check the email and password, confirm the account "
+                "verification email, and — if you have downloaded several times "
+                "just now — wait a few minutes before trying again."
+            ) from exc
+        raise ModelSetupError(
+            f"The download server returned an error (HTTP {exc.code}). Please try again."
+        ) from exc
     except urllib.error.URLError as exc:
         raise ModelSetupError(
             "Could not reach the download server. Check your internet connection and try again."
