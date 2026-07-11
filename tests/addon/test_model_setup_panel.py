@@ -112,6 +112,24 @@ def test_status_shows_a_finished_session_message() -> None:
     assert "Models installed." in layout.labels
 
 
+def test_status_wraps_a_long_failure_so_the_whole_message_is_readable() -> None:
+    layout = _FakeLayout()
+    message = (
+        "The downloaded archive does not contain SMPL_NEUTRAL.pkl. "
+        "Please retry, or download it manually from the official site."
+    )
+    session = SimpleNamespace(state="FAILED", status_message=message)
+
+    draw_model_setup_status(layout, session, wrap_chars=28)
+
+    # No single label carries the whole thing (it would truncate), but joined
+    # across the wrapped labels the full message is present — nothing hidden.
+    assert len(layout.labels) > 1, "a long failure must span several labels"
+    joined = " ".join(layout.labels)
+    assert "SMPL_NEUTRAL.pkl" in joined
+    assert "official site" in joined
+
+
 def test_status_shows_a_progress_bar_while_a_download_has_a_measurable_fraction() -> None:
     layout = _FakeLayout()
     session = SimpleNamespace(

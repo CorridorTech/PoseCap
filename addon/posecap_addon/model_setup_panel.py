@@ -21,6 +21,7 @@ from .model_setup import (
     missing_model_assets,
     verify_models_with_doctor,
 )
+from .panel_text import DEFAULT_WRAP_CHARS, draw_wrapped_label
 from .pear_root import resolve_pear_root
 
 MODEL_SIGNUP_URLS = {
@@ -54,12 +55,16 @@ def models_missing(pear_root: str) -> bool:
     return result
 
 
-def draw_model_setup_status(layout: Any, session: Any | None) -> None:
+def draw_model_setup_status(
+    layout: Any, session: Any | None, *, wrap_chars: int = DEFAULT_WRAP_CHARS
+) -> None:
     """Show model-download progress in the panel.
 
     The setup wizard is a transient dialog: once the user clicks OK the
     credential install runs in the background, so its status needs a home on
     the always-visible panel. Nothing renders while there is no active run.
+    Status and error text wrap so a failure ("…does not contain
+    SMPL_NEUTRAL.pkl. Please retry…") is fully readable, not truncated.
     """
     if session is None:
         return
@@ -72,11 +77,11 @@ def draw_model_setup_status(layout: Any, session: Any | None) -> None:
             # download move instead of guessing whether it hung.
             box.progress(factor=float(fraction), type="BAR", text=session.status_message)
             return
-        box.label(text=session.status_message, icon="TIME")
+        draw_wrapped_label(box, session.status_message, chars=wrap_chars, icon="TIME")
         return
     if session.state in ("DONE", "FAILED"):
         icon = "CHECKMARK" if session.state == "DONE" else "ERROR"
-        layout.box().label(text=session.status_message, icon=icon)
+        draw_wrapped_label(layout.box(), session.status_message, chars=wrap_chars, icon=icon)
 
 
 def draw_body_models_wizard(layout: Any, wm_group: Any) -> None:

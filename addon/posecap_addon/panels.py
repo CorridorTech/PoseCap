@@ -35,6 +35,7 @@ from .model_setup_panel import (
     models_missing,
 )
 from .onboarding import draw_getting_started, onboarding_complete, onboarding_steps
+from .panel_text import DEFAULT_WRAP_CHARS, draw_wrapped_label, region_wrap_chars
 from .pear_root import PathExists, first_nonempty, installer_path, resolve_pear_root
 from .recording import build_recording_classes, pause_playback
 from .stream_client import TcpPoseStreamClient
@@ -104,12 +105,13 @@ def draw_live_stream_panel(
     settings: _LiveStreamSettings,
     *,
     capture_ready: bool = True,
+    wrap_chars: int = DEFAULT_WRAP_CHARS,
 ) -> None:
     """Draw the live-stream controls from the current lifecycle state.
 
     ``capture_ready`` is False until onboarding is complete (models installed +
-    a target character): the capture actions stay disabled and a one-line hint
-    points back to the checklist, so a new user cannot click into a failure."""
+    a target character): the capture actions stay disabled and a hint points
+    back to the checklist, so a new user cannot click into a failure."""
     controls = lifecycle_controls(
         settings.lifecycle_state,
         status_message=settings.status_message,
@@ -147,7 +149,12 @@ def draw_live_stream_panel(
         limbs.prop(settings, "apply_torso", toggle=True)
 
     if not capture_ready:
-        layout.label(text="Finish Getting Started above to enable capture.", icon="INFO")
+        draw_wrapped_label(
+            layout,
+            "Finish Getting Started above to enable capture.",
+            chars=wrap_chars,
+            icon="INFO",
+        )
 
     actions = layout.row(align=True)
     start = actions.row()
@@ -526,6 +533,9 @@ def _build_blender_classes(bpy_module: Any) -> tuple[type[Any], ...]:
 
 def _draw_main_panel(layout: Any, context: Any) -> None:
     settings = _settings_from_context(context)
+    # Measure the panel so long status/hint text wraps to the actual width
+    # instead of truncating (a non-technical user must read the whole message).
+    wrap_chars = _panel_wrap_chars(context)
     # The Getting Started checklist is the first-run face: it renders whenever
     # onboarding is incomplete (never hidden by a single state edge, the failure
     # mode of the old conditional section) and collapses once every step is done.
@@ -537,8 +547,8 @@ def _draw_main_panel(layout: Any, context: Any) -> None:
     # the credential install runs in the background and its status lands here.
     session = active_model_setup_session()
     if session is not None:
-        draw_model_setup_status(layout, session)
-    draw_live_stream_panel(layout, settings, capture_ready=capture_ready)
+        draw_model_setup_status(layout, session, wrap_chars=wrap_chars)
+    draw_live_stream_panel(layout, settings, capture_ready=capture_ready, wrap_chars=wrap_chars)
     draw_character_setup_section(layout, settings)
     if getattr(settings, "target_armature", None) is not None:
         draw_keyframe_manager_section(layout, context.scene)
@@ -571,6 +581,18 @@ def _character_ready(settings: Any) -> bool:
 
 def _settings_from_context(context: Any) -> Any:
     return getattr(context.scene, SCENE_PROPERTY_NAME)
+
+
+def _panel_wrap_chars(context: Any) -> int:
+    """Characters that fit one panel line, from the live region width + UI scale.
+
+    Any missing piece (no region, headless) falls back to the default width, so
+    the panel draws correctly whether or not there is a region to measure."""
+    region = getattr(context, "region", None)
+    preferences = getattr(context, "preferences", None)
+    system = getattr(preferences, "system", None)
+    ui_scale = float(getattr(system, "ui_scale", 1.0) or 1.0)
+    return region_wrap_chars(region, ui_scale)
 
 
 def _panel_pear_root(

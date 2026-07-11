@@ -56,11 +56,15 @@ def onboarding_complete(steps: tuple[OnboardingStep, ...]) -> bool:
 
 
 def draw_getting_started(layout: Any, steps: tuple[OnboardingStep, ...]) -> None:
-    """Draw the checklist box: one row per step, ticked or with its CTA."""
+    """Draw the checklist box: each step's label full-width, its CTA below.
+
+    The label takes the whole row so a step title is never squeezed into
+    "Install the bo…" by a button sharing the line; the call-to-action sits on
+    its own row underneath, an obvious full-width target.
+    """
     box = layout.box()
     box.label(text="Getting Started with PoseCap", icon="INFO")
     for step in steps:
-        row = box.row()
-        row.label(text=step.label, icon="CHECKMARK" if step.done else "DOT")
+        box.label(text=step.label, icon="CHECKMARK" if step.done else "DOT")
         if not step.done and step.action_operator is not None:
-            row.operator(step.action_operator, text=step.action_label or "")
+            box.row().operator(step.action_operator, text=step.action_label or "")
