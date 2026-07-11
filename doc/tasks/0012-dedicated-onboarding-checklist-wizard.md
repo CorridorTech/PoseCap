@@ -115,9 +115,22 @@ BlenderKit (github.com/BlenderKit/BlenderKit), Rokoko plugin
 (github.com/Rokoko/rokoko-studio-live-blender), NN/g "Wizards"
 (nngroup.com/articles/wizards), Blender T48196.
 
+Landed `9f9f51f` on `main`, CI green. Real-Blender EFFECT check (Blender 5.0,
+`--background`): the updated extension enables, the panel + wizard operator
+`posecap.setup_body_models_wizard` + scene/WM props all register, and the
+checklist logic + the installer-default resolver fallback both compute correctly
+in real `bpy`. The new onboarding code was synced into the installed extension
+(`…/Blender/5.0/extensions/user_default/posecap`) so the checklist is live for a
+visual look. **Open:** AC ⑤ — the visual clean-machine walkthrough is Ale's to
+eyeball (GUI-drive was declined this session); everything else is verified.
+
 ## Definition of Done
 
-- [ ] Local tests pass (or N/A documented in Notes)
-- [ ] Code review completed (fresh-context reviewer per WORKFLOW §10)
-- [ ] No orphan `TODO`/`FIXME` introduced
-- [ ] Status updated to `done` and Notes log closes the task
+- [x] Local tests pass (full gate green; 306 tests + ruff/format/pyright ×2/
+      import-linter). CI green on `main` (`9f9f51f`).
+- [x] Code review completed (two-axis fresh-context `/ad-review`; Standards
+      Blocker + Concern addressed, Spec decision grounded — see Notes).
+- [x] No orphan `TODO`/`FIXME` introduced.
+- [ ] Status updated to `done` and Notes log closes the task — held on the one
+      open AC: the **visual** clean-machine walkthrough (Ale's eyeball). Real
+      Blender headless already verified registration + the onboarding logic.
