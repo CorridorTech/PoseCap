@@ -31,8 +31,8 @@ Download the latest `PoseCap_..._Windows_Setup.exe` from the
 and run it. The installer needs no administrator rights — it installs into
 your user folder.
 
-**License** — PoseCap itself is free and open source (Apache-2.0 / GPL-3.0).
-Accept the agreement and click **Next**.
+**License** — PoseCap itself is free and open source. Accept the agreement
+and click **Next**.
 
 ![Installer license page](images/install-license.png)
 
