@@ -1,19 +1,33 @@
 # Getting started with PoseCap
 
-This is the full walk-through: from a clean Windows machine to a character
-moving live from your webcam or a video. It takes about 20 minutes, most
-of it downloads you can leave running.
+By the end of this page a 3D character in Blender moves live with a person on
+your webcam — no mocap suit, no markers. It takes about 20 minutes, and most of
+that is downloads you can leave running.
 
-Along the way PoseCap keeps a **Getting Started** checklist at the top of
-its panel and disables the capture buttons until you are ready — so you
-are always guided to the next step and can never click into an error.
+This is the **complete, do-it-once path**. Follow it top to bottom; every step is
+here, so you never have to leave and come back. (Want depth on one feature later?
+Each step links a focused guide at the end.)
 
-**The four stops:**
+> **One thing to know up front.** PoseCap drives the **SMPL-X body model**, which
+> is free for research but **licensed by the Max Planck Institute** — so it can't
+> be shipped inside PoseCap. You register free on three official sites (about five
+> minutes) and PoseCap downloads and installs everything else for you. **That
+> sign-up is the only part you do by hand** — and it is the one step below that is
+> worth reading slowly.
 
-1. [Install PoseCap](#1-install-posecap) — run the Windows installer.
-2. [First run in Blender](#2-first-run-in-blender) — open the panel.
-3. [Set up the body models](#3-set-up-the-body-models) — a one-time licensed download.
-4. [Set up a character and capture it live](#4-set-up-a-character-and-capture-it-live).
+```mermaid
+flowchart LR
+    A["1 · Install<br/>run one installer"] --> B["2 · Body models<br/>3 free accounts + license"]
+    B --> C["3 · Character<br/>one click"]
+    C --> D["4 · Capture live<br/>your webcam drives it"]
+    classDef manual fill:#fde68a,stroke:#d97706,color:#111,stroke-width:2px;
+    classDef auto fill:#e0f2fe,stroke:#0284c7,color:#111;
+    class B manual
+    class A,C,D auto
+```
+
+<sub>Only **step 2** needs you to do anything by hand — a one-time, free licensing
+sign-up. Everything else is one click or fully automatic.</sub>
 
 ## What you need
 
@@ -27,102 +41,143 @@ are always guided to the next step and can never click into an error.
 ## 1. Install PoseCap
 
 Download the latest `PoseCap_..._Windows_Setup.exe` from the
-[releases page](https://github.com/CorridorTech/PoseCap/releases/latest)
-and run it. The installer needs no administrator rights — it installs into
-your user folder.
+[releases page](https://github.com/CorridorTech/PoseCap/releases/latest) and run
+it. It needs **no administrator rights** — it installs into your user folder.
 
-**License** — PoseCap itself is free and open source. Accept the agreement
-and click **Next**.
+Click through the wizard: **Accept** the license → keep the default **destination**
+→ **Install**. The long part is the **~4 GB GPU runtime** (PyTorch and the PEAR
+engine) it fetches during install — leave it running, then click **Finish**.
 
-![Installer license page](images/install-license.png)
+![The PoseCap installer wizard, from license to finish](images/install-walkthrough.gif)
 
-**Destination** — the default (`…\AppData\Local\PoseCap`) is fine. Click
-**Next**.
+PoseCap also installs its panel into Blender for you. That is the whole install —
+no files to place, no paths to set.
 
-![Installer destination folder](images/install-destination.png)
+> Nothing licensed is downloaded here. The body models are the next step, done
+> with your own account.
 
-**Ready** — review the summary and click **Install**.
+## 2. Get the body models — the one part that needs you
 
-![Installer ready to install](images/install-ready.png)
+This is the step to slow down for. It is a **one-time, free** setup of the SMPL-X
+research body models. Because they are licensed (see the note at the top), you
+create the accounts; PoseCap does the downloading, unzipping, and installing — no
+files to find or move.
 
-**Installing** — the installer downloads and sets up the GPU runtime
-(PyTorch, the PEAR engine, and supporting files — about 4 GB). This is the
-long step; leave it running.
+Total time: about five minutes, plus a ~500 MB download.
 
-![Installer downloading the GPU runtime](images/install-progress.png)
+### 2a. Create your three free accounts (this *is* the license step)
 
-**Finish** — when it is done, click **Finish**. PoseCap has also installed
-its panel into Blender for you.
+Register on each of the three official sites, using the **same email and password
+on all three** (that keeps the next part to a single login):
 
-![Installer finished](images/install-finish.png)
+| Site | Register |
+|---|---|
+| SMPL | <https://smpl.is.tue.mpg.de/register.php> |
+| SMPL-X | <https://smpl-x.is.tue.mpg.de/register.php> |
+| FLAME | <https://flame.is.tue.mpg.de/register.php> |
 
-> The installer bundles only what has no canonical download source;
-> everything heavy (Python, PyTorch, the PEAR model code) is fetched from
-> official pinned sources during this step. The licensed body models are
-> **not** downloaded here — that is the one-time step below, done with your
-> own account.
+On each form, enter your email, pick a password (**at least 8 characters**), and
+**turn every license toggle green**. Flipping those toggles on **is** the license
+acceptance — there is nothing else to sign; you can leave *Receive Emails* off.
+The toggles differ slightly per site:
 
-## 2. First run in Blender
+**SMPL** — *Accept terms* + *Accept license*:
 
-Open Blender. In the 3D Viewport, press **`N`** to open the sidebar, then
-click the **PoseCap** tab. You will see the **Getting Started with PoseCap**
-checklist:
+![SMPL registration with Accept terms and Accept license turned on](images/register-smpl-toggles.png)
 
-![The Getting Started checklist](images/model-onboarding-checklist.png)
+**SMPL-X** — *Accept terms* + *Accept model license* + *Accept body license*:
 
-- **Install the body models** — not done yet; it has a **Set Up** button.
-- **Choose a target character** — the armature capture will drive.
-- **Ready to capture** — ticks green once the first two are done.
+![SMPL-X registration with Accept terms, model license and body license turned on](images/register-smplx-toggles.png)
 
-Until the checklist is complete, **Start Stream** stays disabled with the
-hint *"Finish Getting Started above to enable capture."* That is by design —
-it points you at the next step instead of failing.
+**FLAME** — *Accept terms* + *Accept model license* + *Accept data license*:
 
-> Don't see the PoseCap tab? The installer enables the extension
-> automatically, but if Blender was open during install, restart it. You
-> can also enable it by hand in **Edit → Preferences → Add-ons**, searching
-> for *PoseCap*.
+![FLAME registration with Accept terms, model license and data license turned on](images/register-flame-toggles.png)
 
-## 3. Set up the body models
+All three are required — PoseCap needs one file from each (SMPL, SMPL-X, and the
+FLAME head model that SMPL-X uses).
 
-Click **Set Up** on the first checklist row. This is a **one-time, free**
-download of the SMPL-X research body models, which are licensed by the Max
-Planck Institute and cannot ship inside PoseCap.
+### 2b. Confirm your email — check your spam folder
 
-In short: create free accounts on three official sites, then enter that
-email and password in the dialog and click **OK** — PoseCap downloads and
-installs every file, showing a progress bar as it goes.
+Each site emails you a verification link that **must be clicked before downloads
+work**. That mail very often lands in **spam/junk** — look for it there, open it,
+and click **Confirm my account**:
 
-**→ Full step-by-step, with the license details and troubleshooting:
-[Setting up the body models](smplx-model-setup.md).**
+![The MPI confirmation email sitting in the Gmail spam folder](images/register-confirmation-in-spam.png)
 
-When the download finishes, the first checklist row turns to a green tick.
+An unconfirmed account is the usual reason a download later fails with a login
+error, so don't skip this.
 
-## 4. Set up a character and capture it live
+### 2c. Let PoseCap download and install everything
 
-**Choose a character.** Import any Mixamo or Unreal Engine character (or use
-the built-in SMPL-X body), pick it as the **Target Armature**, and click
-**Convert Character for PoseCap** — one click reorients and renames the
-skeleton so live capture can drive it.
+Open Blender. In the 3D Viewport press **`N`** to open the sidebar, then click the
+**PoseCap** tab. You will see the **Getting Started with PoseCap** checklist, with
+capture disabled until it is complete — so you can never click into an error:
 
-**→ Full guide: [Setting up a character](character-setup.md).**
+![The Getting Started checklist at the top of the PoseCap panel](images/model-onboarding-checklist.png)
 
-**Capture it live.** Pick your **Source** — a webcam, or a video file to
-test — turn on **Show Preview Window**, and click **Start Stream**. Your
-character now moves with the person in front of the camera, in real time.
-Turn on **Record Live MoCap** to bake the motion to keyframes.
+Click **Set Up** on the first row. Enter the **email and password** from step 2a
+and click **OK**:
+
+![The Set Up Body Models dialog](images/model-setup-wizard.png)
+
+Your password is used once, in memory, to download from the official server — it
+is never saved or logged, and the field clears the moment the download starts. A
+progress bar shows each file as it lands:
+
+![The Body Models download progress bar](images/model-download-progress.png)
+
+When every file is in, the first checklist row turns to a green tick.
+
+> Don't want to type your password into Blender? The same dialog has a **Watch my
+> Downloads Folder** option — download the three files yourself in a browser and
+> PoseCap picks them up. Full details and troubleshooting: the
+> [body-models guide](smplx-model-setup.md).
+
+## 3. Set up a character
+
+Bring in any **Mixamo** or **Unreal Engine** character (or use the built-in SMPL-X
+body): **File → Import → FBX**. It will import small and lying on its side — that
+is normal, the next click fixes it.
+
+In the PoseCap panel, pick your character's armature as the **Target Armature**,
+leave **Skeleton** on **Auto-Detect**, and click **Convert Character for PoseCap**.
+One click reorients and renames the skeleton, then self-checks its work
+(*"Character converted — probe error 0.0000"*):
+
+![The Character Setup section of the PoseCap panel](images/character-setup-panel.png)
+
+Full walkthrough, including custom skeletons: the
+[character-setup guide](character-setup.md).
+
+## 4. Capture it live
+
+The payoff. Pick your **Source** — a **webcam**, or a **video file** to test with
+(a clip loops, so your character keeps moving) — turn on **Show Preview Window**,
+and click **Start Stream**.
+
+> **The very first Start Stream downloads the AI model (~2.7 GB), once.** The panel
+> shows *"Still starting — this can take a few minutes…"* — that is the download,
+> not a freeze. Leave it running; every later start is immediate.
+
+Once frames arrive, your character moves with the person in the source, in real
+time. Turn on **Record Live MoCap** to bake the motion onto the timeline as
+keyframes.
 
 ![Live capture: the source video on the left drives the character on the right, in real time](../media/posecap-live-capture.gif)
 
-Inside Blender it looks like this — the converted Mixamo character driven live,
-with the source preview window:
-
-![A converted Mixamo character driven live from a video, with the source preview](images/live-capture-stream.png)
-
-**→ Full guide: [Live capture](live-capture.md).**
+Full options — smoothing, per-limb filters, and the **Camera Pitch** control that
+keeps a tilted-camera capture upright: the [live-capture guide](live-capture.md).
 
 ---
 
-That's the whole pipeline: install → models → character → live capture.
-Every flow above has its own detailed guide linked inline, and **PoseCap
-Doctor** (Start Menu → PoseCap) confirms your setup is healthy any time.
+That is the whole pipeline: **install → models → character → live capture.** You
+now have a character you can drive from any webcam.
+
+**Go deeper, per feature:**
+
+- [Set up the body models](smplx-model-setup.md) — the licensed download, the Watch-Downloads option, and troubleshooting.
+- [Set up a character](character-setup.md) — Mixamo, Unreal, and custom-skeleton mapping.
+- [Live capture](live-capture.md) — source options, recording, smoothing, and camera tilt.
+
+Any time you want to confirm your setup is healthy, run **PoseCap Doctor**
+(Start Menu → PoseCap → PoseCap Doctor) — every check should be green.
