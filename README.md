@@ -8,6 +8,8 @@ Free and open source.
 
 Input video on the left; on the right, the SMPL-X body skeleton reconstructed frame-by-frame from the engine's live TCP stream (PEAR inference on an RTX 3080, 100% of frames tracked):
 
+![Ale PoseCap Test](doc/media/posecap-live-capture.gif)
+
 ![Dance demo — video left, streamed skeleton right](doc/media/demo_dance.gif)
 
 ![Handstand demo — full inversion tracked](doc/media/demo_handstand.gif)
