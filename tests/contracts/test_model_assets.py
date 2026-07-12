@@ -1,3 +1,6 @@
+import pickle
+
+import pytest
 from posecap_contracts import REQUIRED_MODEL_ASSETS, MpiDownload, PublicDownload
 from posecap_contracts.model_assets import download_failure_reason
 
@@ -89,7 +92,10 @@ def test_protocol_0_pickle_passes_validation() -> None:
 
 
 def test_protocol_2_pickle_passes_validation() -> None:
-    protocol_2 = b"\x80\x02}q\x01(" + b"\x00" * 64
+    # PROTO, EMPTY_DICT, BINPUT, MARK, BINUNICODE("abce") — the diverse opcode
+    # opening a real protocol-2 model head shows (the POC's SMPL/FLAME .pkl files
+    # open PROTO/EMPTY_DICT/BINPUT/MARK/SHORT_BINSTRING).
+    protocol_2 = b"\x80\x02}q\x01(X\x04\x00\x00\x00abce" + b"\x00" * 64
     assert download_failure_reason(_SMPL_PKL, protocol_2, _SMPL_PKL.min_bytes + 1) is None
 
 
@@ -109,3 +115,40 @@ def test_ascii_that_is_not_a_pickle_stream_is_rejected() -> None:
     reason = download_failure_reason(_SMPL_PKL, head, _SMPL_PKL.min_bytes + 1)
     assert reason is not None
     assert "SMPL_NEUTRAL.pkl" in reason
+
+
+@pytest.mark.parametrize(
+    "head",
+    [
+        b"(NN" + b"\xff" * 200,  # MARK, NONE, NONE (2 distinct), then a non-opcode byte
+        b"(((" + b"\xff" * 200,  # three MARKs (one distinct name)
+        b"}}}" + b"\xff" * 200,  # three EMPTY_DICTs (one distinct name)
+        b"(" + b"N" * 400,  # one opener plus a long run of a single opcode (2 distinct)
+    ],
+    ids=["mark-none-none", "three-marks", "three-empty-dicts", "one-opener-many-nones"],
+)
+def test_opcode_lookalikes_that_are_not_real_pickles_are_rejected(head: bytes) -> None:
+    # A wrong download whose first byte happens to be a pickle opener must not
+    # pass just because a couple of opcode-shaped bytes follow. A real model head
+    # decodes into at least three distinct opcode names; these forged heads open
+    # with an opener but never reach three distinct names.
+    reason = download_failure_reason(_SMPL_PKL, head, _SMPL_PKL.min_bytes + 1)
+    assert reason is not None
+    assert "SMPL_NEUTRAL.pkl" in reason
+
+
+def test_a_real_generated_pickle_head_passes_validation() -> None:
+    # A genuine pickle stream (not a hand-forged stub) must validate across every
+    # protocol — the check keys on real opcode structure, not a magic byte.
+    for protocol in (0, 1, 2, 3, 4, 5):
+        head = pickle.dumps({"J_regressor": [1, 2, 3], "v_template": "x" * 40}, protocol=protocol)
+        assert download_failure_reason(_SMPL_PKL, head, _SMPL_PKL.min_bytes + 1) is None
+
+
+def test_a_pickle_head_dominated_by_one_large_value_still_passes() -> None:
+    # Regression: a count-based rule (>= N opcodes) false-rejected a valid pickle
+    # whose head is one big truncated argument — e.g. a protocol-1 single-key dict
+    # with a multi-megabyte value carries only a few opcodes in the 64 KB head.
+    # Keying on distinct opcode names instead keeps it valid.
+    head = pickle.dumps({"v_template": "x" * 2_000_000}, protocol=1)[: 64 * 1024]
+    assert download_failure_reason(_SMPL_PKL, head, _SMPL_PKL.min_bytes + 1) is None
