@@ -109,22 +109,21 @@ PoseCap watches your Downloads folder, detects each file as it lands,
 validates it, extracts what it needs, and installs it. It even picks up a
 browser-renamed re-download such as `FLAME2020 (1).zip`.
 
-## First Start Stream downloads the AI model (~2.7 GB, one time)
+## The first Start Stream just warms up
 
-The very first time you click **Start Stream**, PoseCap downloads the
-pinned pose-estimation model (~2.7 GB) before the first frame appears. If
-a start takes a while the panel shows **"Still starting — this can take a
-few minutes; the very first run also downloads the AI model (~2.7 GB)."**
-That is the download, not a freeze — leave it running. Every later start
-is immediate.
+The ~2.6 GB pose-estimation model is downloaded **during install**, not here —
+so the first **Start Stream** does not re-download it. The engine's first load
+still warms up (a cold start can take a minute or two); if the panel says
+**"Still starting…"**, that is the warmup, not a freeze — leave it running.
+Every later start is immediate.
 
 ## Check everything is green
 
 Run **PoseCap Doctor** (Start Menu → PoseCap → PoseCap Doctor) any time.
 Every check must be green before your first live capture. Two warnings are
-normal: the PEAR checkout has no git history to verify, and the AI model
-weights read as "not verified" until that first Start Stream downloads
-them.
+normal: the PEAR checkout has no git history to verify, and the AI-model
+weights show as "not verified" — the quick check can't confirm the cache, but
+the installer already fetched them.
 
 ## Troubleshooting
 

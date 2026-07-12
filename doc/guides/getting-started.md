@@ -45,8 +45,9 @@ Download the latest `PoseCap_..._Windows_Setup.exe` from the
 it. It needs **no administrator rights** — it installs into your user folder.
 
 Click through the wizard: **Accept** the license → keep the default **destination**
-→ **Install**. The long part is the **~4 GB GPU runtime** (PyTorch and the PEAR
-engine) it fetches during install — leave it running, then click **Finish**.
+→ **Install**. The long part is the **~5 GB** it downloads — the GPU runtime
+(PyTorch, the PEAR engine) **and the AI pose model** — so leave it running, then
+click **Finish**.
 
 ![The PoseCap installer wizard, from license to finish](images/install-walkthrough.gif)
 
@@ -142,7 +143,7 @@ is normal, the next click fixes it.
 In the PoseCap panel, pick your character's armature as the **Target Armature**,
 leave **Skeleton** on **Auto-Detect**, and click **Convert Character for PoseCap**.
 One click reorients and renames the skeleton, then self-checks its work
-(*"Character converted — probe error 0.0000"*):
+(*"Character converted (Mixamo) — probe error 0.0000"*):
 
 ![The Character Setup section of the PoseCap panel](images/character-setup-panel.png)
 
@@ -155,9 +156,10 @@ The payoff. Pick your **Source** — a **webcam**, or a **video file** to test w
 (a clip loops, so your character keeps moving) — turn on **Show Preview Window**,
 and click **Start Stream**.
 
-> **The very first Start Stream downloads the AI model (~2.7 GB), once.** The panel
-> shows *"Still starting — this can take a few minutes…"* — that is the download,
-> not a freeze. Leave it running; every later start is immediate.
+> **The first Start Stream takes a moment.** The AI model was already downloaded
+> during install, so the very first start just warms up the engine — a cold load
+> can take a minute or two. If the panel says *"Still starting…"*, that is the
+> warmup, not a freeze; leave it running. Every later start is immediate.
 
 Once frames arrive, your character moves with the person in the source, in real
 time. Turn on **Record Live MoCap** to bake the motion onto the timeline as

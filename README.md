@@ -12,7 +12,7 @@ Point the engine at a video and it streams live SMPL-X poses. Here it drives the
 
 <img src="doc/media/demo_handstand.gif" width="720" alt="A handstand clip on the left; the skeleton tracks the full inversion on the right">
 
-<sub>These clips are the repo's own test fixtures ([tests/fixtures/video/](tests/fixtures/video/SOURCES.json)), run through the real pipeline with `posecap-engine live --source <video>` — the same path the automated GPU tests use. The viewer draws approximate bone lengths; inside Blender the same stream drives a full SMPL-X character, shown step by step in the [Getting Started guide](doc/guides/getting-started.md).</sub>
+<sub>These clips are the repo's own test fixtures ([tests/fixtures/video/](tests/fixtures/video/SOURCES.json)), run through the real capture pipeline. The viewer draws approximate bone lengths; inside Blender the same stream drives a full SMPL-X character, shown step by step in the [Getting Started guide](doc/guides/getting-started.md).</sub>
 
 ## Get started
 
@@ -59,7 +59,7 @@ RTX 20 series and older CUDA GPUs are untested and unsupported. Linux support fo
 
 Two processes, joined by explicit contracts:
 
-1. The engine bridge captures webcam frames, runs YOLO person detection plus PEAR's ViT-based mesh recovery on the GPU, and streams SMPL-X pose parameters as JSON over a localhost TCP socket.
+1. The engine captures webcam frames, finds the person and estimates their full-body pose on the GPU, and streams those poses to Blender over a local connection.
 2. The Blender extension consumes the stream on a background thread and applies poses on the main thread at up to 30 FPS — without wiping your existing keyframes.
 3. Poses apply pelvis-locked: monocular depth estimation cannot recover trustworthy world position, so world translation stays out until a solid software approach lands (camera tracking is the leading candidate — see the roadmap).
 
@@ -75,7 +75,7 @@ Two separate licenses apply — the plugin's and the body models':
 
 ## Roadmap
 
-- **MVP** — live webcam streaming with device selection, record-live-mocap, timed capture, batch image processing, SMPL-X model management, Windows installers.
+- **MVP** — live webcam streaming with device selection, recording live mocap to keyframes, timed capture, batch image processing, SMPL-X model management, Windows installers.
 - **Next** — [Fast SAM 3D Body](https://github.com/yangtiming/Fast-SAM-3D-Body) engine adapter with MHR-to-SMPL conversion, AMASS animation import, FBX/Alembic export, Linux engine bridge.
 - **Later** — world position via camera tracking, pose-accuracy eval harness, multi-camera estimation, retargeting to custom rigs, face/expression capture.
 

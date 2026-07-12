@@ -30,11 +30,10 @@ confirming the person is detected.
 
 Click **Start Stream**.
 
-> **The very first Start Stream downloads the AI model (~2.7 GB), once.** Before
-> the first frame appears, PoseCap fetches the pinned pose-estimation model. The
-> panel shows *"Still starting — this can take a few minutes; the very first run
-> also downloads the AI model (~2.7 GB)."* That is the download, not a freeze —
-> leave it running. Every later start is immediate.
+> **The first Start Stream takes a moment.** The pose-estimation model was
+> downloaded during install, so the first start warms up the engine rather than
+> re-downloading — a cold load can take a minute or two. If the panel says
+> *"Still starting…"*, leave it running; every later start is immediate.
 
 Once frames arrive, your character moves with the person in the source. Click
 **Stop Stream** to end.
@@ -50,7 +49,8 @@ Mixamo character in real time.*
 > camera's tilt, not a bug — a webcam angled up or down shifts the whole body.
 > Open **Advanced → Camera Pitch** and nudge it (negative if the camera looks
 > *up* at you, positive if it looks *down*) until the character stands upright.
-> It is the single most common "why does it look off" fix.
+> It works together with **PEAR Orientation Fix**, which is on by default — leave
+> that on. It is the single most common "why does it look off" fix.
 
 ## Record the motion to keyframes
 
@@ -69,7 +69,7 @@ want to adjust:
 |---|---|
 | **Smoothing Calm** | Steadier when you hold still (lower) vs. more responsive (higher) |
 | **Smoothing Speed Response** | Tracks fast moves with less lag (higher) vs. smoother (lower) |
-| **Detector** | Person-detector size: *Fastest* → *Balanced (30 FPS)* → *High* → *Max Quality* |
+| **Detector** | Person-detector size: *Fastest* → *Balanced (30 FPS)* → *High Quality* → *Max Quality* |
 | **Capture Width / Height** | Webcam capture resolution |
 | **Camera Pitch** | Compensate a tilted capture camera so the character stands straight: negative if the camera looks *up* at you, positive if it looks *down*. Leave at 0 for a camera at your height |
 | **Apply Capture To** | Toggle **Arms**, **Legs**, **Torso** on or off individually |
@@ -84,7 +84,7 @@ monocular depth is noisy; the character captures pelvis-locked in place.
 | Symptom | Fix |
 |---|---|
 | **Start Stream is greyed out** | Finish the Getting Started checklist — models installed and a target character chosen |
-| **Stuck on "Still starting" for minutes** | Normal on the first run — it's the one-time ~2.7 GB AI-model download. Leave it |
+| **Stuck on "Still starting" for minutes** | Normal on the first run — the engine is warming up its cold load. Leave it |
 | **"Start failed" / engine won't launch** | Run **PoseCap Doctor** (Start Menu → PoseCap); every check must be green. CUDA (an NVIDIA GPU) is required |
 | **No motion / character frozen** | Make sure a person is fully in frame; turn on Show Preview Window to confirm detection |
 | **Character leans forward or back while you stand straight** | Your camera isn't level. Open **Advanced** and set **Camera Pitch** — negative if the camera looks up at you, positive if it looks down — until the character stands upright |
