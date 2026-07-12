@@ -45,6 +45,7 @@ class PoseApplyTimer:
         interval_seconds: float = 1.0 / 60.0,
         apply_orientation_fix: bool = True,
         apply_world_position: bool = False,
+        camera_pitch_radians: float = 0.0,
         insert_keyframes: bool | Callable[[], bool] = False,
         on_warning: WarningCallback | None = None,
         on_recovery: RecoveryCallback | None = None,
@@ -59,6 +60,7 @@ class PoseApplyTimer:
         self._interval_seconds = interval_seconds
         self._apply_orientation_fix = apply_orientation_fix
         self._apply_world_position = apply_world_position
+        self._camera_pitch_radians = camera_pitch_radians
         self._translation_origin: np.ndarray | None = None
         # Recording is toggled mid-stream, so the flag is read live each tick.
         # A plain bool is wrapped so callers that never record pay nothing.
@@ -113,6 +115,7 @@ class PoseApplyTimer:
             translation_origin=self._translation_origin,
             smoother=self._smoother,
             captured_at=frame.captured_at,
+            camera_pitch_radians=self._camera_pitch_radians,
         )
         self._writer.apply(plan, insert_keyframes=self._should_insert_keyframes())
         self._writer.tag_redraw()

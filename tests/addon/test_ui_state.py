@@ -1241,6 +1241,7 @@ class _Settings:
         self.pear_root = ""
         self.record_live_mocap = False
         self.apply_orientation_fix = True
+        self.camera_pitch = 0.0
         self.world_position_experimental = False
         self.pose_smoothing = True
         self.show_advanced = False

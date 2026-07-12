@@ -60,6 +60,7 @@ def plan_pose_application(
     translation_origin: FloatArray | None = None,
     smoother: PoseSmoother | None = None,
     captured_at: float = 0.0,
+    camera_pitch_radians: float = 0.0,
 ) -> PoseApplication:
     """Build the bone-level plan for one frame.
 
@@ -79,6 +80,11 @@ def plan_pose_application(
     translation_origin (typically the first frame's translation) so the
     character moves from where it stands instead of jumping to camera
     coordinates. Monocular depth is noisy — this stays opt-in.
+
+    camera_pitch_radians compensates a tilted capture camera (the port of the
+    POC's Camera Pitch control): it is folded into the orientation fix, so it
+    only takes effect when apply_orientation_fix is on. Positive = camera
+    looking down, negative = looking up; 0.0 (default) is no compensation.
     """
     allowed = limb_filter.allowed_bones()
     previous: Mapping[str, FloatArray] = (
@@ -90,7 +96,7 @@ def plan_pose_application(
     if allowed is None:
         orient = np.asarray(payload.global_orient, dtype=np.float64)
         if apply_orientation_fix:
-            orient = flip_global_orient(orient)
+            orient = flip_global_orient(orient, camera_pitch_radians)
         rotations.append(_bone_rotation(PELVIS, orient, previous, smoother, captured_at))
         if apply_world_position:
             world_offset = _world_offset(payload.transl, translation_origin)

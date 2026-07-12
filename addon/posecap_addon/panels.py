@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib
 import logging
+import math
 import os
 import tempfile
 import time
@@ -75,6 +76,7 @@ class _LiveStreamSettings(Protocol):
     camera_index: int
     pear_root: str
     apply_orientation_fix: bool
+    camera_pitch: float
     world_position_experimental: bool
     pose_smoothing: bool
     show_advanced: bool
@@ -144,6 +146,7 @@ def draw_live_stream_panel(
         resolution = advanced.row(align=True)
         resolution.prop(settings, "capture_width")
         resolution.prop(settings, "capture_height")
+        advanced.prop(settings, "camera_pitch")
         advanced.label(text="Apply Capture To", icon="FILTER")
         limbs = advanced.row(align=True)
         limbs.prop(settings, "apply_arms", toggle=True)
@@ -297,6 +300,17 @@ def _build_blender_classes(bpy_module: Any) -> tuple[type[Any], ...]:
             name="PEAR Orientation Fix",
             description="Apply PoseCap's PEAR-to-SMPL-X orientation correction",
             default=True,
+        ),
+        "camera_pitch": bpy_module.props.FloatProperty(
+            name="Camera Pitch",
+            description=(
+                "Capture-camera tilt in degrees, to compensate a non-level camera: "
+                "positive = looking down, negative = looking up. 0 for a camera at "
+                "the subject's height. Needs PEAR Orientation Fix on"
+            ),
+            default=0.0,
+            min=-90.0,
+            max=90.0,
         ),
         "world_position_experimental": bpy_module.props.BoolProperty(
             name="World Position (Experimental)",
@@ -657,6 +671,7 @@ def _start_live_stream(context: Any, bpy_module: Any) -> set[str]:
                 else None
             ),
             apply_orientation_fix=bool(settings.apply_orientation_fix),
+            camera_pitch_radians=math.radians(float(settings.camera_pitch)),
             apply_world_position=bool(settings.world_position_experimental),
             # Live-read: Record is toggled during an active stream, so the timer
             # must see the current flag each tick, not the value at start.
