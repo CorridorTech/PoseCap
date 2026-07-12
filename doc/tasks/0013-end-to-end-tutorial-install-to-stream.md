@@ -1,6 +1,6 @@
 # Task 0013: End-to-end tutorial — setup.exe install → working stream, with real media
 
-**Status:** in-progress
+**Status:** done
 **Created:** 2026-07-11
 **Owner:** alexandremendoncaalvaro
 **Execution:** agent (drive real Blender + installer) + HITL (Ale does account/password)
@@ -196,4 +196,15 @@ Win+Linux, import-linter, 329 tests). Rebuilt + reinstalled the extension; live 
 - [x] Download verified end-to-end (all 5 assets installed; magic fix proven; doctor `pear_assets` ok).
 - [x] HITL money-shot (stream drives converted Mixamo char + preview) captured — GIF + still, character upright after the Camera Pitch fix.
 - [x] All tutorial docs finalized with real media (4 guides + installer/onboarding/convert/stream media).
-- [ ] Status → done; Notes closes the task (on merge).
+- [x] Status → done; Notes closes the task (on merge).
+
+### 2026-07-12 — Merged; task closed
+
+Branch `fix/panel-truncation-and-installer-encoding` merged to `main` via PR #21
+(rebase, 8 atomic commits preserved; merge commit `8310616`). Full CI green
+(gates ubuntu + windows, dependency audit, licensed-binary scan). Fresh-context
+two-axis review before merge: 0 blockers; 5 concerns fixed (hot-path alloc §5,
+Camera Pitch UI gate, task-status consistency, spec-0001 sync), 2 logged as
+follow-up chips (tighten `.pkl` magic-byte check; post-download doctor cold
+timeout message). End-to-end install → onboarding → licensed download → Mixamo
+convert → live stream with the source preview is proven and documented.
