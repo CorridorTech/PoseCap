@@ -4,21 +4,37 @@ Real-time markerless motion capture for **Blender**: a webcam streams full-body 
 
 Free and open source.
 
-## Demo
+## See it in action
 
-Input video on the left; on the right, the SMPL-X body skeleton reconstructed frame-by-frame from the engine's live TCP stream (PEAR inference on an RTX 3080, 100% of frames tracked):
+A webcam on the left drives a 3D character in Blender on the right, live — no mocap suit and no markers:
 
-![Ale PoseCap Test](doc/media/posecap-live-capture.gif)
+<img src="doc/media/posecap-live-capture.gif" width="720" alt="A person on a webcam drives a 3D body character standing upright in Blender, in real time">
 
-![Dance demo — video left, streamed skeleton right](doc/media/demo_dance.gif)
+The same pipeline on two of the repo's test clips, this time driving the standalone skeleton viewer:
 
-![Handstand demo — full inversion tracked](doc/media/demo_handstand.gif)
+<img src="doc/media/demo_dance.gif" width="720" alt="A dance clip on the left; the streamed pose skeleton tracks it on the right">
 
-The clips are the repo's own test fixtures ([tests/fixtures/video/](tests/fixtures/video/SOURCES.json)), driven through the real pipeline with `posecap-engine live --source <video>` — the same deterministic path the automated GPU test suite uses. The skeleton viewer uses hand-approximated bone lengths; inside Blender the stream drives a real SMPL-X armature.
+<img src="doc/media/demo_handstand.gif" width="720" alt="A handstand clip on the left; the skeleton tracks the full inversion on the right">
+
+<sub>The two skeleton clips are the repo's own test fixtures ([tests/fixtures/video/](tests/fixtures/video/SOURCES.json)), run through the real pipeline with `posecap-engine live --source <video>` — the same path the automated GPU tests use. The viewer draws approximate bone lengths; inside Blender the stream drives a full SMPL-X body, as in the first clip.</sub>
+
+## Get started
+
+1. **Download** the Windows installer from the [latest release](https://github.com/CorridorTech/PoseCap/releases/latest) and run it — no administrator rights needed.
+2. **Follow the [Getting Started guide](doc/guides/getting-started.md)** — it takes you from a clean machine to a character moving on your webcam, with a screenshot at every step. About 20 minutes, most of it downloads you can leave running.
+
+You are guided inside Blender too: a **Getting Started checklist** sits at the top of the PoseCap panel and keeps the capture buttons disabled until you are ready, so you can't click into an error.
+
+| Guide | What it covers |
+|---|---|
+| [Getting started](doc/guides/getting-started.md) | The full walk-through: install → body models → character → live capture |
+| [Set up the body models](doc/guides/smplx-model-setup.md) | The one-time SMPL-X download, with your own free research account |
+| [Set up a character](doc/guides/character-setup.md) | Bring in a Mixamo or Unreal character and convert it in one click |
+| [Live capture](doc/guides/live-capture.md) | Stream from a webcam or a video, and record the motion to keyframes |
 
 ## Status
 
-**Early development — first installable preview available.** Grab the Windows installer from the [latest release](https://github.com/CorridorTech/PoseCap/releases/latest); see the [PRD](doc/product/PRD.md) for scope and roadmap.
+**Early development — first installable preview.** See the [PRD](doc/product/PRD.md) for scope and roadmap.
 
 ## What it is
 
