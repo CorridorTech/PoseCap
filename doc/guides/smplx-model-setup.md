@@ -30,11 +30,24 @@ email and password** on all three (that keeps step 2 to a single login):
 | FLAME | <https://flame.is.tue.mpg.de/register.php> |
 
 On each form: enter your email, choose a password (**at least 8
-characters**), and turn on the license toggles — **Accept terms** and
-**Accept license** on SMPL/SMPL-X; **Accept terms**, **Accept model
-license**, and **Accept data license** on FLAME. Turning those toggles on
-**is** the license acceptance — there is nothing else to sign. You can
-leave *Receive Emails* off.
+characters**), and **turn every license toggle green**. Turning those
+toggles on **is** the license acceptance — there is nothing else to sign.
+You can leave *Receive Emails* off.
+
+The toggles differ slightly per site — turn on **all** of them except
+*Receive Emails*:
+
+**SMPL** — *Accept terms* and *Accept license*:
+
+![SMPL registration with Accept terms and Accept license turned on](images/register-smpl-toggles.png)
+
+**SMPL-X** — *Accept terms*, *Accept model license*, and *Accept body license*:
+
+![SMPL-X registration with Accept terms, model license and body license turned on](images/register-smplx-toggles.png)
+
+**FLAME** — *Accept terms*, *Accept model license*, and *Accept data license*:
+
+![FLAME registration with Accept terms, model license and data license turned on](images/register-flame-toggles.png)
 
 All three registrations are required: PoseCap needs one file from each
 site (SMPL, SMPL-X, and the FLAME head model that SMPL-X uses).
@@ -43,6 +56,11 @@ site (SMPL, SMPL-X, and the FLAME head model that SMPL-X uses).
 > verification link that must be clicked before downloads work — and that
 > mail often lands in **spam/junk**. If a download later fails with a
 > login error, an unconfirmed account is the usual cause.
+
+The confirmation email regularly lands in the spam folder — look for it
+there and open it, then click its **Confirm my account** link:
+
+![The MPI confirmation email sitting in the Gmail spam folder](images/register-confirmation-in-spam.png)
 
 ## Step 2 — Let PoseCap download and install everything
 
