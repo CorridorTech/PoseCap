@@ -6,17 +6,13 @@ Free and open source.
 
 ## See it in action
 
-A webcam on the left drives a 3D character in Blender on the right, live — no mocap suit and no markers:
-
-<img src="doc/media/posecap-live-capture.gif" width="720" alt="A person on a webcam drives a 3D body character standing upright in Blender, in real time">
-
-The same pipeline on two of the repo's test clips, this time driving the standalone skeleton viewer:
+Point the engine at a video and it streams live SMPL-X poses. Here it drives the standalone skeleton viewer on two of the repo's test clips — source on the left, the streamed pose on the right:
 
 <img src="doc/media/demo_dance.gif" width="720" alt="A dance clip on the left; the streamed pose skeleton tracks it on the right">
 
 <img src="doc/media/demo_handstand.gif" width="720" alt="A handstand clip on the left; the skeleton tracks the full inversion on the right">
 
-<sub>The two skeleton clips are the repo's own test fixtures ([tests/fixtures/video/](tests/fixtures/video/SOURCES.json)), run through the real pipeline with `posecap-engine live --source <video>` — the same path the automated GPU tests use. The viewer draws approximate bone lengths; inside Blender the stream drives a full SMPL-X body, as in the first clip.</sub>
+<sub>These clips are the repo's own test fixtures ([tests/fixtures/video/](tests/fixtures/video/SOURCES.json)), run through the real pipeline with `posecap-engine live --source <video>` — the same path the automated GPU tests use. The viewer draws approximate bone lengths; inside Blender the same stream drives a full SMPL-X character, shown step by step in the [Getting Started guide](doc/guides/getting-started.md).</sub>
 
 ## Get started
 
