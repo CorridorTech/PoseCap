@@ -520,7 +520,10 @@ def test_doctor_verification_names_missing_assets(tmp_path: Path) -> None:
     assert "missing" in message.lower()
 
 
-def test_doctor_verification_degrades_gracefully_without_the_engine(tmp_path: Path) -> None:
+def test_doctor_verification_defers_honestly_when_the_engine_cannot_launch(tmp_path: Path) -> None:
+    """A doctor that can't be launched at all is a broken-engine state, distinct
+    from the cold-import timeout. The summary must stay honest: the files are
+    installed, but it must not claim an engine self-check that never ran."""
     from posecap_addon.model_setup import verify_models_with_doctor
 
     def fake_run(command, **_kwargs):
@@ -529,6 +532,8 @@ def test_doctor_verification_degrades_gracefully_without_the_engine(tmp_path: Pa
     message = verify_models_with_doctor(tmp_path, "missing-engine", run=fake_run)
     assert message != ""
     assert "Traceback" not in message
+    assert "installed" in message.lower()
+    assert "validated" not in message.lower()
 
 
 def test_doctor_verification_reassures_when_the_cold_check_times_out(tmp_path: Path) -> None:
