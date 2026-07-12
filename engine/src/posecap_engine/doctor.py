@@ -16,7 +16,12 @@ from posecap_contracts import REQUIRED_MODEL_ASSETS
 
 from .config import PEAR_MODELS_REVISION, PEAR_REVISION
 from .errors import EngineError
-from .pear_adapter import _prepend_sys_path, _validate_external_checkout
+from .pear_adapter import (
+    _PEAR_MODEL_FILENAME,
+    _PEAR_MODEL_REPO_ID,
+    _prepend_sys_path,
+    _validate_external_checkout,
+)
 
 POSECAP_PEAR_ROOT_ENV = "POSECAP_PEAR_ROOT"
 
@@ -400,19 +405,37 @@ def _check_hf_weights(download_weights: bool) -> DoctorCheck:
             "huggingface_hub is missing, so pinned PEAR weights cannot be checked.",
             {"revision": PEAR_MODELS_REVISION},
         )
-    if not download_weights:
-        return DoctorCheck(
-            "hf_weights",
-            "warn",
-            "AI model weights not verified — they download automatically on the "
-            "first Start Stream (~2.7 GB, one time).",
-            {"revision": PEAR_MODELS_REVISION},
-        )
     try:
         huggingface_hub = importlib.import_module("huggingface_hub")
+        if not download_weights:
+            # Probe the cache instead of assuming the worst: the installer already
+            # fetches these weights (`doctor --download-weights`), so on an installed
+            # machine they are present and the first Start Stream only warms up. The
+            # repo/file/revision match pear_adapter's loader, so a cache hit means
+            # the runtime will load without a download.
+            cached = huggingface_hub.try_to_load_from_cache(
+                repo_id=_PEAR_MODEL_REPO_ID,
+                filename=_PEAR_MODEL_FILENAME,
+                repo_type="model",
+                revision=PEAR_MODELS_REVISION,
+            )
+            if isinstance(cached, str):
+                return DoctorCheck(
+                    "hf_weights",
+                    "ok",
+                    "AI model weights are ready (already downloaded).",
+                    {"revision": PEAR_MODELS_REVISION, "path": cached},
+                )
+            return DoctorCheck(
+                "hf_weights",
+                "warn",
+                "AI model weights are not in the cache yet — they download "
+                "automatically on the first Start Stream (~2.6 GB, one time).",
+                {"revision": PEAR_MODELS_REVISION},
+            )
         path = huggingface_hub.hf_hub_download(
-            repo_id="BestWJH/PEAR_models",
-            filename="ehm_model_stage1.pt",
+            repo_id=_PEAR_MODEL_REPO_ID,
+            filename=_PEAR_MODEL_FILENAME,
             repo_type="model",
             revision=PEAR_MODELS_REVISION,
         )
@@ -420,7 +443,7 @@ def _check_hf_weights(download_weights: bool) -> DoctorCheck:
         return DoctorCheck(
             "hf_weights",
             "error",
-            "Pinned PEAR weights could not be downloaded.",
+            "Pinned PEAR weights could not be verified.",
             {"revision": PEAR_MODELS_REVISION, "error": str(exc)},
         )
     return DoctorCheck(

@@ -173,7 +173,7 @@ Step -Label "Fetch YOLO person-detection weights" `
     }
 
 $LicensedModelsPending = $false
-Step -Label "Verify install (doctor) and fetch pose-model weights (~1 GB)" `
+Step -Label "Verify install (doctor) and fetch pose-model weights (~2.6 GB)" `
     -Fix "Read the doctor output above -- each failing check names its own fix. Re-run setup after fixing." `
     -Action {
         $doctorOut = & $VenvPython -m posecap_engine.cli doctor --pear-root $PearDir --download-weights

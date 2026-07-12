@@ -55,13 +55,14 @@ _REGISTERED_CLASSES: tuple[type[Any], ...] = ()
 _ACTIVE_SESSION: _LiveStreamSession | None = None
 _RECONNECTABLE_STATES = frozenset({"STREAMING", "RECORDING"})
 
-# First Start Stream pulls the pinned PEAR pose weight (~2.7 GB) before the
-# first frame; without this the panel sits on "Starting" for minutes and a
-# non-technical user assumes it hung (Corridor field report, 2026-07-10).
+# The installer pre-fetches the pinned PEAR pose weight during setup, so on an
+# installed machine the first Start Stream only warms up the engine (a cold
+# torch/pytorch3d load can take a minute or two). Without this hint the panel
+# sits on "Starting" and a non-technical user assumes it hung (Corridor field
+# report, 2026-07-10).
 _LONG_START_SECONDS = 10.0
 _LONG_START_MESSAGE = (
-    "Still starting — this can take a few minutes; the very first run also "
-    "downloads the AI model (~2.7 GB)"
+    "Still starting — the first run warms up the engine and can take a minute or two"
 )
 
 
@@ -120,8 +121,8 @@ def draw_live_stream_panel(
     )
 
     box = layout.box()
-    # The status line carries long messages too (the first-run "downloads the AI
-    # model (~2.7 GB)" hint), so it wraps like the rest rather than truncating.
+    # The status line carries long messages too (the first-run warmup hint), so
+    # it wraps like the rest rather than truncating.
     draw_wrapped_label(box, controls.status_text, chars=wrap_chars, icon="INFO")
 
     column = layout.column()
@@ -943,7 +944,7 @@ class _LiveStreamSession:
         return result
 
     def _flag_long_start_if_stalled(self) -> None:
-        """Explain the silent ~2.7 GB first-run weight download without faking detection."""
+        """Explain the silent first-run engine warmup without faking detection."""
         if self._settings.lifecycle_state != "STARTING":
             return
         if _now() - self._started_at < _LONG_START_SECONDS:

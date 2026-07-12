@@ -52,9 +52,7 @@ def test_doctor_reports_required_import_runtime_failures(monkeypatch, tmp_path: 
     def fake_import_module(module_name: str) -> SimpleNamespace:
         if module_name == "cv2":
             raise OSError("DLL load failed while importing cv2")
-        if module_name == "torch":
-            return _fake_torch()
-        return SimpleNamespace()
+        return _fake_import_module(module_name)
 
     monkeypatch.setattr(doctor.importlib, "import_module", fake_import_module)
 
@@ -80,9 +78,7 @@ def test_doctor_reports_external_pear_import_runtime_failures(monkeypatch, tmp_p
     def fake_import_module(module_name: str) -> SimpleNamespace:
         if module_name == "models.pipeline.ehm_pipeline":
             raise RuntimeError("PEAR pipeline import failed")
-        if module_name == "torch":
-            return _fake_torch()
-        return SimpleNamespace()
+        return _fake_import_module(module_name)
 
     monkeypatch.setattr(doctor.importlib, "import_module", fake_import_module)
 
@@ -106,7 +102,7 @@ def test_doctor_reports_torch_cuda_import_runtime_failures(monkeypatch, tmp_path
     def fake_import_module(module_name: str) -> SimpleNamespace:
         if module_name == "torch":
             raise OSError("DLL load failed while importing torch")
-        return SimpleNamespace()
+        return _fake_import_module(module_name)
 
     monkeypatch.setattr(doctor.importlib, "import_module", fake_import_module)
 
@@ -133,7 +129,7 @@ def test_doctor_reports_import_discovery_failures(monkeypatch, tmp_path: Path) -
     monkeypatch.setattr(
         doctor.importlib,
         "import_module",
-        lambda module_name: _fake_torch() if module_name == "torch" else SimpleNamespace(),
+        lambda module_name: _fake_import_module(module_name),
     )
 
     report = run_doctor(
@@ -156,7 +152,7 @@ def test_doctor_verifies_pinned_pear_revision(monkeypatch, tmp_path: Path) -> No
     monkeypatch.setattr(
         doctor.importlib,
         "import_module",
-        lambda module_name: _fake_torch() if module_name == "torch" else SimpleNamespace(),
+        lambda module_name: _fake_import_module(module_name),
     )
 
     report = run_doctor(
@@ -171,7 +167,94 @@ def test_doctor_verifies_pinned_pear_revision(monkeypatch, tmp_path: Path) -> No
     message = str(checks["hf_weights"]["message"])
     # End-user language: reached a non-technical user via the Doctor shortcut.
     assert "--download-weights" not in message
-    assert "first" in message.lower() and "2.7 GB" in message
+    assert "first" in message.lower() and "2.6 GB" in message
+
+
+def test_doctor_reports_hf_weights_ok_when_already_cached(monkeypatch, tmp_path: Path) -> None:
+    # After the installer's `doctor --download-weights`, the weights sit in the
+    # HuggingFace cache. A normal doctor run must probe the cache and report OK,
+    # not keep claiming they download on the first Start Stream.
+    pear_root = _pear_checkout(tmp_path)
+    monkeypatch.setattr(doctor.importlib.util, "find_spec", lambda _module_name: SimpleNamespace())
+    monkeypatch.setattr(
+        doctor.importlib,
+        "import_module",
+        lambda module_name: _fake_import_module(
+            module_name, hf_cached="/hf-cache/ehm_model_stage1.pt"
+        ),
+    )
+
+    report = run_doctor(
+        pear_root=pear_root,
+        command_runner=lambda command: _fake_command(command, pear_revision=PEAR_REVISION),
+    )
+
+    check = _checks_by_name(report)["hf_weights"]
+    assert check["status"] == "ok"
+    assert "ready" in str(check["message"]).lower()
+    # The whole point: a cached run must not keep claiming a first-start download.
+    assert "first start stream" not in str(check["message"]).lower()
+
+
+def test_doctor_downloads_weights_and_reports_ok(monkeypatch, tmp_path: Path) -> None:
+    pear_root = _pear_checkout(tmp_path)
+    monkeypatch.setattr(doctor.importlib.util, "find_spec", lambda _module_name: SimpleNamespace())
+    monkeypatch.setattr(doctor.importlib, "import_module", _fake_import_module)
+
+    report = run_doctor(
+        pear_root=pear_root,
+        command_runner=lambda command: _fake_command(command, pear_revision=PEAR_REVISION),
+        download_weights=True,
+    )
+
+    assert _checks_by_name(report)["hf_weights"]["status"] == "ok"
+
+
+def test_doctor_reports_error_when_weight_download_fails(monkeypatch, tmp_path: Path) -> None:
+    pear_root = _pear_checkout(tmp_path)
+    monkeypatch.setattr(doctor.importlib.util, "find_spec", lambda _module_name: SimpleNamespace())
+
+    def fake_import(module_name: str) -> SimpleNamespace:
+        if module_name == "huggingface_hub":
+            return SimpleNamespace(
+                try_to_load_from_cache=lambda **_kwargs: None,
+                hf_hub_download=_raise_os_error,
+            )
+        return _fake_import_module(module_name)
+
+    monkeypatch.setattr(doctor.importlib, "import_module", fake_import)
+
+    report = run_doctor(
+        pear_root=pear_root,
+        command_runner=lambda command: _fake_command(command, pear_revision=PEAR_REVISION),
+        download_weights=True,
+    )
+
+    assert _checks_by_name(report)["hf_weights"]["status"] == "error"
+    assert "traceback" not in doctor.encode_doctor_report(report).lower()
+
+
+def test_doctor_reports_error_when_huggingface_import_fails(monkeypatch, tmp_path: Path) -> None:
+    # find_spec locating huggingface_hub does not guarantee it imports (a broken
+    # transitive dep still raises). The doctor must report an error check, not
+    # crash run_doctor with a raw traceback.
+    pear_root = _pear_checkout(tmp_path)
+    monkeypatch.setattr(doctor.importlib.util, "find_spec", lambda _module_name: SimpleNamespace())
+
+    def fake_import(module_name: str) -> SimpleNamespace:
+        if module_name == "huggingface_hub":
+            raise ImportError("huggingface_hub transitive dependency is broken")
+        return _fake_import_module(module_name)
+
+    monkeypatch.setattr(doctor.importlib, "import_module", fake_import)
+
+    report = run_doctor(
+        pear_root=pear_root,
+        command_runner=lambda command: _fake_command(command, pear_revision=PEAR_REVISION),
+    )
+
+    assert _checks_by_name(report)["hf_weights"]["status"] == "error"
+    assert "traceback" not in doctor.encode_doctor_report(report).lower()
 
 
 def test_doctor_reports_missing_pear_mean_params_asset(monkeypatch, tmp_path: Path) -> None:
@@ -180,7 +263,7 @@ def test_doctor_reports_missing_pear_mean_params_asset(monkeypatch, tmp_path: Pa
     monkeypatch.setattr(
         doctor.importlib,
         "import_module",
-        lambda module_name: _fake_torch() if module_name == "torch" else SimpleNamespace(),
+        lambda module_name: _fake_import_module(module_name),
     )
 
     report = run_doctor(
@@ -200,7 +283,7 @@ def test_doctor_reports_wrong_pear_revision(monkeypatch, tmp_path: Path) -> None
     monkeypatch.setattr(
         doctor.importlib,
         "import_module",
-        lambda module_name: _fake_torch() if module_name == "torch" else SimpleNamespace(),
+        lambda module_name: _fake_import_module(module_name),
     )
 
     report = run_doctor(
@@ -220,6 +303,7 @@ def test_doctor_reports_exact_runtime_versions(monkeypatch, tmp_path: Path) -> N
         "torch": _fake_torch(torch_version="2.4.1+cu124", cuda_version="12.4"),
         "torchvision": SimpleNamespace(__version__="0.19.1+cu124"),
         "pytorch3d": SimpleNamespace(__version__="0.7.9"),
+        "huggingface_hub": _fake_hf(),
     }
     monkeypatch.setattr(doctor.importlib.util, "find_spec", lambda _module_name: SimpleNamespace())
     monkeypatch.setattr(
@@ -287,3 +371,24 @@ def _fake_torch(
         version=SimpleNamespace(cuda=cuda_version),
         cuda=SimpleNamespace(is_available=lambda: True, device_count=lambda: 1),
     )
+
+
+def _fake_hf(cached: object = None) -> SimpleNamespace:
+    # try_to_load_from_cache returns a str path when the file is cached, else
+    # None / a sentinel — mirror that so the doctor's cache probe is exercised.
+    return SimpleNamespace(
+        try_to_load_from_cache=lambda **_kwargs: cached,
+        hf_hub_download=lambda **_kwargs: "/hf-cache/ehm_model_stage1.pt",
+    )
+
+
+def _fake_import_module(module_name: str, *, hf_cached: object = None) -> SimpleNamespace:
+    if module_name == "torch":
+        return _fake_torch()
+    if module_name == "huggingface_hub":
+        return _fake_hf(hf_cached)
+    return SimpleNamespace()
+
+
+def _raise_os_error(**_kwargs: object) -> str:
+    raise OSError("weights download failed (network)")

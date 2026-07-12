@@ -120,10 +120,10 @@ Every later start is immediate.
 ## Check everything is green
 
 Run **PoseCap Doctor** (Start Menu → PoseCap → PoseCap Doctor) any time.
-Every check must be green before your first live capture. Two warnings are
-normal: the PEAR checkout has no git history to verify, and the AI-model
-weights show as "not verified" — the quick check can't confirm the cache, but
-the installer already fetched them.
+Every check must be green before your first live capture. One warning is
+normal — the PEAR checkout has no git history to verify. Everything else,
+including the AI-model weights, should read green after a successful install; a
+red weights check means the model didn't finish downloading, so re-run setup.
 
 ## Troubleshooting
 

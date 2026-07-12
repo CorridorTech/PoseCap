@@ -493,7 +493,7 @@ def test_start_and_stop_operators_own_stream_runtime(monkeypatch) -> None:
         unregister_blender_ui(bpy)
 
 
-def test_starting_shows_first_run_download_hint_after_ten_seconds(monkeypatch) -> None:
+def test_starting_shows_first_run_warmup_hint_after_ten_seconds(monkeypatch) -> None:
     bpy = _FakeBpy()
     register_blender_ui(bpy)
     settings = _Settings(lifecycle_state="STOPPED")
@@ -525,12 +525,12 @@ def test_starting_shows_first_run_download_hint_after_ten_seconds(monkeypatch) -
         assert settings.lifecycle_state == "STARTING"
         assert settings.status_message == "Starting"
 
-        # Past the threshold with still no frame: explain the first-run download.
+        # Past the threshold with still no frame: explain the first-run warmup.
         clock["t"] = 11.0
         assert bpy.app.timers.registered[0]() == 1.0 / 60.0
         assert settings.lifecycle_state == "STARTING"
-        assert "2.7 GB" in settings.status_message
-        assert "download" in settings.status_message.lower()
+        assert "still starting" in settings.status_message.lower()
+        assert "warms up" in settings.status_message.lower()
 
         # A frame finally arrives: normal streaming, the hint is gone.
         clients[0].frames.append(PoseFrame(SCHEMA_VERSION, 1, 100.0, "no_person", None))
