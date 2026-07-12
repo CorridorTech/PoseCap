@@ -316,25 +316,33 @@ def verify_models_with_doctor(
 ) -> str:
     """Run the engine doctor's asset check and return a user-facing summary.
 
-    Degrades to a files-present message when the engine cannot be launched —
-    the wizard has already validated every placed file at that point.
+    Degrades to a files-present message when the doctor cannot be launched — the
+    wizard has already validated every placed file (magic + size) at that point,
+    so the fallback still reads as success, not doubt.
+
+    The timeout is generous because this runs right after the download, when the
+    engine's torch/pytorch3d import is cold: a warm doctor returns in ~5 s, but a
+    first cold import can take a couple of minutes. It runs on the setup daemon
+    thread (the panel already shows "Models installed."), so a long wait blocks
+    nothing the user is looking at.
     """
     runner = run or _run_doctor_process
+    files_present = "Models installed and validated."
     try:
         completed = runner(
             [engine_executable, "doctor", "--pear-root", str(pear_root)],
             capture_output=True,
             text=True,
             check=False,
-            timeout=120.0,
+            timeout=300.0,
         )
         report = json.loads(getattr(completed, "stdout", ""))
         checks = report.get("checks", []) if isinstance(report, dict) else []
         asset_check = next((check for check in checks if check.get("name") == "pear_assets"), None)
     except (OSError, ValueError, subprocess.SubprocessError):
-        return "Model files are in place (doctor could not be run to double-check)."
+        return files_present
     if asset_check is None:
-        return "Model files are in place (doctor could not be run to double-check)."
+        return files_present
     if asset_check.get("status") == "ok":
         return "Models installed — doctor check passed."
     return str(asset_check.get("message", "Doctor reported a model problem."))

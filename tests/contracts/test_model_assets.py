@@ -98,3 +98,14 @@ def test_a_pkl_that_is_not_a_pickle_is_still_rejected() -> None:
     reason = download_failure_reason(_SMPL_PKL, head, _SMPL_PKL.min_bytes + 1)
     assert reason is not None
     assert "SMPL_NEUTRAL.pkl" in reason
+
+
+def test_ascii_that_is_not_a_pickle_stream_is_rejected() -> None:
+    # The opcode-walking check must not wave through arbitrary ASCII just because
+    # its bytes happen to be mid-stream pickle opcodes: a real pickle OPENS with
+    # a stream-opening opcode (PROTO / MARK / a global / an empty container),
+    # never with APPEND/SETITEM. This over-size, non-HTML text must be rejected.
+    head = b"this is not a pickle, just prose that clears the html and size gates " * 4
+    reason = download_failure_reason(_SMPL_PKL, head, _SMPL_PKL.min_bytes + 1)
+    assert reason is not None
+    assert "SMPL_NEUTRAL.pkl" in reason

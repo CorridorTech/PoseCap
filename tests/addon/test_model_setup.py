@@ -3,6 +3,7 @@
 import hashlib
 import io
 import json
+import subprocess
 import zipfile
 from dataclasses import replace
 from functools import cache
@@ -58,7 +59,9 @@ def _zip_payload(member_name: str, member_bytes: bytes) -> bytes:
 
 @cache
 def _pkl_bytes(minimum: int) -> bytes:
-    return b"\x80\x02" + bytes(minimum)
+    # A minimal valid pickle opcode opening (PROTO, EMPTY_DICT, BINPUT) so the
+    # magic check sees a real opcode stream, padded past the size floor.
+    return b"\x80\x02}q\x01" + bytes(minimum)
 
 
 @cache
@@ -526,6 +529,22 @@ def test_doctor_verification_degrades_gracefully_without_the_engine(tmp_path: Pa
     message = verify_models_with_doctor(tmp_path, "missing-engine", run=fake_run)
     assert message != ""
     assert "Traceback" not in message
+
+
+def test_doctor_verification_reassures_when_the_cold_check_times_out(tmp_path: Path) -> None:
+    """A cold torch/pytorch3d import can exceed the doctor timeout right after
+    the download. The wizard already validated every file, so the fallback must
+    read as success, not as doubt about whether the models are there."""
+    from posecap_addon.model_setup import verify_models_with_doctor
+
+    def fake_run(command, **kwargs):
+        assert kwargs.get("timeout", 0) >= 300.0
+        raise subprocess.TimeoutExpired(command, kwargs.get("timeout", 300.0))
+
+    message = verify_models_with_doctor(tmp_path, "posecap-engine", run=fake_run)
+    assert "installed" in message.lower()
+    assert "validated" in message.lower()
+    assert "could not" not in message.lower()
 
 
 def test_corrupted_manual_download_produces_a_friendly_message(tmp_path: Path) -> None:

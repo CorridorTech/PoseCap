@@ -12,6 +12,7 @@ is SPIN's public research data); it is fetched from a pinned public
 revision and hash-enforced.
 """
 
+import pickletools
 from dataclasses import dataclass
 
 MPI_DOWNLOAD_URL = "https://download.is.tue.mpg.de/download.php"
@@ -51,18 +52,33 @@ class ModelAsset:
     source: MpiDownload | PublicDownload
 
 
-# A pickle stream opens with the PROTO opcode (0x80) for protocol 2+, OR a
-# printable opcode for the protocol-0/1 ASCII pickles that SMPL ships: a pickled
-# dict/tuple opens with MARK "(", an object with GLOBAL "c", a list/dict with
-# "]"/"}". Accepting only 0x80 falsely rejected the real neutral model (SMPL's
-# SMPL_NEUTRAL.pkl is a protocol-0 pickle starting with "("). HTML error pages
-# are already rejected before this check, so a permissive pickle magic is safe.
-_PICKLE_MAGIC = (b"\x80", b"(", b"c", b"]", b"}")
 _MAGIC_BY_EXTENSION = {
-    ".pkl": _PICKLE_MAGIC,
     ".npz": (b"PK\x03\x04",),
     ".zip": (b"PK\x03\x04",),
 }
+
+# A valid pickle head parses as a run of pickle opcodes that OPENS with a
+# stream-opening opcode. Accepting only the protocol 2+ PROTO byte (0x80)
+# falsely rejected SMPL's protocol-0 pickle (opens with the MARK opcode "(");
+# accepting any single printable opcode byte, on the other hand, waved through
+# almost any non-HTML payload. Requiring a valid opener plus a short run of
+# opcodes is the honest middle — a pickle starts with PROTO / MARK / a global /
+# an empty container, never mid-stream opcodes like APPEND or SETITEM.
+_MIN_PICKLE_OPCODES = 3
+_PICKLE_OPENERS = frozenset(
+    {
+        "PROTO",
+        "FRAME",
+        "MARK",
+        "EMPTY_DICT",
+        "EMPTY_LIST",
+        "EMPTY_TUPLE",
+        "DICT",
+        "LIST",
+        "GLOBAL",
+        "STACK_GLOBAL",
+    }
+)
 
 
 def download_failure_reason(asset: ModelAsset, head: bytes, size: int) -> str | None:
@@ -101,10 +117,36 @@ def _looks_like_html(head: bytes) -> bool:
 def _matches_magic(file_name: str, head: bytes) -> bool:
     dot_index = file_name.rfind(".")
     extension = file_name[dot_index:].lower() if dot_index >= 0 else ""
+    if extension == ".pkl":
+        return _looks_like_pickle(head)
     expected = _MAGIC_BY_EXTENSION.get(extension)
     if expected is None:
         return True
     return any(head.startswith(magic) for magic in expected)
+
+
+def _looks_like_pickle(head: bytes) -> bool:
+    """True when ``head`` opens a valid run of pickle opcodes.
+
+    Uses ``pickletools.genops``, which *inspects* the opcode stream and never
+    unpickles — no code runs, so this does not touch the ADR-0003 pickle-load
+    ban. A real pickle yields several opcodes before the head window runs out
+    (SMPL's protocol-0 file opens MARK/DICT/PUT); ``genops`` raises on the first
+    non-opcode byte, so arbitrary payloads that merely start with a pickle-like
+    byte are rejected. The head is short, so a truncated final opcode is
+    expected and swallowed once enough valid opcodes have been seen.
+    """
+    valid = 0
+    try:
+        for opcode, _argument, _position in pickletools.genops(head):
+            if valid == 0 and opcode.name not in _PICKLE_OPENERS:
+                return False
+            valid += 1
+            if valid >= _MIN_PICKLE_OPCODES:
+                return True
+    except (ValueError, EOFError):
+        pass
+    return valid >= _MIN_PICKLE_OPCODES
 
 
 _SMPL_SIGNUP_URL = "https://smpl.is.tue.mpg.de/register.php"
