@@ -112,6 +112,11 @@ test — turn on **Show Preview Window**, and click **Start Stream**. Your
 character now moves with the person in front of the camera, in real time.
 Turn on **Record Live MoCap** to bake the motion to keyframes.
 
+![Live capture: the source video on the left drives the character on the right, in real time](../media/posecap-live-capture.gif)
+
+Inside Blender it looks like this — the converted Mixamo character driven live,
+with the source preview window:
+
 ![A converted Mixamo character driven live from a video, with the source preview](images/live-capture-stream.png)
 
 **→ Full guide: [Live capture](live-capture.md).**
