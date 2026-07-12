@@ -2,7 +2,7 @@
 
 Real-time markerless motion capture for **Blender**: a webcam streams full-body [SMPL-X](https://github.com/vchoutas/smplx) poses straight onto your character. Built in collaboration with **Corridor Digital**.
 
-Free and open source.
+Free and [open source](https://github.com/lukebrowell/PoseCap/blob/main/LICENSE).
 
 ## See it in action
 
