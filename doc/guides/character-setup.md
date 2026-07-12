@@ -1,11 +1,19 @@
 # Setting up a character
 
+> **New to PoseCap?** The [Getting Started guide](getting-started.md) walks the
+> whole install-to-capture path in one go. This page is the focused reference for
+> character setup — the skeleton options, and what to do when a character won't
+> convert.
+
 Live capture drives an **armature** (a character skeleton). PoseCap can drive
 the built-in SMPL-X body, or any Mixamo or Unreal Engine character you bring in
 — one click reorients and renames the skeleton so the pose stream fits it.
 
-This guide uses a free [Mixamo](https://www.mixamo.com/) character as the
-example; an Unreal Engine / Fortnite skeleton works the same way.
+**What works:** any humanoid FBX with an armature and a bound mesh. Mixamo and
+Unreal Engine skeletons are recognized automatically; anything else maps through a
+small JSON file (below). This guide uses a free
+[Mixamo](https://www.mixamo.com/) character as the example; an Unreal Engine /
+Fortnite skeleton works the same way.
 
 ## Step 1 — Bring your character into Blender
 

@@ -1,5 +1,10 @@
 # Setting up the body models
 
+> **New to PoseCap?** The [Getting Started guide](getting-started.md) covers this
+> step inside the whole install-to-capture flow. This page is the focused
+> reference for the licensed download — the account detail, the no-password
+> **Watch my Downloads Folder** option, and troubleshooting.
+
 PoseCap drives a research body model (SMPL-X) that is **licensed by the
 Max Planck Institute and cannot ship inside PoseCap**. You download it
 once with your own free account; PoseCap automates everything else — no

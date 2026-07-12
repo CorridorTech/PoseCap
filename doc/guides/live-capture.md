@@ -1,5 +1,10 @@
 # Live capture
 
+> **New to PoseCap?** Do the [Getting Started guide](getting-started.md) first —
+> it covers install, models, and character in one flow. This page is the focused
+> reference for capturing: every source and recording option, the fine-tuning
+> controls, and fixing a capture that looks off.
+
 This is the payoff: a person in front of your webcam (or in a video file) drives
 your character in Blender, in real time.
 
@@ -40,6 +45,12 @@ Once frames arrive, your character moves with the person in the source. Click
 Mixamo character in real time.*
 
 ![Live capture animating the character in real time](../media/posecap-live-capture.gif)
+
+> **Character leaning forward or back while you stand straight?** That is your
+> camera's tilt, not a bug — a webcam angled up or down shifts the whole body.
+> Open **Advanced → Camera Pitch** and nudge it (negative if the camera looks
+> *up* at you, positive if it looks *down*) until the character stands upright.
+> It is the single most common "why does it look off" fix.
 
 ## Record the motion to keyframes
 
