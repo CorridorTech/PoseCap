@@ -17,18 +17,20 @@ feature-specific tutorials. Enabling code fixes already landed (below).
 
 ## Acceptance Criteria
 
-- [ ] The tutorial STARTS from `setup.exe` — the Inno installer wizard (License →
+- [x] The tutorial STARTS from `setup.exe` — the Inno installer wizard (License →
       Destination → Ready → Installing → Finish), captured. (Ale flagged this as a
       hard requirement; do not skip the installer.)
-- [ ] General tutorial `doc/guides/getting-started.md`: clean install → onboarding
+- [x] General tutorial `doc/guides/getting-started.md`: clean install → onboarding
       checklist → model setup (download) → Mixamo convert → live test — end to end.
-- [ ] Feature tutorials: model setup (replaces `smplx-model-setup.md`, new
+- [x] Feature tutorials: model setup (replaces `smplx-model-setup.md`, new
       checklist+wizard UI, progress bar), character setup (Mixamo import + Convert),
       live capture (video source + preview + Start Stream + record).
-- [ ] Real media: PNG screenshots in `doc/guides/images/`, GIFs of short
-      interactions in `doc/media/`, the demo video (`Ale-PoseCAp.mp4`). Each step
-      shows the ✓ state + the exact next action (guide, don't make the user guess).
-- [ ] HITL end-to-end: models download for real (progress bar), Mixamo `Y Bot.fbx`
+- [x] Real media: PNG screenshots in `doc/guides/images/`, GIF of the money-shot
+      in `doc/media/`. Each step shows the next action + the resulting state. The
+      raw demo video (`Ale-PoseCAp.mp4`, 134 MB, a personal clip) is **not**
+      committed — `.gitignore` blocks `*.mp4` outside test fixtures and the repo
+      goes public; the captured `posecap-live-capture.gif` is the shipped payoff.
+- [x] HITL end-to-end: models download for real (progress bar), Mixamo `Y Bot.fbx`
       converts, and the stream on `Ale-PoseCAp.mp4` drives the converted armature
       with the preview window visible — money-shot GIF captured.
 

@@ -55,7 +55,7 @@ Inherits from [PRD](../product/PRD.md): target user (Blender animators; Corridor
 - R2: Addon spawns the engine by process handle and connects to its TCP pose stream with bounded retry; connect timeout lands in Stopped with a reported reason.
 - R3: Poses travel as newline-delimited JSON frames conforming to the `contracts/` schema (ADR-0003), validated on decode.
 - R4: A background client thread feeds a latest-wins slot; a main-thread timer consumes it. No `bpy` access off the main thread.
-- R5: Pose application supports per-limb import filters (arms/hands/fingers/legs, left/right) and the PEAR orientation fix, applied as quaternions to the SMPL-X armature.
+- R5: Pose application supports per-limb import filters (arms/hands/fingers/legs, left/right) and the PEAR orientation fix, applied as quaternions to the SMPL-X armature. The orientation fix folds in a user-set Camera Pitch (degrees; the base 180° flip plus the camera tilt share the camera X axis) so a non-level capture camera does not leave the character leaning.
 - R6: Record Live MoCap inserts keyframes at the advancing playhead while active, independent of any preview toggle; start begins timeline playback, stop ends it and finalizes.
 - R7: No code path in stream start, restart, or apply clears or overwrites animation data outside an active recording's inserts.
 - R8: The armature reference is validated every applied frame; an invalid reference transitions to a warning state instead of raising.
