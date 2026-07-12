@@ -3,6 +3,7 @@
 import hashlib
 import io
 import json
+import pickle
 import subprocess
 import zipfile
 from dataclasses import replace
@@ -59,9 +60,11 @@ def _zip_payload(member_name: str, member_bytes: bytes) -> bytes:
 
 @cache
 def _pkl_bytes(minimum: int) -> bytes:
-    # A minimal valid pickle opcode opening (PROTO, EMPTY_DICT, BINPUT) so the
-    # magic check sees a real opcode stream, padded past the size floor.
-    return b"\x80\x02}q\x01" + bytes(minimum)
+    # A genuine pickle opcode stream (diverse opcodes, like a real model head),
+    # padded past the size floor. A hand-forged 3-opcode stub would be rejected
+    # by the tightened .pkl opcode-walk, and rightly so.
+    head = pickle.dumps({"J_regressor": [1, 2, 3], "v_template": "x" * 40}, protocol=2)
+    return head + bytes(minimum)
 
 
 @cache

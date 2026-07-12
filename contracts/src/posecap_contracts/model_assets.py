@@ -57,14 +57,21 @@ _MAGIC_BY_EXTENSION = {
     ".zip": (b"PK\x03\x04",),
 }
 
-# A valid pickle head parses as a run of pickle opcodes that OPENS with a
-# stream-opening opcode. Accepting only the protocol 2+ PROTO byte (0x80)
-# falsely rejected SMPL's protocol-0 pickle (opens with the MARK opcode "(");
-# accepting any single printable opcode byte, on the other hand, waved through
-# almost any non-HTML payload. Requiring a valid opener plus a short run of
-# opcodes is the honest middle — a pickle starts with PROTO / MARK / a global /
-# an empty container, never mid-stream opcodes like APPEND or SETITEM.
-_MIN_PICKLE_OPCODES = 3
+# A valid pickle head decodes into a run of pickle opcodes that OPENS with a
+# stream-opening opcode and spans at least three distinct opcode names. Accepting
+# only the protocol 2+ PROTO byte (0x80) falsely rejected SMPL's protocol-0
+# pickle (opens with the MARK opcode "("); accepting any single opener byte, on
+# the other hand, waved through almost any non-HTML payload whose first byte
+# happened to look like an opener (e.g. "(NN...", "(((...", "}}}..."). A real
+# SMPL/FLAME .pkl head decodes into many opcodes with five distinct names in its
+# first few bytes (PROTO/EMPTY_DICT/BINPUT/MARK/SHORT_BINSTRING, or protocol-0
+# MARK/DICT/PUT/STRING), while a wrong download that merely starts with an opener
+# byte yields at most one or two distinct opcodes before the stream stops.
+# Keying on opcode *diversity* rather than a raw count is deliberate: a valid
+# pickle whose head is dominated by one large (truncated) argument can carry very
+# few opcodes, so a count threshold would false-reject it, but three distinct
+# names still separates real payloads from opener-lookalikes.
+_MIN_DISTINCT_PICKLE_OPCODES = 3
 _PICKLE_OPENERS = frozenset(
     {
         "PROTO",
@@ -126,27 +133,36 @@ def _matches_magic(file_name: str, head: bytes) -> bool:
 
 
 def _looks_like_pickle(head: bytes) -> bool:
-    """True when ``head`` opens a valid run of pickle opcodes.
+    """True when ``head`` opens a genuine, diverse run of pickle opcodes.
 
     Uses ``pickletools.genops``, which *inspects* the opcode stream and never
     unpickles — no code runs, so this does not touch the ADR-0003 pickle-load
-    ban. A real pickle yields several opcodes before the head window runs out
-    (SMPL's protocol-0 file opens MARK/DICT/PUT); ``genops`` raises on the first
-    non-opcode byte, so arbitrary payloads that merely start with a pickle-like
-    byte are rejected. The head is short, so a truncated final opcode is
-    expected and swallowed once enough valid opcodes have been seen.
+    ban. ``genops`` raises on the first non-opcode byte, so a wrong download that
+    merely starts with a pickle-like byte yields at most one or two distinct
+    opcodes before it stops; a real model head reaches three distinct opcode
+    names within its first few bytes (verified against the real SMPL/FLAME
+    protocol-0 and protocol-2 files, and generated pickles of every protocol).
+    Keying on distinct names rather than a raw opcode count avoids false-rejecting
+    a valid pickle whose head is dominated by a single large (truncated) argument.
+    A prefix cannot prove completeness (no STOP is visible in the 64 KB head) and
+    a hand-forged stream opening with a few distinct opcodes can still pass —
+    acceptable because ``genops`` never executes the bytes and the payload is a
+    size-gated file from the user's own authenticated MPI download, not
+    attacker-controlled input.
     """
-    valid = 0
+    names: set[str] = set()
+    first = True
     try:
         for opcode, _argument, _position in pickletools.genops(head):
-            if valid == 0 and opcode.name not in _PICKLE_OPENERS:
+            if first and opcode.name not in _PICKLE_OPENERS:
                 return False
-            valid += 1
-            if valid >= _MIN_PICKLE_OPCODES:
+            first = False
+            names.add(opcode.name)
+            if len(names) >= _MIN_DISTINCT_PICKLE_OPCODES:
                 return True
     except (ValueError, EOFError):
         pass
-    return valid >= _MIN_PICKLE_OPCODES
+    return len(names) >= _MIN_DISTINCT_PICKLE_OPCODES
 
 
 _SMPL_SIGNUP_URL = "https://smpl.is.tue.mpg.de/register.php"
