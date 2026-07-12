@@ -6,6 +6,7 @@ rotation about X (port of the POC's smplx_import_flip_pear behavior).
 """
 
 import math
+from functools import lru_cache
 
 import numpy as np
 
@@ -17,8 +18,19 @@ from .rotation import (
     quaternion_to_axis_angle,
 )
 
-_FLIP_X_180: FloatArray = axis_angle_to_quaternion(np.array([math.pi, 0.0, 0.0]))
-_FLIP_X_180.setflags(write=False)
+
+@lru_cache(maxsize=8)
+def _flip_quaternion(camera_pitch_radians: float) -> FloatArray:
+    """Cache the ``pi + camera_pitch`` X-flip quaternion.
+
+    camera_pitch is fixed for the life of a stream, so caching keeps the
+    per-frame apply path allocation-free (GUIDELINES §5). maxsize covers the
+    handful of distinct pitches a session might use; the result is read-only
+    because callers share it across frames.
+    """
+    quaternion = axis_angle_to_quaternion(np.array([math.pi + camera_pitch_radians, 0.0, 0.0]))
+    quaternion.setflags(write=False)
+    return quaternion
 
 
 def flip_global_orient(axis_angle: FloatArray, camera_pitch_radians: float = 0.0) -> FloatArray:
@@ -40,9 +52,7 @@ def flip_global_orient(axis_angle: FloatArray, camera_pitch_radians: float = 0.0
     vector = np.asarray(axis_angle, dtype=np.float64)
     if float(np.linalg.norm(vector)) < ZERO_ANGLE:
         return vector.copy()
-    if camera_pitch_radians == 0.0:
-        flip = _FLIP_X_180
-    else:
-        flip = axis_angle_to_quaternion(np.array([math.pi + camera_pitch_radians, 0.0, 0.0]))
-    rotated = quaternion_multiply(flip, axis_angle_to_quaternion(vector))
+    rotated = quaternion_multiply(
+        _flip_quaternion(camera_pitch_radians), axis_angle_to_quaternion(vector)
+    )
     return quaternion_to_axis_angle(rotated)

@@ -146,7 +146,11 @@ def draw_live_stream_panel(
         resolution = advanced.row(align=True)
         resolution.prop(settings, "capture_width")
         resolution.prop(settings, "capture_height")
-        advanced.prop(settings, "camera_pitch")
+        # Camera Pitch folds into the orientation fix, so it does nothing when
+        # that is off — grey it out rather than let it silently no-op.
+        camera_pitch_row = advanced.row()
+        camera_pitch_row.enabled = bool(settings.apply_orientation_fix)
+        camera_pitch_row.prop(settings, "camera_pitch")
         advanced.label(text="Apply Capture To", icon="FILTER")
         limbs = advanced.row(align=True)
         limbs.prop(settings, "apply_arms", toggle=True)
