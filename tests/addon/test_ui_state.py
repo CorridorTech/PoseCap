@@ -815,6 +815,21 @@ def test_panel_clears_a_removed_target_armature_during_redraw(monkeypatch) -> No
     assert keyframe_sections == []
 
 
+def test_panel_ignores_a_removed_active_object_during_redraw(monkeypatch) -> None:
+    settings = _Settings(lifecycle_state="STOPPED")
+    armature = SimpleNamespace(type="ARMATURE")
+    context = _FakeContext(settings)
+    context.active_object = _RemovedPanelTarget()
+    context.scene.objects = [armature]
+    monkeypatch.setattr(posecap_addon.panels, "models_missing", lambda _root: True)
+    monkeypatch.setattr(posecap_addon.panels, "active_model_setup_session", lambda: None)
+    monkeypatch.setattr(posecap_addon.panels, "draw_keyframe_manager_section", lambda *a: None)
+
+    posecap_addon.panels._draw_main_panel(_FakeLayout(), context)
+
+    assert settings.target_armature is armature
+
+
 def test_engine_command_passes_video_source_only_in_video_mode() -> None:
     settings = _Settings(lifecycle_state="STOPPED")
     settings.pear_root = "C:/PEAR"

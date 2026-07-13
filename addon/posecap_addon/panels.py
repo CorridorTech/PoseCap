@@ -752,9 +752,12 @@ def _auto_select_target_armature(context: Any, settings: _LiveStreamSettings) ->
     except ReferenceError:
         settings.target_armature = None
     active = getattr(context, "active_object", None)
-    if getattr(active, "type", None) == "ARMATURE":
-        settings.target_armature = active
-        return
+    try:
+        if getattr(active, "type", None) == "ARMATURE":
+            settings.target_armature = active
+            return
+    except ReferenceError:
+        pass
     objects = getattr(getattr(context, "scene", None), "objects", ())
     armatures = [obj for obj in objects if getattr(obj, "type", None) == "ARMATURE"]
     if len(armatures) == 1:
