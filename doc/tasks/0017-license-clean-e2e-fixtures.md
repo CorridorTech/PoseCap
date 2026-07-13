@@ -65,6 +65,11 @@ Windows and Linux, import-linter, and default pytest also passed. The raw video
 was confirmed outside the repository and no X/Y Bot filename appears in the Git
 index.
 
+Fresh-context review required a stronger assertion for the converted armature.
+The E2E first failed with an identity payload, then passed after the fixture
+stream applied a 0.5-radian Z axis-angle to `left_elbow` and asserted the exact
+expected quaternion components.
+
 ## Definition of Done
 
 All Acceptance Criteria checked, plus:

@@ -76,6 +76,7 @@ _BLENDER_SMOKE_SCRIPT = textwrap.dedent(
     from __future__ import annotations
 
     import importlib.util
+    import math
     import sys
     from pathlib import Path
 
@@ -95,7 +96,7 @@ _BLENDER_SMOKE_SCRIPT = textwrap.dedent(
         PoseFrame,
         PosePayload,
     )
-    from posecap_core import mixamo_preset
+    from posecap_core import BODY_JOINT_NAMES, mixamo_preset
 
     extension_spec = importlib.util.spec_from_file_location(
         "posecap_extension_smoke",
@@ -121,10 +122,12 @@ _BLENDER_SMOKE_SCRIPT = textwrap.dedent(
         def close(self) -> None:
             self.closed = True
 
-    def payload() -> PosePayload:
+    def payload(*, left_elbow_angle: float = 0.0) -> PosePayload:
+        body_pose = [[0.0, 0.0, 0.0] for _ in range(NUM_BODY_JOINTS)]
+        body_pose[BODY_JOINT_NAMES.index("left_elbow")] = [0.0, 0.0, left_elbow_angle]
         return PosePayload(
             global_orient=[0.0, 0.0, 0.0],
-            body_pose=[[0.0, 0.0, 0.0] for _ in range(NUM_BODY_JOINTS)],
+            body_pose=body_pose,
             left_hand_pose=[[0.0, 0.0, 0.0] for _ in range(NUM_HAND_JOINTS)],
             right_hand_pose=[[0.0, 0.0, 0.0] for _ in range(NUM_HAND_JOINTS)],
             jaw_pose=[0.0, 0.0, 0.0],
@@ -208,7 +211,7 @@ _BLENDER_SMOKE_SCRIPT = textwrap.dedent(
         converted_elbow = synthetic.pose.bones["left_elbow"]
         converted_elbow.rotation_mode = "XYZ"
         converted_stream = SingleFrameStream(
-            PoseFrame(SCHEMA_VERSION, 2, 101.0, "ok", payload())
+            PoseFrame(SCHEMA_VERSION, 2, 101.0, "ok", payload(left_elbow_angle=0.5))
         )
         converted_timer = posecap_extension.PoseApplyTimer(
             converted_stream,
@@ -217,6 +220,8 @@ _BLENDER_SMOKE_SCRIPT = textwrap.dedent(
         )
         assert converted_timer.tick() == 0.25
         assert converted_elbow.rotation_mode == "QUATERNION"
+        assert abs(converted_elbow.rotation_quaternion.w - math.cos(0.25)) < 1e-6
+        assert abs(converted_elbow.rotation_quaternion.z - math.sin(0.25)) < 1e-6
         converted_timer.stop()
         assert converted_stream.closed
     finally:
