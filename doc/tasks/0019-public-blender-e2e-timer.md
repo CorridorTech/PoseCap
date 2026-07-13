@@ -1,4 +1,4 @@
-# Task 0018: Drive Blender E2E timers publicly
+# Task 0019: Drive Blender E2E timers publicly
 
 **Status:** proposed
 **Created:** 2026-07-13
@@ -35,6 +35,8 @@ Append-only log. Date each entry. Never rewrite past entries.
 All Acceptance Criteria checked, plus:
 
 - [ ] Local tests pass (or N/A documented in Notes)
-- [ ] Code review completed (human or fresh-context reviewer per WORKFLOW §10)
+- [ ] Code review completed (human or fresh-context reviewer per WORKFLOW Â§10)
 - [ ] No orphan `TODO`/`FIXME` introduced
 - [ ] Status updated to `done` and Notes log closes the task
+
+

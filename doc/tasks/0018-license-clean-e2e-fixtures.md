@@ -1,4 +1,4 @@
-# Task 0017: Add license-clean E2E fixtures
+# Task 0018: Add license-clean E2E fixtures
 
 **Status:** done
 **Created:** 2026-07-13
@@ -115,3 +115,5 @@ All Acceptance Criteria checked, plus:
 - [x] Code review completed (human or fresh-context reviewer; final review had no blockers, and concerns are logged in Notes)
 - [x] No orphan `TODO`/`FIXME` introduced
 - [x] Status updated to `done` and Notes log closes the task
+
+
