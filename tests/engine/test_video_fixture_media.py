@@ -10,7 +10,7 @@ from typing import NotRequired, TypedDict, cast
 
 import pytest
 
-pytestmark = [pytest.mark.gpu, pytest.mark.integration]
+pytestmark = [pytest.mark.integration]
 
 _FIXTURE_DIR = Path(__file__).parents[1] / "fixtures" / "video"
 _AUTHOR_APPROVED_FIXTURES = (
@@ -44,8 +44,7 @@ def test_author_approved_fixture_is_small_video_only_and_frame_exact(
     fixture_name: str,
 ) -> None:
     ffprobe = shutil.which("ffprobe")
-    if ffprobe is None:
-        pytest.skip("ffprobe is required to validate video fixture media invariants")
+    assert ffprobe is not None, "ffprobe is required to validate video fixture media invariants"
 
     fixture = _FIXTURE_DIR / fixture_name
     assert fixture.stat().st_size < _MAX_FIXTURE_BYTES

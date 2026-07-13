@@ -1,6 +1,6 @@
 # Task 0017: Add license-clean E2E fixtures
 
-**Status:** in-progress
+**Status:** done
 **Created:** 2026-07-13
 **Owner:** alexandremendoncaalvaro
 **Execution:** AFK
@@ -86,11 +86,22 @@ FFprobe-backed media test passed for every new fixture: one video stream only,
 1280x720, 30 fps, exactly 240 frames in 8 seconds, below 5 MB, and no creation
 time or timecode tags.
 
+The final fresh-context review found no blockers. It required the FFprobe
+invariants to be part of the default quality gate, so the GPU marker was
+removed, missing FFprobe now fails clearly, and CI installs FFmpeg explicitly
+on Linux and Windows. The reviewer also noted that headless Blender exposes no
+public event-loop pump for a registered app timer; the E2E therefore obtains
+the session created by the public Start Stream operator to drive its registered
+callback deterministically. This residual test-harness seam is documented here;
+the exercised production path remains operator -> TCP client -> canonical NDJSON
+decoder -> lifecycle timer -> converted armature, followed by the public Stop
+Stream operator.
+
 ## Definition of Done
 
 All Acceptance Criteria checked, plus:
 
 - [x] Local tests pass (or N/A documented in Notes)
-- [ ] Code review completed (human or fresh-context reviewer per WORKFLOW Â§10)
+- [x] Code review completed (human or fresh-context reviewer; final review had no blockers, and concerns are logged in Notes)
 - [x] No orphan `TODO`/`FIXME` introduced
-- [ ] Status updated to `done` and Notes log closes the task
+- [x] Status updated to `done` and Notes log closes the task
