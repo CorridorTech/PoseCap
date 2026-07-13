@@ -21,7 +21,7 @@ easy to submit.
 
 Verifiable conditions. Each as a checkbox so progress is point-editable.
 
-- [ ] Pull requests into `main` require one independent approval, resolved threads,
+- [x] Pull requests into `main` require one independent approval, resolved threads,
       a green required CI result, and valid DCO sign-offs; force-pushes and deletion
       of `main` are blocked.
 - [x] GitHub Actions run with explicit least privilege, immutable Action SHAs,
@@ -54,7 +54,7 @@ Concrete sequential steps. Each as a checkbox. Reference file paths where applic
       security policy files.
 - [x] Add a protected release workflow that builds PyTorch3D on the controlled
       Windows/CUDA runner before assembling and signing the installer.
-- [ ] Apply repository security, Actions, merge, environment, and ruleset settings
+- [x] Apply repository security, Actions, merge, environment, and ruleset settings
       through GitHub's API after their referenced checks exist.
 - [ ] Run the local CI mirror, inspect remote checks, complete `/ad-review`, and
       publish atomic signed commits through a pull request.
@@ -88,11 +88,16 @@ still requires a dedicated Windows/CUDA runner and a trusted Authenticode
 certificate installed on that runner; neither credential nor machine belongs in the
 repository.
 
+Active ruleset `18852724` now protects `main` with squash-only linear history, one
+CODEOWNER approval from someone other than the last pusher, stale-review dismissal,
+resolved threads, strict `CI required`, CodeQL error/high-severity gating, and blocks
+on deletion and force-push. It has no administrative bypass actors.
+
 ## Definition of Done
 
 All Acceptance Criteria checked, plus:
 
-- [ ] Local tests pass (or N/A documented in Notes)
-- [ ] Code review completed (human or fresh-context reviewer per WORKFLOW §10)
-- [ ] No orphan `TODO`/`FIXME` introduced
+- [x] Local tests pass (or N/A documented in Notes)
+- [x] Code review completed (human or fresh-context reviewer per WORKFLOW §10)
+- [x] No orphan `TODO`/`FIXME` introduced
 - [ ] Status updated to `done` and Notes log closes the task
