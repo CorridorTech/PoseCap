@@ -80,6 +80,89 @@ Suggested layout mirroring CK2P: `packaging/build_installer.ps1`,
 `packaging/build_runtime_bundle.ps1`, `packaging/installer/posecap.iss.template`,
 `packaging/installer/distribution_manifest.json`, output in `packaging/dist/`.
 
+### 2026-07-12
+
+Built and exercised `PoseCap_v1.0.0-win.4_Windows_Setup.exe` from an empty
+`%LOCALAPPDATA%\PoseCap` on the development workstation. The bootstrap completed
+in about 105 seconds and produced `SETUP_OK`; the app-local Python 3.11 runtime,
+Torch cu124, bundled wheels, pinned PEAR checkout, Hugging Face weights, engine
+executable, and Blender 5.0 extension all passed their installation checks. The
+licensed SMPL/SMPL-X/FLAME assets remained absent from the new install as required.
+
+The installed engine passed `doctor` against the license-holder's external PEAR
+asset directory and produced an `ok` SMPL-X pose frame from `Ale-PoseCAp.mp4`.
+A Blender background smoke imported `X Bot.fbx`, auto-selected its sole armature,
+converted the Mixamo skeleton with probe error `0.0000`, resolved the installed
+runtime paths, and created a support bundle containing diagnostics and setup logs.
+
+This is component-level and integrated smoke evidence, not completion of this
+task's clean-machine E2E criteria: the machine still had development tooling, the
+video stream was not started through the Blender panel and observed applying to
+the X Bot in the same run, and the 10-minute FPS, p95 latency, restart, and orphan
+process criteria were not measured. Those acceptance checkboxes remain open.
+
+The panel now displays the installer build label (for example `1.0.0-win.4`),
+auto-persists the fixed per-user runtime when detected, auto-selects an unambiguous
+armature, consolidates rotating addon/engine logs with setup logs, and creates a
+local support ZIP. These behaviors were added with focused regression tests; the
+build-label correction followed an observed RED to GREEN TDD cycle.
+
+### 2026-07-12 — Integrated video-to-armature E2E
+
+After the component smoke above, a single Blender 5.0 background run exercised the
+production operator path end to end: import `X Bot.fbx`, auto-select and convert its
+Mixamo armature, call PoseCap `Start Stream` with `Ale-PoseCAp.mp4`, launch the
+newly installed engine, receive its TCP pose frame, execute the addon timer, observe
+the `left_elbow` matrix change, and call `Stop Stream`. The run printed
+`POSECAP_E2E_OK version=1.0.0-win.4 source=video target=Armature`.
+
+The first harness attempt is intentionally not counted: it raised because the test
+used a nonexistent `mathutils.Matrix.is_equal` method while Blender still returned
+process exit code zero. The corrected harness verifies both the explicit success
+marker and the bone-matrix effect. This closes the single-run video-to-armature
+integration gap noted above, but does not close the clean-machine, interactive GUI,
+10-minute performance, latency, restart, or orphan-process acceptance criteria.
+
+### 2026-07-12 — Repair install regression and final package
+
+Installing `win.5` over the existing runtime exposed a non-interactive repair bug:
+`uv venv` waited for confirmation when the target venv already existed, leaving the
+hidden installer stuck at "Create engine virtual environment". The test processes
+were terminated, a RED packaging contract was added, and the bootstrap now invokes
+`uv venv --clear` as documented by uv for deterministic replacement.
+
+`PoseCap_v1.0.0-win.6_Windows_Setup.exe` was then built from the reviewed source and
+installed over the existing `win.5` state. The repair completed with exit code zero
+in 27 seconds, proving the prompt was removed. A subsequent single-run Blender E2E
+again imported and converted X Bot, streamed the test video through the installed
+engine, observed pose application, and printed
+`POSECAP_E2E_OK version=1.0.0-win.6 source=video target=Armature`. The version came
+from the installed `installer_manifest.json`, proving the panel/support build label
+matches the setup package rather than a hard-coded extension version.
+
+### 2026-07-12 — Patch release candidate 1.0.1
+
+The patch bump updates the workspace packages and Blender extension to `1.0.1`;
+the installer build label resets to `1.0.1-win.1`. The first candidate exposed an
+upgrade-only failure: the fixed install directory retained `1.0.0` wheels beside
+the new `1.0.1` wheels, so uv rejected duplicate distributions. The bootstrap
+failed but Inno's `[Run]` entry still returned setup exit code zero, creating a
+false-success install with no engine executable.
+
+Two RED-to-GREEN packaging contracts now protect the upgrade path. Inno
+`[InstallDelete]` removes old versioned wheels and extension ZIPs before copying
+the new payload. The bootstrap runs through Pascal `Exec` with
+`ewWaitUntilTerminated`; a nonzero child result raises a setup exception instead
+of reaching a successful Finish state.
+
+The rebuilt `PoseCap_v1.0.1-win.1_Windows_Setup.exe` upgraded the intentionally
+contaminated install in 26 seconds, reduced the wheel directory from both 1.0.0
+and 1.0.1 payloads to only 1.0.1 plus PyTorch3D, completed the bootstrap and
+extension verification, and returned exit code zero. The installed package then
+passed the video-to-X-Bot E2E with
+`POSECAP_E2E_OK version=1.0.1-win.1 source=video target=Armature`. Final candidate
+SHA-256: `46F2AF38B3F6324E77E9CC71F3EED63F512AEA68927F8BE42E840A22B5CA293F`.
+
 ## Definition of Done
 
 All Acceptance Criteria checked, plus:
