@@ -32,6 +32,50 @@
       "original": "3840x2160 30fps 10.6s",
       "trim": "0s-10s",
       "camera_motion": "max_zoom_dev=0.42% max_pan=33.3px"
+    },
+    {
+      "file": "ale_t_pose_1280x720_30fps.mp4",
+      "scenario": "author's webcam-like home capture; stable full-body T-pose and setup movement",
+      "source_recording": "private author-owned Ale-PoseCAp.mp4; raw recording excluded from Git",
+      "author": "Alexandre Alvaro",
+      "authorization": "author explicitly authorized versioning these processed excerpts for automated tests",
+      "original": "1920x1080 30fps 68.5s",
+      "trim": "0s-8s",
+      "processing": "libx264 crf28, 1280x720, video stream only, metadata and chapters removed",
+      "camera_motion": "fixed iPhone webcam capture; inspected manually"
+    },
+    {
+      "file": "ale_upper_body_dynamic_1280x720_30fps.mp4",
+      "scenario": "author's webcam-like home capture; dynamic arm and upper-body gestures",
+      "source_recording": "private author-owned Ale-PoseCAp.mp4; raw recording excluded from Git",
+      "author": "Alexandre Alvaro",
+      "authorization": "author explicitly authorized versioning these processed excerpts for automated tests",
+      "original": "1920x1080 30fps 68.5s",
+      "trim": "20s-28s",
+      "processing": "libx264 crf28, 1280x720, video stream only, metadata and chapters removed",
+      "camera_motion": "fixed iPhone webcam capture; inspected manually"
+    },
+    {
+      "file": "ale_full_body_dance_1280x720_30fps.mp4",
+      "scenario": "author's webcam-like home capture; fast full-body dance and weight-shift motion",
+      "source_recording": "private author-owned Ale-PoseCAp.mp4; raw recording excluded from Git",
+      "author": "Alexandre Alvaro",
+      "authorization": "author explicitly authorized versioning these processed excerpts for automated tests",
+      "original": "1920x1080 30fps 68.5s",
+      "trim": "36s-44s",
+      "processing": "libx264 crf28, 1280x720, video stream only, metadata and chapters removed",
+      "camera_motion": "fixed iPhone webcam capture; inspected manually"
+    },
+    {
+      "file": "ale_spin_1280x720_30fps.mp4",
+      "scenario": "author's webcam-like home capture; full-body turn centered at 43 seconds, stressing orientation continuity",
+      "source_recording": "private author-owned Ale-PoseCAp.mp4; raw recording excluded from Git",
+      "author": "Alexandre Alvaro",
+      "authorization": "author explicitly authorized versioning these processed excerpts for automated tests",
+      "original": "1920x1080 30fps 68.5s",
+      "trim": "39s-47s",
+      "processing": "libx264 crf28, 1280x720, video stream only, metadata and chapters removed",
+      "camera_motion": "fixed iPhone webcam capture; inspected manually"
     }
   ],
   "rejected": [
