@@ -19,7 +19,7 @@ source stream and a synthetic Blender armature.
 
 Verifiable conditions. Each as a checkbox so progress is point-editable.
 
-- [x] Three authorized 720p, audio-free personal-motion clips are tracked below 5 MB each with provenance in `tests/fixtures/video/SOURCES.json`.
+- [x] Four authorized 720p, audio-free personal-motion clips are tracked below 5 MB each with provenance in `tests/fixtures/video/SOURCES.json`.
 - [x] Each new clip passes the GPU `live --source` wire-invariant test.
 - [x] A Blender E2E creates a synthetic Mixamo-compatible armature, converts it, and applies a streamed pose without a distributed FBX.
 - [x] Raw video and X/Y Bot FBX files remain outside the repository history.
@@ -96,6 +96,16 @@ callback deterministically. This residual test-harness seam is documented here;
 the exercised production path remains operator -> TCP client -> canonical NDJSON
 decoder -> lifecycle timer -> converted armature, followed by the public Stop
 Stream operator.
+
+The author selected the full-body turn centered at 43 seconds as an additional
+orientation-continuity regression. The task is reopened while the 39s-47s
+processed excerpt is added to the same provenance, media, and GPU stream checks.
+
+The new `ale_spin_1280x720_30fps.mp4` fixture is 452,787 bytes, video-only,
+1280x720 at 30 fps, and exactly 240 frames in 8 seconds. The default suite
+passed with 371 tests, and its dedicated GPU `live --source` test passed against
+the real PEAR runtime. This extends the already reviewed fixture pipeline
+without changing production behavior.
 
 ## Definition of Done
 
