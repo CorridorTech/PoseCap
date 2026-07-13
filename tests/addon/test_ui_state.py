@@ -583,7 +583,7 @@ def test_start_and_stop_operators_own_stream_runtime(monkeypatch) -> None:
             "--log-file",
             command[17],
         )
-        assert command[17].endswith("PoseCap\\logs\\posecap-engine.log")
+        _assert_posecap_engine_log(command[17])
         assert clients[0].endpoint == ("127.0.0.1", 42321)
         assert clients[0].started
         assert len(bpy.app.timers.registered) == 1
@@ -995,7 +995,7 @@ def test_start_stream_uses_addon_preferences_when_scene_runtime_fields_are_empty
             "720",
             "--log-file",
         )
-        assert command[17].endswith("PoseCap\\logs\\posecap-engine.log")
+        _assert_posecap_engine_log(command[17])
         assert clients[0].started
     finally:
         unregister_blender_ui(bpy)
@@ -1750,6 +1750,13 @@ class _FakeBone:
 
     def keyframe_insert(self, *, data_path: str) -> None:
         self.keyframes.append(data_path)
+
+
+def _assert_posecap_engine_log(log_path: str) -> None:
+    path = Path(log_path)
+    assert path.name == "posecap-engine.log"
+    assert path.parent.name == "logs"
+    assert path.parent.parent.name == "PoseCap"
 
 
 def _payload() -> PosePayload:

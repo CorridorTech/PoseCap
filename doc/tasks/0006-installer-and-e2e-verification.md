@@ -217,6 +217,15 @@ installed extension, converted X Bot with verification `0.0000`, applied a pose
 from `Ale-PoseCAp.mp4`, and emitted
 `POSECAP_E2E_OK version=1.0.1-win.1 source=video target=Armature`.
 
+### 2026-07-13 — CI portability regression
+
+The Ubuntu PR gate exposed two tests that asserted Windows path separators for
+the engine log path. The production behavior was correct; the test contract was
+not portable. The failing Ubuntu assertion was treated as the RED evidence.
+Each operator-path scenario was updated separately to assert the log filename and
+its `PoseCap/logs` hierarchy through `pathlib`, then observed GREEN locally.
+The shared assertion was extracted only after both scenarios passed.
+
 ## Definition of Done
 
 All Acceptance Criteria checked, plus:
