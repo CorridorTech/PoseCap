@@ -56,7 +56,7 @@ Concrete sequential steps. Each as a checkbox. Reference file paths where applic
       Windows/CUDA runner before assembling and signing the installer.
 - [x] Apply repository security, Actions, merge, environment, and ruleset settings
       through GitHub's API after their referenced checks exist.
-- [ ] Run the local CI mirror, inspect remote checks, complete `/ad-review`, and
+- [x] Run the local CI mirror, inspect remote checks, complete `/ad-review`, and
       publish atomic signed commits through a pull request.
 
 ## Notes
@@ -92,6 +92,11 @@ Active ruleset `18852724` now protects `main` with squash-only linear history, o
 CODEOWNER approval from someone other than the last pusher, stale-review dismissal,
 resolved threads, strict `CI required`, CodeQL error/high-severity gating, and blocks
 on deletion and force-push. It has no administrative bypass actors.
+
+PR #37 publishes the signed implementation history. GitHub observed `CI required`,
+DCO, Linux/Windows gates, package smoke, dependency audit, workflow
+security, licensed-binary scan, and both CodeQL language analyses passing under the
+active ruleset. The PR remains blocked for the independent CODEOWNER decision.
 
 ## Definition of Done
 
