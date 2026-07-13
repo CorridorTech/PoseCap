@@ -729,58 +729,69 @@ def test_panel_resolves_installer_pear_root_on_a_fresh_install() -> None:
     assert resolved == str(installer_pear)
 
 
-def test_panel_persists_detected_installer_paths_without_overwriting_custom_values() -> None:
+def test_panel_persists_detected_installer_paths_without_overwriting_custom_values(
+    monkeypatch, tmp_path
+) -> None:
     preferences = _FakeAddonPreferences(pear_root="", engine_executable="posecap-engine")
-    local = "C:/Users/Corridor/AppData/Local"
-    pear = Path(local, "PoseCap", "pear")
-    engine = Path(local, "PoseCap", "runtime", "venv", "Scripts", "posecap-engine.exe")
+    pear = tmp_path / "PoseCap" / "pear"
+    engine = tmp_path / "PoseCap" / "runtime" / "venv" / "Scripts" / "posecap-engine.exe"
+    pear.mkdir(parents=True)
+    engine.parent.mkdir(parents=True)
+    engine.write_bytes(b"")
+    settings = _Settings(lifecycle_state="STOPPED")
+    context = _FakeContext(settings, addon_preferences=preferences)
+    layout = _FakeLayout()
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+    monkeypatch.setattr(posecap_addon.panels, "models_missing", lambda _root: False)
+    monkeypatch.setattr(posecap_addon.panels, "active_model_setup_session", lambda: None)
 
-    posecap_addon.panels._autoconfigure_preferences(
-        preferences,
-        environ={"LOCALAPPDATA": local},
-        path_exists={pear, engine}.__contains__,
-    )
+    posecap_addon.panels._draw_main_panel(layout, context)
 
     assert preferences.pear_root == str(pear)
     assert preferences.engine_executable == str(engine)
 
     preferences.pear_root = "D:/Custom/pear"
     preferences.engine_executable = "D:/Custom/posecap-engine.exe"
-    posecap_addon.panels._autoconfigure_preferences(
-        preferences,
-        environ={"LOCALAPPDATA": local},
-        path_exists={pear, engine}.__contains__,
-    )
+    posecap_addon.panels._draw_main_panel(_FakeLayout(), context)
     assert preferences.pear_root == "D:/Custom/pear"
     assert preferences.engine_executable == "D:/Custom/posecap-engine.exe"
 
 
-def test_panel_auto_selects_the_only_armature_but_leaves_ambiguous_scenes_alone() -> None:
+def test_panel_auto_selects_the_only_armature_but_leaves_ambiguous_scenes_alone(
+    monkeypatch,
+) -> None:
     settings = _Settings(lifecycle_state="STOPPED")
     armature = SimpleNamespace(type="ARMATURE")
-    context = SimpleNamespace(scene=SimpleNamespace(objects=[armature]), active_object=None)
+    context = _FakeContext(settings)
+    context.scene.objects = [armature]
+    context.active_object = None
+    monkeypatch.setattr(posecap_addon.panels, "models_missing", lambda _root: True)
+    monkeypatch.setattr(posecap_addon.panels, "active_model_setup_session", lambda: None)
+    monkeypatch.setattr(posecap_addon.panels, "draw_keyframe_manager_section", lambda *a, **k: None)
 
-    posecap_addon.panels._auto_select_target_armature(context, settings)
+    posecap_addon.panels._draw_main_panel(_FakeLayout(), context)
 
     assert settings.target_armature is armature
 
     settings.target_armature = None
     context.scene.objects = [armature, SimpleNamespace(type="ARMATURE")]
-    posecap_addon.panels._auto_select_target_armature(context, settings)
+    posecap_addon.panels._draw_main_panel(_FakeLayout(), context)
     assert settings.target_armature is None
 
 
-def test_panel_auto_select_preserves_a_manual_unconverted_target() -> None:
+def test_panel_auto_select_preserves_a_manual_unconverted_target(monkeypatch) -> None:
     manual = SimpleNamespace(type="ARMATURE")
     other = SimpleNamespace(type="ARMATURE")
     settings = _Settings(lifecycle_state="STOPPED")
     settings.target_armature = manual
-    context = SimpleNamespace(
-        scene=SimpleNamespace(objects=[manual, other]),
-        active_object=other,
-    )
+    context = _FakeContext(settings)
+    context.scene.objects = [manual, other]
+    context.active_object = other
+    monkeypatch.setattr(posecap_addon.panels, "models_missing", lambda _root: True)
+    monkeypatch.setattr(posecap_addon.panels, "active_model_setup_session", lambda: None)
+    monkeypatch.setattr(posecap_addon.panels, "draw_keyframe_manager_section", lambda *a, **k: None)
 
-    posecap_addon.panels._auto_select_target_armature(context, settings)
+    posecap_addon.panels._draw_main_panel(_FakeLayout(), context)
 
     assert settings.target_armature is manual
 
@@ -1524,11 +1535,13 @@ class _FakeContext:
         self.scene = _FakeScene(settings)
         self.window_manager = _FakeWindowManager()
         self.preferences = _FakePreferences(addon_preferences)
+        self.active_object: object | None = None
 
 
 class _FakeScene:
     def __init__(self, settings: _Settings) -> None:
         self.posecap = settings
+        self.objects: list[object] = []
 
 
 class _FakeWindowManager:

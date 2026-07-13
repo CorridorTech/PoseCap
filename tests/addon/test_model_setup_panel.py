@@ -84,6 +84,17 @@ def test_wizard_form_offers_signup_credentials_and_manual_path() -> None:
     assert "posecap.watch_model_downloads" in layout.operator_ids
 
 
+def test_wizard_does_not_recommend_password_reuse_across_model_sites() -> None:
+    layout = _FakeLayout()
+
+    draw_body_models_wizard(layout, _wm_group())
+
+    guidance = " ".join(layout.labels).casefold()
+    assert "same email and password" not in guidance
+    assert "unique passwords" in guidance
+    assert "download each original archive" in guidance
+
+
 def test_unresolved_pear_root_counts_as_models_missing() -> None:
     # A blank PEAR Root can't confirm the models exist, so it must read as
     # missing — otherwise the checklist falsely ticks "Install the body models"

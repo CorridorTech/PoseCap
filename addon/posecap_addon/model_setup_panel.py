@@ -114,17 +114,18 @@ def draw_body_models_wizard(layout: Any, wm_group: Any) -> None:
         status_icon = "ERROR" if "fail" in wm_group.status.casefold() else "INFO"
         draw_wrapped_label(column, wm_group.status, chars=_WIZARD_WRAP_CHARS, icon=status_icon)
     column.label(text="Step 1: Create the three accounts")
-    column.label(text="Use the same email and password on every site.")
+    column.label(text="Use unique passwords on each site.")
     signup_row = column.row(align=True)
     for site_name, url in MODEL_SIGNUP_URLS.items():
         signup_row.operator("wm.url_open", text=site_name, icon="URL").url = url
     column.label(text="Account registration is the required license step.")
     column.label(text="Step 2: Let PoseCap install the files")
+    column.label(text="Automatic install requires credentials accepted by all three sites.")
     column.label(text="Your password is used once and is never saved.")
     column.prop(wm_group, "mpi_email")
     column.prop(wm_group, "mpi_password")
     column.label(text="Click OK to download and install automatically.")
-    column.label(text="Already downloaded the original archives?")
+    column.label(text="Using unique passwords? Download each original archive, then:")
     column.operator(
         "posecap.watch_model_downloads",
         text="Watch my Downloads Folder",

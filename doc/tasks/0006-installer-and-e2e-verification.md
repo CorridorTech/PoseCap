@@ -200,6 +200,23 @@ This satisfies the five-second orphan-process criterion on the development
 workstation; the clean-machine and ten-minute performance/latency criteria
 remain open.
 
+### 2026-07-13 — Final release candidate validation
+
+The final fresh-context pass found and corrected one remaining redraw edge case:
+an armature deleted during Blender use could raise `ReferenceError` while the
+panel checked its type. The panel now degrades to the setup state. The model
+wizard also no longer recommends password reuse: users with distinct credentials
+are directed to the browser-download path. Panel behavior tests now observe the
+public drawing flow rather than calling auto-configuration helpers directly.
+
+After the final full quality gate, the installer was rebuilt as
+`PoseCap_v1.0.1-win.1_Windows_Setup.exe` with SHA-256
+`D0FC154C22543006E77FA6EDB99AD724402756B6D90058B97DB166EE88A7BF5A`.
+The final in-place repair returned exit code zero. Blender 5.0.1 then loaded the
+installed extension, converted X Bot with verification `0.0000`, applied a pose
+from `Ale-PoseCAp.mp4`, and emitted
+`POSECAP_E2E_OK version=1.0.1-win.1 source=video target=Armature`.
+
 ## Definition of Done
 
 All Acceptance Criteria checked, plus:

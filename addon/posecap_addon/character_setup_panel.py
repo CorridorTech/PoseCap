@@ -162,9 +162,11 @@ def _bone_names(armature: Any) -> tuple[str, ...]:
 
 
 def is_converted_armature(armature: Any) -> bool:
-    if armature is None or getattr(armature, "type", None) != "ARMATURE":
+    if armature is None:
         return False
     try:
+        if getattr(armature, "type", None) != "ARMATURE":
+            return False
         names = set(_bone_names(armature))
     except (AttributeError, ReferenceError):
         return False
