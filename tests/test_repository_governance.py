@@ -114,8 +114,10 @@ def test_release_workflow_uses_protected_runner_signing_and_attestation() -> Non
     workflow = _yaml(path)
     workflow_text = path.read_text(encoding="utf-8")
     release = workflow["jobs"]["release"]
+    actionlint = _yaml(REPO_ROOT / ".github" / "actionlint.yaml")
 
-    assert 'tags: ["v*"]' in workflow_text
+    assert 'tags: ["v*-win.*"]' in workflow_text
+    assert "posecap-release" in actionlint["self-hosted-runner"]["labels"]
     assert release["runs-on"] == ["self-hosted", "Windows", "X64", "posecap-release"]
     assert release["environment"] == "release"
     assert release["permissions"] == {
@@ -127,6 +129,8 @@ def test_release_workflow_uses_protected_runner_signing_and_attestation() -> Non
         str(step["run"]) for step in release["steps"] if isinstance(step, dict) and "run" in step
     )
     assert "verification.verified" in commands
+    assert 'expectedTag = "v$baseVersion-win.$buildNumber"' in commands
+    assert "GITHUB_REF_NAME -cne $expectedTag" in commands
     assert "Set-AuthenticodeSignature" in commands
     assert "Get-AuthenticodeSignature" in commands
     assert "Get-FileHash -Algorithm SHA256" in commands

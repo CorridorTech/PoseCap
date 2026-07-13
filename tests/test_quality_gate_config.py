@@ -184,6 +184,13 @@ def test_ci_enforces_dco_workflow_security_and_stable_required_gate() -> None:
     )
     assert "uv run pip-audit -r requirements-audit.txt" in audit_commands
     assert not any("uvx pip-audit" in command for command in audit_commands)
+    audit_setup_python = [
+        step
+        for step in jobs["audit"]["steps"]
+        if isinstance(step, dict) and str(step.get("uses", "")).startswith("actions/setup-python@")
+    ]
+    assert len(audit_setup_python) == 1
+    assert audit_setup_python[0]["with"]["python-version"] == "3.11"
 
     required = jobs["required"]
     assert required["name"] == "CI required"

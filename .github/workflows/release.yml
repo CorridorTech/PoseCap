@@ -2,7 +2,7 @@ name: Release
 
 on:
   push:
-    tags: ["v*"]
+    tags: ["v*-win.*"]
 
 permissions:
   contents: read
@@ -68,6 +68,9 @@ jobs:
         run: |
           if ($env:GITHUB_REF_NAME -notmatch '-win\.(\d+)$') { throw "Tag must end in -win.<build number>." }
           $buildNumber = [int]$Matches[1]
+          $baseVersion = uv run python -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])"
+          $expectedTag = "v$baseVersion-win.$buildNumber"
+          if ($env:GITHUB_REF_NAME -cne $expectedTag) { throw "Release tag $env:GITHUB_REF_NAME does not match project version $expectedTag." }
           & packaging\build_installer.ps1 -BuildNumber $buildNumber
           if ($LASTEXITCODE -ne 0) { throw "Installer build failed." }
           uv run python tools/build_extension.py --output-dir packaging/dist --staging-dir packaging/work/release-extension --release
