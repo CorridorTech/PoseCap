@@ -1,6 +1,6 @@
 # Task 0016: Clear removed target armatures
 
-**Status:** proposed
+**Status:** in-progress
 **Created:** 2026-07-13
 **Owner:** alexandremendoncaalvaro
 **Execution:** AFK
@@ -38,6 +38,14 @@ Append-only log. Date each entry. Never rewrite past entries.
 Fresh-context review of release PR 35 found that graceful detection did not yet
 clear the stored pointer. The issue is tracked separately to keep the validated
 installer patch focused.
+
+### 2026-07-13
+
+The panel-redraw regression was reproduced with a target object whose Blender
+RNA `type` access raises `ReferenceError`. Before the fix, the stale pointer
+survived the redraw and the Keyframe Manager was still rendered. The panel now
+clears that pointer before continuing its normal auto-selection flow; the new
+behavior test and the full quality gate pass.
 
 ## Definition of Done
 
