@@ -70,6 +70,22 @@ The E2E first failed with an identity payload, then passed after the fixture
 stream applied a 0.5-radian Z axis-angle to `left_elbow` and asserted the exact
 expected quaternion components.
 
+The raw source and local character assets were also checked against every Git
+object, rather than only against tracked filenames. `git hash-object
+--no-filters <asset>` followed by `git rev-list --objects --all` found zero
+matching object IDs: `Ale-PoseCAp.mp4` (`6a87bf8cc82de6f02d67d01f1e0fffcf32d36eed`),
+`X Bot.fbx` (`98822b387a60cbce1827f4a3f7f94b2994b7d02c`), and `Y Bot.fbx`
+(`60433778ef5c6b65a3b70bee8e2e8ebbccac125e`). This proves their exact bytes
+are absent from all reachable repository history.
+
+The Blender E2E now starts the public `posecap.start_stream` operator against a
+loopback TCP server that emits the canonical newline-delimited JSON wire frame.
+It waits for the lifecycle to reach `STREAMING`, verifies the converted
+`left_elbow` quaternion, then stops through `posecap.stop_stream`. A separate
+FFprobe-backed media test passed for every new fixture: one video stream only,
+1280x720, 30 fps, exactly 240 frames in 8 seconds, below 5 MB, and no creation
+time or timecode tags.
+
 ## Definition of Done
 
 All Acceptance Criteria checked, plus:

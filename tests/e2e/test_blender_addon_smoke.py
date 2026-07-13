@@ -77,8 +77,12 @@ _BLENDER_SMOKE_SCRIPT = textwrap.dedent(
 
     import importlib.util
     import math
+    import socket
     import sys
+    import threading
+    import time
     from pathlib import Path
+    from types import SimpleNamespace
 
     extension_root = Path(sys.argv[sys.argv.index("--") + 1])
     sys.path.insert(0, str(extension_root))
@@ -95,6 +99,7 @@ _BLENDER_SMOKE_SCRIPT = textwrap.dedent(
         SCHEMA_VERSION,
         PoseFrame,
         PosePayload,
+        encode_pose_frame,
     )
     from posecap_core import BODY_JOINT_NAMES, mixamo_preset
 
@@ -121,6 +126,15 @@ _BLENDER_SMOKE_SCRIPT = textwrap.dedent(
 
         def close(self) -> None:
             self.closed = True
+
+    class LoopbackEngine:
+        def __init__(self, host: str, port: int) -> None:
+            self.endpoint = SimpleNamespace(host=host, port=port)
+            self.running = True
+
+        def stop(self, *, timeout_seconds: float) -> None:
+            del timeout_seconds
+            self.running = False
 
     def payload(*, left_elbow_angle: float = 0.0) -> PosePayload:
         body_pose = [[0.0, 0.0, 0.0] for _ in range(NUM_BODY_JOINTS)]
@@ -210,20 +224,44 @@ _BLENDER_SMOKE_SCRIPT = textwrap.dedent(
         assert bpy.ops.posecap.convert_character() == {"FINISHED"}
         converted_elbow = synthetic.pose.bones["left_elbow"]
         converted_elbow.rotation_mode = "XYZ"
-        converted_stream = SingleFrameStream(
-            PoseFrame(SCHEMA_VERSION, 2, 101.0, "ok", payload(left_elbow_angle=0.5))
+        listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        listener.bind(("127.0.0.1", 0))
+        listener.listen(1)
+        host, port = listener.getsockname()
+        frame = PoseFrame(
+            SCHEMA_VERSION,
+            2,
+            101.0,
+            "ok",
+            payload(left_elbow_angle=0.5),
         )
-        converted_timer = posecap_extension.PoseApplyTimer(
-            converted_stream,
-            posecap_extension.BpyArmaturePoseWriter(synthetic),
-            interval_seconds=0.25,
-        )
-        assert converted_timer.tick() == 0.25
+
+        def serve_one_frame() -> None:
+            with listener:
+                connection, _address = listener.accept()
+                with connection:
+                    connection.sendall((encode_pose_frame(frame) + "\\n").encode("utf-8"))
+
+        threading.Thread(target=serve_one_frame, daemon=True).start()
+        panels = sys.modules["posecap_extension_smoke.posecap_addon.panels"]
+        panels.start_engine_stream = lambda _command: LoopbackEngine(host, port)
+        settings.pear_root = "synthetic-pear-root"
+        assert bpy.ops.posecap.start_stream() == {"FINISHED"}
+        session = panels._ACTIVE_SESSION
+        assert session is not None
+        deadline = time.monotonic() + 5.0
+        while time.monotonic() < deadline:
+            session.timer_callback()
+            if abs(converted_elbow.rotation_quaternion.z - math.sin(0.25)) < 1e-6:
+                break
+            time.sleep(0.01)
         assert converted_elbow.rotation_mode == "QUATERNION"
         assert abs(converted_elbow.rotation_quaternion.w - math.cos(0.25)) < 1e-6
         assert abs(converted_elbow.rotation_quaternion.z - math.sin(0.25)) < 1e-6
-        converted_timer.stop()
-        assert converted_stream.closed
+        assert settings.lifecycle_state == "STREAMING"
+        assert bpy.ops.posecap.stop_stream() == {"FINISHED"}
+        assert settings.lifecycle_state == "STOPPED"
     finally:
         posecap_extension.unregister()
         posecap_extension.unregister()
