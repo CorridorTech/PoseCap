@@ -1,3 +1,4 @@
+import logging
 import os
 import socket
 import subprocess
@@ -512,6 +513,105 @@ def test_blender_ui_registration_adds_scene_state_and_unregisters_cleanly() -> N
         "POSECAP_PG_ModelSetup",
         "POSECAP_PG_LiveStreamSettings",
     ]
+
+
+def test_panel_draw_failure_shows_recovery_actions_and_logs_the_error(monkeypatch) -> None:
+    bpy = _FakeBpy()
+    register_blender_ui(bpy)
+    logged: list[str] = []
+
+    class _Logger:
+        def exception(self, message: str) -> None:
+            logged.append(message)
+
+    monkeypatch.setattr(
+        posecap_addon.panels,
+        "_draw_main_panel",
+        lambda *_args: (_ for _ in ()).throw(RuntimeError("unexpected draw failure")),
+    )
+    monkeypatch.setattr(posecap_addon.panels, "configure_addon_logging", lambda _path: _Logger())
+
+    try:
+        panel_cls = bpy.utils.registered_class("POSECAP_PT_LiveStream")
+        panel = panel_cls()
+        panel.layout = _FakeLayout()
+
+        panel.draw(_FakeContext(_Settings(lifecycle_state="STOPPED")))
+
+        assert panel.layout.has_label("PoseCap could not refresh this panel.")
+        assert panel.layout.has_label("Your scene is safe.")
+        assert panel.layout.has_label("Create a Support Bundle to share the error.")
+        assert panel.layout.has_operator("posecap.create_support_bundle")
+        assert panel.layout.has_operator("posecap.open_logs")
+        assert logged == ["panel draw failed"]
+    finally:
+        unregister_blender_ui(bpy)
+
+
+def test_repeated_panel_draw_failure_logs_once_until_the_panel_recovers(monkeypatch) -> None:
+    bpy = _FakeBpy()
+    register_blender_ui(bpy)
+    logged: list[str] = []
+
+    class _Logger:
+        def exception(self, message: str) -> None:
+            logged.append(message)
+
+    def fail_draw(*_args: object) -> None:
+        raise RuntimeError("persistent draw failure")
+
+    monkeypatch.setattr(posecap_addon.panels, "_draw_main_panel", fail_draw)
+    monkeypatch.setattr(posecap_addon.panels, "configure_addon_logging", lambda _path: _Logger())
+
+    try:
+        panel_cls = bpy.utils.registered_class("POSECAP_PT_LiveStream")
+        panel = panel_cls()
+        panel.layout = _FakeLayout()
+
+        panel.draw(_FakeContext(_Settings(lifecycle_state="STOPPED")))
+        panel.draw(_FakeContext(_Settings(lifecycle_state="STOPPED")))
+
+        assert logged == ["panel draw failed"]
+
+        monkeypatch.setattr(posecap_addon.panels, "_draw_main_panel", lambda *_args: None)
+        panel.draw(_FakeContext(_Settings(lifecycle_state="STOPPED")))
+        monkeypatch.setattr(posecap_addon.panels, "_draw_main_panel", fail_draw)
+        panel.draw(_FakeContext(_Settings(lifecycle_state="STOPPED")))
+
+        assert logged == ["panel draw failed", "panel draw failed"]
+    finally:
+        unregister_blender_ui(bpy)
+
+
+def test_panel_recovery_stays_visible_when_the_log_file_is_unavailable(monkeypatch, caplog) -> None:
+    bpy = _FakeBpy()
+    register_blender_ui(bpy)
+    caplog.set_level(logging.ERROR, logger="posecap_addon")
+
+    monkeypatch.setattr(
+        posecap_addon.panels,
+        "_draw_main_panel",
+        lambda *_args: (_ for _ in ()).throw(RuntimeError("unexpected draw failure")),
+    )
+    monkeypatch.setattr(
+        posecap_addon.panels,
+        "configure_addon_logging",
+        lambda _path: (_ for _ in ()).throw(PermissionError("logs are read-only")),
+    )
+    try:
+        panel_cls = bpy.utils.registered_class("POSECAP_PT_LiveStream")
+        panel = panel_cls()
+        panel.layout = _FakeLayout()
+
+        panel.draw(_FakeContext(_Settings(lifecycle_state="STOPPED")))
+
+        assert panel.layout.has_label("PoseCap could not refresh this panel.")
+        assert panel.layout.has_operator("posecap.create_support_bundle")
+        assert [record.message for record in caplog.records] == [
+            "panel draw failed; file logging is unavailable"
+        ]
+    finally:
+        unregister_blender_ui(bpy)
 
 
 def test_start_and_stop_operators_own_stream_runtime(monkeypatch) -> None:

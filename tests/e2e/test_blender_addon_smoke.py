@@ -77,6 +77,7 @@ _BLENDER_SMOKE_SCRIPT = textwrap.dedent(
 
     import importlib.util
     import math
+    import os
     import socket
     import sys
     import threading
@@ -136,6 +137,53 @@ _BLENDER_SMOKE_SCRIPT = textwrap.dedent(
             del timeout_seconds
             self.running = False
 
+    class RecordingLayout:
+        def __init__(self, labels=None, operators=None) -> None:
+            self.enabled = True
+            self.alert = False
+            self.labels = [] if labels is None else labels
+            self.operators = [] if operators is None else operators
+
+        def row(self, **_kwargs):
+            return RecordingLayout(self.labels, self.operators)
+
+        def column(self, **_kwargs):
+            return RecordingLayout(self.labels, self.operators)
+
+        def box(self):
+            return RecordingLayout(self.labels, self.operators)
+
+        def label(self, *, text: str, **_kwargs) -> None:
+            self.labels.append(text)
+
+        def prop(self, *_args, **_kwargs) -> None:
+            return None
+
+        def operator(self, operator_id: str, **_kwargs):
+            self.operators.append(operator_id)
+            return SimpleNamespace()
+
+        def template_list(self, *_args, **_kwargs) -> None:
+            return None
+
+        def separator(self) -> None:
+            return None
+
+    class ContextWithRemovedActiveObject:
+        def __init__(self, context, removed_active_object) -> None:
+            self._context = context
+            self.active_object = removed_active_object
+
+        def __getattr__(self, name: str):
+            return getattr(self._context, name)
+
+    class ContextWithBrokenScene:
+        preferences = None
+
+        @property
+        def scene(self):
+            raise RuntimeError("synthetic panel failure")
+
     def payload(*, left_elbow_angle: float = 0.0) -> PosePayload:
         body_pose = [[0.0, 0.0, 0.0] for _ in range(NUM_BODY_JOINTS)]
         body_pose[BODY_JOINT_NAMES.index("left_elbow")] = [0.0, 0.0, left_elbow_angle]
@@ -189,11 +237,75 @@ _BLENDER_SMOKE_SCRIPT = textwrap.dedent(
         modifier.object = armature
         return armature
 
+    def fbx_roundtrip(armature):
+        bpy.ops.object.select_all(action="DESELECT")
+        exported = [armature]
+        exported.extend(
+            obj
+            for obj in bpy.context.scene.objects
+            if obj.type == "MESH"
+            and any(
+                modifier.type == "ARMATURE" and modifier.object == armature
+                for modifier in obj.modifiers
+            )
+        )
+        for obj in exported:
+            obj.select_set(True)
+        bpy.context.view_layer.objects.active = armature
+        fbx_path = Path(bpy.app.tempdir) / "posecap-synthetic-mixamo.fbx"
+        assert bpy.ops.export_scene.fbx(
+            filepath=str(fbx_path),
+            use_selection=True,
+            add_leaf_bones=False,
+        ) == {"FINISHED"}
+        removed_active_object = armature
+        bpy.data.objects.remove(armature, do_unlink=True)
+
+        stale_layout = RecordingLayout()
+        panel_class.draw(
+            SimpleNamespace(layout=stale_layout),
+            ContextWithRemovedActiveObject(bpy.context, removed_active_object),
+        )
+        assert any(label.startswith("PoseCap ") for label in stale_layout.labels)
+
+        before = set(bpy.data.objects)
+        assert bpy.ops.import_scene.fbx(filepath=str(fbx_path)) == {"FINISHED"}
+        imported = [obj for obj in bpy.data.objects if obj not in before]
+        imported_armatures = [obj for obj in imported if obj.type == "ARMATURE"]
+        assert len(imported_armatures) == 1
+
+        imported_layout = RecordingLayout()
+        panel_class.draw(SimpleNamespace(layout=imported_layout), bpy.context)
+        assert any(label.startswith("PoseCap ") for label in imported_layout.labels)
+        return imported_armatures[0]
+
+    def assert_panel_failure_is_actionable():
+        original_local_app_data = os.environ.get("LOCALAPPDATA")
+        try:
+            os.environ["LOCALAPPDATA"] = str(Path(bpy.app.tempdir) / "posecap-e2e-localappdata")
+            layout = RecordingLayout()
+            panel_class.draw(SimpleNamespace(layout=layout), ContextWithBrokenScene())
+            assert "PoseCap could not refresh this panel." in layout.labels
+            assert "posecap.create_support_bundle" in layout.operators
+            assert "posecap.open_logs" in layout.operators
+        finally:
+            if original_local_app_data is None:
+                os.environ.pop("LOCALAPPDATA", None)
+            else:
+                os.environ["LOCALAPPDATA"] = original_local_app_data
+
     posecap_extension.register()
     posecap_extension.unregister()
     posecap_extension.unregister()
     posecap_extension.register()
+    panels = sys.modules["posecap_extension_smoke.posecap_addon.panels"]
+    panel_class = next(
+        cls
+        for cls in reversed(bpy.types.Panel.__subclasses__())
+        if cls.__name__ == "POSECAP_PT_LiveStream"
+    )
     try:
+        assert_panel_failure_is_actionable()
         bpy.ops.object.armature_add()
         armature = bpy.context.object
         bpy.ops.object.mode_set(mode="EDIT")
@@ -216,7 +328,7 @@ _BLENDER_SMOKE_SCRIPT = textwrap.dedent(
         timer.stop()
         assert stream.closed
 
-        synthetic = synthetic_mixamo_armature()
+        synthetic = fbx_roundtrip(synthetic_mixamo_armature())
         bpy.context.view_layer.objects.active = synthetic
         settings = bpy.context.scene.posecap
         settings.target_armature = synthetic
@@ -244,7 +356,6 @@ _BLENDER_SMOKE_SCRIPT = textwrap.dedent(
                     connection.sendall((encode_pose_frame(frame) + "\\n").encode("utf-8"))
 
         threading.Thread(target=serve_one_frame, daemon=True).start()
-        panels = sys.modules["posecap_extension_smoke.posecap_addon.panels"]
         panels.start_engine_stream = lambda _command: LoopbackEngine(host, port)
         settings.pear_root = "synthetic-pear-root"
         assert bpy.ops.posecap.start_stream() == {"FINISHED"}

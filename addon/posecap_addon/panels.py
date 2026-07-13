@@ -61,6 +61,7 @@ ADDON_ID = (
 
 _REGISTERED_CLASSES: tuple[type[Any], ...] = ()
 _ACTIVE_SESSION: _LiveStreamSession | None = None
+_LAST_PANEL_DRAW_FAILURE: tuple[type[BaseException], str] | None = None
 _RECONNECTABLE_STATES = frozenset({"STREAMING", "RECORDING"})
 _ADDON_VERSION = addon_version()
 
@@ -239,10 +240,11 @@ def unregister() -> None:
 
 def register_blender_ui(bpy_module: Any) -> None:
     """Register PoseCap UI classes against a bpy-like module."""
-    global _REGISTERED_CLASSES
+    global _LAST_PANEL_DRAW_FAILURE, _REGISTERED_CLASSES
     if _REGISTERED_CLASSES:
         return
 
+    _LAST_PANEL_DRAW_FAILURE = None
     classes = _build_blender_classes(bpy_module)
     for cls in classes:
         bpy_module.utils.register_class(cls)
@@ -589,7 +591,30 @@ def _build_blender_classes(bpy_module: Any) -> tuple[type[Any], ...]:
         bl_category = "PoseCap"
 
         def draw(self, context: Any) -> None:
-            _draw_main_panel(self.layout, context)
+            global _LAST_PANEL_DRAW_FAILURE
+            try:
+                _draw_main_panel(self.layout, context)
+            except Exception as exc:
+                failure = (type(exc), str(exc))
+                if failure != _LAST_PANEL_DRAW_FAILURE:
+                    _LAST_PANEL_DRAW_FAILURE = failure
+                    try:
+                        logger = configure_addon_logging(_addon_log_path(context, bpy_module))
+                    except Exception:
+                        logging.getLogger("posecap_addon").error(
+                            "panel draw failed; file logging is unavailable",
+                            exc_info=(type(exc), exc, exc.__traceback__),
+                        )
+                    else:
+                        logger.exception("panel draw failed")
+                self.layout.label(text="PoseCap could not refresh this panel.", icon="ERROR")
+                self.layout.label(text="Your scene is safe.")
+                self.layout.label(text="Create a Support Bundle to share the error.")
+                actions = self.layout.row(align=True)
+                actions.operator("posecap.create_support_bundle", text="Create Support Bundle")
+                actions.operator("posecap.open_logs", text="Open Logs")
+                return
+            _LAST_PANEL_DRAW_FAILURE = None
 
     class POSECAP_PG_ModelSetup(bpy_module.types.PropertyGroup):
         __slots__ = ()
