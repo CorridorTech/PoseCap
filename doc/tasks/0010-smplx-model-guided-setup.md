@@ -243,6 +243,28 @@ Scope note: this validates PEAR capture + PoseCap apply + the armature
 convention. It does NOT validate the UE/Mixamo CONVERTER on a real
 character — that HITL is still open (task 0008 / earlier Notes).
 
+### 2026-07-13 (official model server refusal recovery)
+
+Field feedback confirmed two distinct outcomes: the FBX-import panel fix
+remained stable, while the official MPI download endpoint returned HTTP 403
+both inside PoseCap and in a browser. A second account on the same connection
+also received 403. That evidence does not identify whether account approval
+or a temporary server/network policy caused the refusal; HTTP 403 itself only
+states that the server refused the request.
+
+Decision: PoseCap does not automatically retry or claim a cause for HTTP 403.
+The message names the refused archive, explains the ambiguity, asks the user
+to stop repeated attempts, and points to the existing Downloads-folder
+watcher. HTTP 401 remains a separate account-verification path. Failed setup
+status now keeps the watcher action visible and states that already installed
+models are preserved. Expected setup failures are written to the PoseCap log
+without credentials so a later Support Bundle contains the actual stopping
+condition.
+
+TDD coverage pins 401/403 separation, exact refused-file visibility, safe
+recovery guidance, persistent panel action, and credential-free logging. The
+existing no-redownload and manual-archive tests continue to prove resumability.
+
 ## Definition of Done
 
 All Acceptance Criteria checked, plus:

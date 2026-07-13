@@ -90,9 +90,25 @@ def draw_model_setup_status(
             # download move; the readable text is the wrapped label above it.
             box.progress(factor=float(fraction), type="BAR", text="")
         return
-    if session.state in ("DONE", "FAILED"):
-        icon = "CHECKMARK" if session.state == "DONE" else "ERROR"
-        draw_wrapped_label(layout.box(), session.status_message, chars=wrap_chars, icon=icon)
+    if session.state == "DONE":
+        draw_wrapped_label(layout.box(), session.status_message, chars=wrap_chars, icon="CHECKMARK")
+        return
+    if session.state == "FAILED":
+        box = layout.box()
+        box.label(text="Body Models — setup needs attention", icon="ERROR")
+        draw_wrapped_label(box, session.status_message, chars=wrap_chars)
+        draw_wrapped_label(
+            box,
+            "Already installed models are kept. If browser downloads work, "
+            "PoseCap can finish the missing files from your Downloads folder.",
+            chars=wrap_chars,
+            icon="INFO",
+        )
+        box.operator(
+            "posecap.watch_model_downloads",
+            text="Watch my Downloads Folder",
+            icon="VIEWZOOM",
+        )
 
 
 def draw_body_models_wizard(layout: Any, wm_group: Any) -> None:
