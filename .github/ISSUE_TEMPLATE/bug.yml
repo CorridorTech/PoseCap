@@ -1,0 +1,73 @@
+name: Bug report
+description: Report a reproducible PoseCap failure or regression
+title: "bug: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for helping make PoseCap reliable. Do not report security vulnerabilities here; use the private security reporting link in the issue chooser.
+  - type: input
+    id: build
+    attributes:
+      label: PoseCap build
+      description: Copy the full build label shown in the PoseCap panel or Support Bundle.
+      placeholder: 1.0.1-win.1
+    validations:
+      required: true
+  - type: dropdown
+    id: windows
+    attributes:
+      label: Windows version
+      options:
+        - Windows 11
+        - Windows 10
+        - Other or unknown
+    validations:
+      required: true
+  - type: input
+    id: blender
+    attributes:
+      label: Blender version
+      placeholder: 5.0.1
+    validations:
+      required: true
+  - type: input
+    id: gpu
+    attributes:
+      label: GPU and driver
+      placeholder: NVIDIA RTX 3080, driver 555.99
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps
+      description: List the smallest sequence that reproduces the problem every time.
+      placeholder: |
+        1. Open Blender...
+        2. Select...
+        3. Click...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected and observed behavior
+      description: State what should happen and what happened instead, including exact error text.
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics
+      description: Paste the Support Bundle summary and attach the ZIP if appropriate. Review it first and never include passwords, model files, or other licensed assets.
+    validations:
+      required: true
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Submission safety
+      options:
+        - label: I reviewed the report and attachments for secrets and licensed model assets.
+          required: true

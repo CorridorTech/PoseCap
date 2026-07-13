@@ -89,6 +89,7 @@ Budget (binding, from [PRD](doc/product/PRD.md)): 30 FPS pose application, <100 
 | pyright | type check — strict on `contracts/` and `core/`, standard on `addon/` and `engine/` | `[tool.pyright]` in pyproject.toml |
 | import-linter | hexagonal dependency contracts (§1) | `[tool.importlinter]` in pyproject.toml |
 | ruff C901 / mccabe | complexity caps (§4) | same ruff config |
+| actionlint + zizmor | GitHub Actions correctness and security | `.pre-commit-config.yaml` + pinned workflows |
 
 `# type: ignore` allowed only at the `bpy` API boundary, with the reason on the same line.
 
@@ -97,8 +98,8 @@ Budget (binding, from [PRD](doc/product/PRD.md)): 30 FPS pose application, <100 
 Wired via pre-commit (`.pre-commit-config.yaml`; install once with `uv run pre-commit install`):
 
 * Pre-commit (fast): `ruff check`, `ruff format --check`, private-key detection, large-file cap (5 MB), licensed-binary block (`tools/check_licensed_binaries.py` — no `.npz`/`.pkl`/`.pt`/`.ckpt`/`.onnx`/`.engine` ever staged).
-* Pre-push (thorough): `pyright --pythonplatform Windows`, `pyright --pythonplatform Linux`, `pytest` (default tags), import-linter.
-* CI (`.github/workflows/ci.yml`): full gate matrix on Linux and Windows (ruff, format, pyright against Windows and Linux platform stubs, import-linter, pytest with a 90% coverage floor on contracts/core), licensed-binary tree scan, and `pip-audit` over the exported lockfile. Runs on every PR and on `main`. `gpu`/`e2e`/`eval` tags stay local until a GPU runner exists.
+* Pre-push (thorough): DCO sign-off validation, Markdown-link validation, actionlint, zizmor, `pyright --pythonplatform Windows`, `pyright --pythonplatform Linux`, `pytest` (default tags), and import-linter.
+* CI (`.github/workflows/ci.yml`): DCO and PR-title policy, full gate matrix on Linux and Windows, licensed-binary tree scan, locked dependency audit, workflow-security analysis, and clean-install package smoke tests. The stable `CI required` aggregate check is the branch-rule contract. Runs on every PR and on `main`; `gpu`/`e2e`/`eval` tags stay local until a GPU runner exists.
 * Never bypass: no `--no-verify`, no skipped hooks, no deleted failing tests.
 
 ## 9. Testing Strategy
@@ -114,8 +115,8 @@ Wired via pre-commit (`.pre-commit-config.yaml`; install once with `uv run pre-c
 
 ## 10. Git Workflow
 
-* Conventional Commits 1.0.0 + DCO `Signed-off-by` (use `/ad-commit`). No `Co-Authored-By` trailers.
-* Branches: `feat/`, `fix/`, `chore/`; `main` is protected once a remote exists — PRs via `/ad-pr`, merge via `/ad-merge`.
+* PR titles follow Conventional Commits 1.0.0 and become the squash commit title. Intermediate commit subjects may be plain language; every commit carries a matching DCO `Signed-off-by` (use `/ad-commit`). No `Co-Authored-By` trailers.
+* Branches: `feat/`, `fix/`, `chore/`; protected `main` accepts squash-only PRs via `/ad-pr`, after green `CI required`, resolved review threads, and review by the sole code reviewer, Alê (`@alexandremendoncaalvaro`); merge via `/ad-merge`. Dean does not perform technical reviews. GitHub cannot record self-approval, so the maintainer's merge action records the decision on maintainer-authored PRs.
 * Atomic commits: one concern each. Mixed-concern diffs get stage-split, not bundled.
 * Line endings: LF in repo (`.gitattributes` with `* text=auto eol=lf` — to be added with the scaffold).
 
@@ -140,6 +141,7 @@ Discipline: no emoji, no dates in narrative prose, no speculation, definitions a
 * Untrusted inputs and their boundaries: user-dropped image files (extension + size validated before the engine touches them), webcam frames (engine-internal), TCP JSON frames (schema-validated on decode per ARCHITECTURE.md), downloaded model weights (pinned HuggingFace revision, `torch.load(..., weights_only=True)` always — `weights_only=False` is banned).
 * Pickle is banned for IPC and persistence. JSON or documented binary formats only.
 * `subprocess` calls never use `shell=True`; process teardown by handle/PID, never by window title.
-* No secrets exist in this project by design; if one ever appears (API token, license key) it lives in an env var or OS keychain, gitignored, never committed — history is permanent and the repo goes public.
-* Licensed model assets never enter the repo (gitignore + planned CI scan). `C:\Dev\CorridorRig-Original` is read-only reference.
-* Dependency audit: `pip-audit` against `uv.lock` in CI.
+* No secrets exist in this project by design; if one ever appears (API token, license key) it lives in an env var or OS keychain, gitignored, never committed — history is permanent and the repo goes public. GitHub secret scanning and push protection enforce the remote boundary.
+* Licensed model assets never enter the repo (gitignore + pre-commit and CI scans). `C:\Dev\CorridorRig-Original` is read-only reference.
+* Supply-chain controls: full-SHA GitHub Actions, locked `pip-audit`, Dependabot, CodeQL default setup, Scorecard, build smoke tests, signed release tags and Windows artifacts, checksums, and artifact attestations.
+* Vulnerabilities are reported privately under [SECURITY.md](SECURITY.md), never through a public issue.

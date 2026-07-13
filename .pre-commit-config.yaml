@@ -7,6 +7,11 @@ repos:
       - id: check-added-large-files
         args: [--maxkb=5000]
       - id: detect-private-key
+  - repo: https://github.com/rhysd/actionlint
+    rev: 914e7df21a07ef503a81201c76d2b11c789d3fca # v1.7.12
+    hooks:
+      - id: actionlint
+        stages: [pre-push]
   - repo: local
     hooks:
       - id: ruff-check
@@ -44,6 +49,24 @@ repos:
       - id: import-linter
         name: import-linter
         entry: uv run lint-imports
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
+      - id: dco-signoff
+        name: DCO sign-off
+        entry: uv run python tools/check_dco.py origin/main HEAD
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
+      - id: zizmor
+        name: GitHub Actions security
+        entry: uv run zizmor .
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
+      - id: markdown-links
+        name: repository Markdown links
+        entry: uv run python tools/check_markdown_links.py
         language: system
         pass_filenames: false
         stages: [pre-push]

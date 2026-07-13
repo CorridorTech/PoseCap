@@ -5,17 +5,51 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
+  dco:
+    name: DCO sign-off
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.11"
+      - uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
+      - name: Validate commit sign-offs
+        run: uv run python tools/check_dco.py ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }}
+      - name: Validate pull request title
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: uv run python tools/check_pr_title.py "$PR_TITLE"
+
   quality:
     name: gates (${{ matrix.os }})
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.11"
+      - uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
         with:
           enable-cache: true
       - name: Sync workspace (locked)
@@ -24,6 +58,8 @@ jobs:
         run: uv run ruff check .
       - name: Format
         run: uv run ruff format --check .
+      - name: Documentation links
+        run: uv run python tools/check_markdown_links.py
       - name: Types (Windows platform)
         run: uv run pyright --pythonplatform Windows
       - name: Types (Linux platform)
@@ -36,18 +72,93 @@ jobs:
   licensed-binaries:
     name: licensed-binary scan (PRD metric)
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
       - name: No licensed model binaries in the tree
         run: git ls-files -z | xargs -0 python tools/check_licensed_binaries.py
 
   audit:
     name: dependency audit
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.11"
+      - uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
       - name: Export locked requirements
-        run: uv export --format requirements.txt --no-emit-workspace -o requirements-audit.txt
+        run: uv export --locked --format requirements.txt --no-emit-workspace -o requirements-audit.txt
       - name: pip-audit
-        run: uvx pip-audit -r requirements-audit.txt
+        run: uv run pip-audit -r requirements-audit.txt
+
+  workflow-security:
+    name: workflow security
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.11"
+      - uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
+      - name: Validate workflow syntax
+        run: uv run pre-commit run --hook-stage pre-push actionlint --all-files
+      - name: Audit workflow security
+        run: uv run zizmor .
+
+  package:
+    name: package smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.11"
+      - uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
+      - name: Sync workspace
+        run: uv sync --locked
+      - name: Build workspace wheels
+        run: uv build --all-packages --out-dir build/wheels
+      - name: Build Blender extension
+        run: uv run python tools/build_extension.py --output-dir build/extension --staging-dir build/extension-stage --release
+      - name: Create clean smoke environment
+        run: uv venv build/smoke-venv --python 3.11
+      - name: Install built wheels
+        run: uv pip install --python build/smoke-venv --find-links build/wheels posecap-contracts posecap-core posecap-engine
+      - name: Import installed packages
+        run: uv run --python build/smoke-venv --no-project python -c "import posecap_contracts, posecap_core, posecap_engine"
+
+  required:
+    name: CI required
+    if: always()
+    needs: [quality, licensed-binaries, audit, dco, workflow-security, package]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Require every CI component
+        env:
+          QUALITY: ${{ needs.quality.result }}
+          LICENSED_BINARIES: ${{ needs.licensed-binaries.result }}
+          AUDIT: ${{ needs.audit.result }}
+          DCO: ${{ needs.dco.result }}
+          WORKFLOW_SECURITY: ${{ needs.workflow-security.result }}
+          PACKAGE: ${{ needs.package.result }}
+        run: |
+          test "$QUALITY" = "success"
+          test "$LICENSED_BINARIES" = "success"
+          test "$AUDIT" = "success"
+          test "$DCO" = "success" || test "$DCO" = "skipped"
+          test "$WORKFLOW_SECURITY" = "success"
+          test "$PACKAGE" = "success"
