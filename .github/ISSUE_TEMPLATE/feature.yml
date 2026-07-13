@@ -1,0 +1,44 @@
+name: Feature request
+description: Propose an outcome that improves the animator workflow
+title: "feature: "
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Describe the production outcome before proposing implementation. PoseCap prioritizes a working install and a clear animator workflow over additional configuration surface.
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Desired outcome
+      description: What should an animator be able to accomplish that is difficult or impossible today?
+    validations:
+      required: true
+  - type: textarea
+    id: workflow
+    attributes:
+      label: Current workflow and friction
+      description: Describe the current steps, who performs them, and where time or quality is lost.
+    validations:
+      required: true
+  - type: textarea
+    id: value
+    attributes:
+      label: Production value
+      description: Explain the measurable time, reliability, or creative value this would add.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Include workarounds or simpler outcomes that might solve the same problem.
+    validations:
+      required: true
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Scope check
+      options:
+        - label: This request does not require redistributing SMPL-X, FLAME, MANO, PEAR, or other restricted assets.
+          required: true

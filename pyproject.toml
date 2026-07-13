@@ -28,6 +28,8 @@ dev = [
   "import-linter>=2",
   "pre-commit>=4.6.0",
   "pytest-cov>=7.1.0",
+  "pip-audit==2.10.1",
+  "zizmor==1.26.1",
 ]
 
 [tool.ruff]
