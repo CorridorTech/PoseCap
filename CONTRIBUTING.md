@@ -17,7 +17,7 @@ Python itself is managed by uv — you do not need a system Python.
 ## Setup
 
 ```bash
-git clone https://github.com/alexandremendoncaalvaro/PoseCap.git
+git clone https://github.com/CorridorTech/PoseCap.git
 cd PoseCap
 uv sync
 uv run pre-commit install
@@ -37,7 +37,7 @@ uv run pyright --pythonplatform Linux       # Linux type surface
 uv run lint-imports                         # layer dependency rule
 ```
 
-The pre-commit hook runs the fast checks on every commit; the pre-push hook runs the full gate, including explicit Windows and Linux Pyright checks. CI runs everything again on Linux and Windows. None of these are skippable — `--no-verify` is not used in this project.
+The pre-commit hook runs fast source and asset checks on every commit. The pre-push hook also validates DCO sign-offs, documentation links, workflow security, architecture, tests, and explicit Windows/Linux type surfaces. CI repeats those controls and package smoke tests behind the stable `CI required` check. None are skippable — `--no-verify` is not used in this project.
 
 ## Know the map before you change it
 
@@ -67,9 +67,10 @@ This guide summarizes; the normative rules live in [AGENTS.md](AGENTS.md) and [G
 ## Branches, commits, pull requests
 
 - Branch from `main`: `feat/<topic>`, `fix/<topic>`, `chore/<topic>`. Never push to `main` directly.
-- Commits follow [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) and carry a DCO sign-off — use `git commit -s` (the `Signed-off-by:` trailer certifies you have the right to contribute the change).
+- PR titles follow [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) and become the final squash-commit title. Intermediate commit subjects may be plain language.
+- Every commit carries a matching DCO sign-off — use `git commit -s`. To repair a branch, rebase and sign each commit; do not add one catch-all sign-off commit.
 - One concern per commit. A feature and an unrelated fix are two commits.
-- PRs need green CI. Reference the task or spec the change implements (`Refs task-0003`).
+- PRs need green `CI required`, an independent approval, and all review threads resolved. Reference the task or spec the change implements (`Refs task-0003`).
 
 ## Licensing of contributions
 

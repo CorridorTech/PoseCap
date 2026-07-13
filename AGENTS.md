@@ -36,7 +36,8 @@ See [`GUIDELINES.md`](GUIDELINES.md) §8 for the full reference. Non-negotiable 
 
 * Hooks wired via pre-commit; new clones run `uv run pre-commit install` once.
 * Pre-commit runs ruff, format check, private-key detection, large-file cap, and licensed-binary blocking.
-* Pre-push runs pyright against explicit Windows and Linux platform stubs, pytest default tags, and import-linter.
+* Pre-push runs DCO, documentation-link, workflow-security, pyright against explicit Windows and Linux platform stubs, pytest default tags, and import-linter checks.
+* CI exposes one stable required check (`CI required`) after DCO, title, Linux/Windows quality, dependency, workflow-security, licensed-binary, and package smoke checks pass.
 * Never bypass: no `--no-verify`, no skipped hooks, no deleted failing tests.
 
 ## Code Style
@@ -66,7 +67,8 @@ Planned tree (POC paths in parentheses are reference only):
 
 See [`GUIDELINES.md`](GUIDELINES.md) §10 for the full reference. Non-negotiable subset:
 
-* Conventional Commits + DCO `Signed-off-by`, atomic concerns (use `/ad-commit`).
+* PR titles use Conventional Commits; every commit carries a matching DCO `Signed-off-by`; concerns stay atomic (use `/ad-commit`).
+* `main` accepts squash merges only, after independent approval, resolved review threads, and green required CI.
 * Never push to `main` directly once a remote exists.
 
 ## Security & Privacy
@@ -76,6 +78,7 @@ See [`GUIDELINES.md`](GUIDELINES.md) §12 for the full reference. Non-negotiable
 * Licensed model assets never committed — gitignored; history must stay publishable.
 * `C:\Dev\CorridorRig-Original` is read-only reference material — never modify it.
 * `torch.load(..., weights_only=False)` and pickle IPC are banned.
+* Report vulnerabilities privately through GitHub; secret scanning, push protection, Dependabot, CodeQL, and Scorecard are repository controls, not optional local conventions.
 
 ## Gotchas
 

@@ -1,0 +1,117 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: signed Windows release
+    if: github.repository == 'CorridorTech/PoseCap'
+    runs-on: [self-hosted, Windows, X64, posecap-release]
+    environment: release
+    timeout-minutes: 180
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - name: Checkout signed tag
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set up Python 3.11
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.11"
+      - name: Set up uv
+        uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
+        with:
+          enable-cache: false
+      - name: Verify signed tag belongs to main
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          $reference = gh api "repos/$env:GITHUB_REPOSITORY/git/ref/tags/$env:GITHUB_REF_NAME" | ConvertFrom-Json
+          if ($reference.object.type -ne "tag") { throw "Release tags must be signed annotated tags." }
+          $tag = gh api "repos/$env:GITHUB_REPOSITORY/git/tags/$($reference.object.sha)" | ConvertFrom-Json
+          if (-not $tag.verification.verified) { throw "GitHub could not verify the release tag signature." }
+          git fetch origin main
+          git merge-base --is-ancestor $env:GITHUB_SHA origin/main
+          if ($LASTEXITCODE -ne 0) { throw "Release tag does not point to a commit on main." }
+      - name: Run repository quality gates
+        shell: pwsh
+        run: |
+          uv sync --locked
+          uv run pre-commit run --all-files
+          uv run pre-commit run --hook-stage pre-push --all-files
+      - name: Prepare pinned PEAR runtime
+        shell: pwsh
+        run: |
+          $pearRoot = Join-Path $env:GITHUB_WORKSPACE ".agentic\PEAR"
+          $revision = uv run python -c "from posecap_engine.config import PEAR_REVISION; print(PEAR_REVISION)"
+          git clone https://github.com/Pixel-Talk/PEAR.git $pearRoot
+          git -C $pearRoot checkout $revision
+          & tools\install\setup_pear_runtime.ps1 -PearRoot $pearRoot -VenvPath .venv-pear
+          if ($LASTEXITCODE -ne 0) { throw "PEAR runtime preparation failed." }
+      - name: Build installer and extension
+        shell: pwsh
+        run: |
+          if ($env:GITHUB_REF_NAME -notmatch '-win\.(\d+)$') { throw "Tag must end in -win.<build number>." }
+          $buildNumber = [int]$Matches[1]
+          & packaging\build_installer.ps1 -BuildNumber $buildNumber
+          if ($LASTEXITCODE -ne 0) { throw "Installer build failed." }
+          uv run python tools/build_extension.py --output-dir packaging/dist --staging-dir packaging/work/release-extension --release
+      - name: Sign and verify Windows installer
+        shell: pwsh
+        env:
+          CERTIFICATE_THUMBPRINT: ${{ vars.WINDOWS_SIGNING_CERTIFICATE_THUMBPRINT }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:CERTIFICATE_THUMBPRINT)) { throw "Release environment is missing WINDOWS_SIGNING_CERTIFICATE_THUMBPRINT." }
+          $certificate = Get-Item -LiteralPath "Cert:\CurrentUser\My\$env:CERTIFICATE_THUMBPRINT"
+          $setup = @(Get-ChildItem packaging\dist\*_Windows_Setup.exe)
+          if ($setup.Count -ne 1) { throw "Expected exactly one Windows installer." }
+          $signature = Set-AuthenticodeSignature -FilePath $setup[0].FullName -Certificate $certificate -TimestampServer "http://timestamp.digicert.com" -HashAlgorithm SHA256
+          if ($signature.Status -ne "Valid") { throw "Authenticode signing failed: $($signature.StatusMessage)" }
+          $verified = Get-AuthenticodeSignature -FilePath $setup[0].FullName
+          if ($verified.Status -ne "Valid") { throw "Authenticode verification failed: $($verified.StatusMessage)" }
+      - name: Write SHA-256 checksums
+        shell: pwsh
+        run: |
+          Get-ChildItem packaging\dist\*.exe, packaging\dist\*.zip | ForEach-Object {
+            $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $_.FullName).Hash.ToLowerInvariant()
+            "$hash *$($_.Name)" | Set-Content -Encoding ascii -LiteralPath "$($_.FullName).sha256"
+          }
+      - name: Attest release artifacts
+        uses: actions/attest@a1948c3f048ba23858d222213b7c278aabede763 # v4.1.1
+        with:
+          subject-path: |
+            packaging/dist/*.exe
+            packaging/dist/*.zip
+            packaging/dist/*.sha256
+      - name: Preserve release artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: posecap-${{ github.ref_name }}
+          path: |
+            packaging/dist/*.exe
+            packaging/dist/*.zip
+            packaging/dist/*.sha256
+          if-no-files-found: error
+          retention-days: 30
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          $assets = @(Get-ChildItem packaging\dist\*.exe, packaging\dist\*.zip, packaging\dist\*.sha256 | ForEach-Object FullName)
+          gh release create $env:GITHUB_REF_NAME @assets --verify-tag --generate-notes --title $env:GITHUB_REF_NAME

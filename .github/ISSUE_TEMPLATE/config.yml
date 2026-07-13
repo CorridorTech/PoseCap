@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/CorridorTech/PoseCap/security/advisories/new
+    about: Report vulnerabilities privately to the maintainers.
+  - name: Installation and usage support
+    url: https://github.com/CorridorTech/PoseCap/blob/main/SUPPORT.md
+    about: Follow the support path before opening a bug report.
