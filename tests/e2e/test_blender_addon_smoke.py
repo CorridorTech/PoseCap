@@ -48,7 +48,7 @@ def test_blender_background_register_unregister_and_simulated_frame_apply(
     )
 
     assert completed.returncode == 0, completed.stdout + completed.stderr
-    assert "posecap blender smoke ok" in completed.stdout
+    assert "posecap blender conversion smoke ok" in completed.stdout
 
 
 def _blender_executable() -> Path | None:
@@ -85,6 +85,7 @@ _BLENDER_SMOKE_SCRIPT = textwrap.dedent(
         sys.path.insert(0, str(wheel_path))
 
     import bpy
+    from mathutils import Vector
     from posecap_contracts import (
         NUM_BETAS,
         NUM_BODY_JOINTS,
@@ -94,6 +95,7 @@ _BLENDER_SMOKE_SCRIPT = textwrap.dedent(
         PoseFrame,
         PosePayload,
     )
+    from posecap_core import mixamo_preset
 
     extension_spec = importlib.util.spec_from_file_location(
         "posecap_extension_smoke",
@@ -131,6 +133,45 @@ _BLENDER_SMOKE_SCRIPT = textwrap.dedent(
             transl=[0.0, 0.0, 0.0],
         )
 
+    def synthetic_mixamo_armature():
+        preset = mixamo_preset("mixamorig:")
+        armature_data = bpy.data.armatures.new("SyntheticMixamo")
+        armature = bpy.data.objects.new("SyntheticMixamo", armature_data)
+        bpy.context.collection.objects.link(armature)
+        bpy.context.view_layer.objects.active = armature
+        armature.select_set(True)
+        bpy.ops.object.mode_set(mode="EDIT")
+        positions = {
+            "mixamorig:LeftArm": (0.0, 0.0, 0.0),
+            "mixamorig:LeftForeArm": (10.0, 0.0, 0.0),
+            "mixamorig:LeftHand": (20.0, 0.0, 0.0),
+            "mixamorig:RightArm": (0.0, -2.0, 0.0),
+            "mixamorig:RightForeArm": (-10.0, -2.0, 0.0),
+            "mixamorig:RightHand": (-20.0, -2.0, 0.0),
+        }
+        bones = {}
+        for index, name in enumerate(sorted(preset.mapping.values())):
+            bone = armature_data.edit_bones.new(name)
+            bone.head = Vector(positions.get(name, (float(index), 4.0, 0.0)))
+            bone.tail = bone.head + Vector((0.0, 0.0, 1.0))
+            bones[name] = bone
+        for child, parent in (
+            ("mixamorig:LeftForeArm", "mixamorig:LeftArm"),
+            ("mixamorig:LeftHand", "mixamorig:LeftForeArm"),
+            ("mixamorig:RightForeArm", "mixamorig:RightArm"),
+            ("mixamorig:RightHand", "mixamorig:RightForeArm"),
+        ):
+            bones[child].parent = bones[parent]
+        bpy.ops.object.mode_set(mode="OBJECT")
+
+        mesh_data = bpy.data.meshes.new("SyntheticMixamoMesh")
+        mesh_data.from_pydata([(0.0, 0.0, 0.0)], [], [])
+        mesh = bpy.data.objects.new("SyntheticMixamoMesh", mesh_data)
+        bpy.context.collection.objects.link(mesh)
+        modifier = mesh.modifiers.new("Armature", "ARMATURE")
+        modifier.object = armature
+        return armature
+
     posecap_extension.register()
     posecap_extension.unregister()
     posecap_extension.unregister()
@@ -157,10 +198,31 @@ _BLENDER_SMOKE_SCRIPT = textwrap.dedent(
         assert pose_bone.rotation_mode == "QUATERNION"
         timer.stop()
         assert stream.closed
+
+        synthetic = synthetic_mixamo_armature()
+        bpy.context.view_layer.objects.active = synthetic
+        settings = bpy.context.scene.posecap
+        settings.target_armature = synthetic
+        settings.character_preset = "AUTO"
+        assert bpy.ops.posecap.convert_character() == {"FINISHED"}
+        converted_elbow = synthetic.pose.bones["left_elbow"]
+        converted_elbow.rotation_mode = "XYZ"
+        converted_stream = SingleFrameStream(
+            PoseFrame(SCHEMA_VERSION, 2, 101.0, "ok", payload())
+        )
+        converted_timer = posecap_extension.PoseApplyTimer(
+            converted_stream,
+            posecap_extension.BpyArmaturePoseWriter(synthetic),
+            interval_seconds=0.25,
+        )
+        assert converted_timer.tick() == 0.25
+        assert converted_elbow.rotation_mode == "QUATERNION"
+        converted_timer.stop()
+        assert converted_stream.closed
     finally:
         posecap_extension.unregister()
         posecap_extension.unregister()
 
-    print("posecap blender smoke ok")
+    print("posecap blender conversion smoke ok")
     """
 ).strip()
