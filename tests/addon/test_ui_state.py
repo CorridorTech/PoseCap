@@ -373,7 +373,7 @@ def test_main_panel_shows_version_and_support_tools_on_demand(monkeypatch) -> No
 
     posecap_addon.panels._draw_main_panel(layout, context)
 
-    assert any(label.startswith("PoseCap 1.0.1") for label in layout._labels)
+    assert any(label.startswith("PoseCap 1.0.2") for label in layout._labels)
     assert layout.has_operator("posecap.open_logs")
     assert layout.has_operator("posecap.create_support_bundle")
     assert layout.has_property("pear_root")
