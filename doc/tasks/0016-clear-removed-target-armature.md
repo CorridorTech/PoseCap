@@ -1,6 +1,6 @@
 # Task 0016: Clear removed target armatures
 
-**Status:** in-progress
+**Status:** done
 **Created:** 2026-07-13
 **Owner:** alexandremendoncaalvaro
 **Execution:** AFK
@@ -17,17 +17,17 @@ later sections consistently return the user to the setup state.
 
 Verifiable conditions. Each as a checkbox so progress is point-editable.
 
-- [ ] A removed target armature is cleared during the next main-panel redraw.
-- [ ] No character or keyframe controls are drawn for the stale target.
-- [ ] The regression is covered through the panel drawing flow.
+- [x] A removed target armature is cleared during the next main-panel redraw.
+- [x] No character or keyframe controls are drawn for the stale target.
+- [x] The regression is covered through the panel drawing flow.
 
 ## Plan
 
 Concrete sequential steps. Each as a checkbox. Reference file paths where applicable.
 
-- [ ] Clear the invalid target at the panel boundary in `addon/posecap_addon/panels.py`.
-- [ ] Add a removed-StructRNA main-panel test in `tests/addon/test_ui_state.py`.
-- [ ] Run the addon tests and full quality gate; record the outcome in Notes.
+- [x] Clear the invalid target at the panel boundary in `addon/posecap_addon/panels.py`.
+- [x] Add a removed-StructRNA main-panel test in `tests/addon/test_ui_state.py`.
+- [x] Run the addon tests and full quality gate; record the outcome in Notes.
 
 ## Notes
 
@@ -47,11 +47,17 @@ survived the redraw and the Keyframe Manager was still rendered. The panel now
 clears that pointer before continuing its normal auto-selection flow; the new
 behavior test and the full quality gate pass.
 
+
+The focused regression test passed, the panel suite passed 52 tests, and the
+full quality gate passed 389 tests. The ad-review pass reported zero findings.
+
 ## Definition of Done
 
 All Acceptance Criteria checked, plus:
 
-- [ ] Local tests pass (or N/A documented in Notes)
-- [ ] Code review completed (human or fresh-context reviewer per WORKFLOW Â§10)
-- [ ] No orphan `TODO`/`FIXME` introduced
-- [ ] Status updated to `done` and Notes log closes the task
+- [x] Local tests pass (or N/A documented in Notes)
+- [x] Code review completed (ad-review reported zero findings)
+- [x] No orphan `TODO`/`FIXME` introduced
+- [x] Status updated to `done` and Notes log closes the task
+
+
