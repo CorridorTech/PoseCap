@@ -48,7 +48,7 @@ def test_blender_background_register_unregister_and_simulated_frame_apply(
     )
 
     assert completed.returncode == 0, completed.stdout + completed.stderr
-    assert "posecap blender smoke ok" in completed.stdout
+    assert "posecap blender conversion smoke ok" in completed.stdout
 
 
 def _blender_executable() -> Path | None:
@@ -76,8 +76,13 @@ _BLENDER_SMOKE_SCRIPT = textwrap.dedent(
     from __future__ import annotations
 
     import importlib.util
+    import math
+    import socket
     import sys
+    import threading
+    import time
     from pathlib import Path
+    from types import SimpleNamespace
 
     extension_root = Path(sys.argv[sys.argv.index("--") + 1])
     sys.path.insert(0, str(extension_root))
@@ -85,6 +90,7 @@ _BLENDER_SMOKE_SCRIPT = textwrap.dedent(
         sys.path.insert(0, str(wheel_path))
 
     import bpy
+    from mathutils import Vector
     from posecap_contracts import (
         NUM_BETAS,
         NUM_BODY_JOINTS,
@@ -93,7 +99,9 @@ _BLENDER_SMOKE_SCRIPT = textwrap.dedent(
         SCHEMA_VERSION,
         PoseFrame,
         PosePayload,
+        encode_pose_frame,
     )
+    from posecap_core import BODY_JOINT_NAMES, mixamo_preset
 
     extension_spec = importlib.util.spec_from_file_location(
         "posecap_extension_smoke",
@@ -119,10 +127,21 @@ _BLENDER_SMOKE_SCRIPT = textwrap.dedent(
         def close(self) -> None:
             self.closed = True
 
-    def payload() -> PosePayload:
+    class LoopbackEngine:
+        def __init__(self, host: str, port: int) -> None:
+            self.endpoint = SimpleNamespace(host=host, port=port)
+            self.running = True
+
+        def stop(self, *, timeout_seconds: float) -> None:
+            del timeout_seconds
+            self.running = False
+
+    def payload(*, left_elbow_angle: float = 0.0) -> PosePayload:
+        body_pose = [[0.0, 0.0, 0.0] for _ in range(NUM_BODY_JOINTS)]
+        body_pose[BODY_JOINT_NAMES.index("left_elbow")] = [0.0, 0.0, left_elbow_angle]
         return PosePayload(
             global_orient=[0.0, 0.0, 0.0],
-            body_pose=[[0.0, 0.0, 0.0] for _ in range(NUM_BODY_JOINTS)],
+            body_pose=body_pose,
             left_hand_pose=[[0.0, 0.0, 0.0] for _ in range(NUM_HAND_JOINTS)],
             right_hand_pose=[[0.0, 0.0, 0.0] for _ in range(NUM_HAND_JOINTS)],
             jaw_pose=[0.0, 0.0, 0.0],
@@ -130,6 +149,45 @@ _BLENDER_SMOKE_SCRIPT = textwrap.dedent(
             expression=[0.0 for _ in range(NUM_EXPRESSION)],
             transl=[0.0, 0.0, 0.0],
         )
+
+    def synthetic_mixamo_armature():
+        preset = mixamo_preset("mixamorig:")
+        armature_data = bpy.data.armatures.new("SyntheticMixamo")
+        armature = bpy.data.objects.new("SyntheticMixamo", armature_data)
+        bpy.context.collection.objects.link(armature)
+        bpy.context.view_layer.objects.active = armature
+        armature.select_set(True)
+        bpy.ops.object.mode_set(mode="EDIT")
+        positions = {
+            "mixamorig:LeftArm": (0.0, 0.0, 0.0),
+            "mixamorig:LeftForeArm": (10.0, 0.0, 0.0),
+            "mixamorig:LeftHand": (20.0, 0.0, 0.0),
+            "mixamorig:RightArm": (0.0, -2.0, 0.0),
+            "mixamorig:RightForeArm": (-10.0, -2.0, 0.0),
+            "mixamorig:RightHand": (-20.0, -2.0, 0.0),
+        }
+        bones = {}
+        for index, name in enumerate(sorted(preset.mapping.values())):
+            bone = armature_data.edit_bones.new(name)
+            bone.head = Vector(positions.get(name, (float(index), 4.0, 0.0)))
+            bone.tail = bone.head + Vector((0.0, 0.0, 1.0))
+            bones[name] = bone
+        for child, parent in (
+            ("mixamorig:LeftForeArm", "mixamorig:LeftArm"),
+            ("mixamorig:LeftHand", "mixamorig:LeftForeArm"),
+            ("mixamorig:RightForeArm", "mixamorig:RightArm"),
+            ("mixamorig:RightHand", "mixamorig:RightForeArm"),
+        ):
+            bones[child].parent = bones[parent]
+        bpy.ops.object.mode_set(mode="OBJECT")
+
+        mesh_data = bpy.data.meshes.new("SyntheticMixamoMesh")
+        mesh_data.from_pydata([(0.0, 0.0, 0.0)], [], [])
+        mesh = bpy.data.objects.new("SyntheticMixamoMesh", mesh_data)
+        bpy.context.collection.objects.link(mesh)
+        modifier = mesh.modifiers.new("Armature", "ARMATURE")
+        modifier.object = armature
+        return armature
 
     posecap_extension.register()
     posecap_extension.unregister()
@@ -157,10 +215,57 @@ _BLENDER_SMOKE_SCRIPT = textwrap.dedent(
         assert pose_bone.rotation_mode == "QUATERNION"
         timer.stop()
         assert stream.closed
+
+        synthetic = synthetic_mixamo_armature()
+        bpy.context.view_layer.objects.active = synthetic
+        settings = bpy.context.scene.posecap
+        settings.target_armature = synthetic
+        settings.character_preset = "AUTO"
+        assert bpy.ops.posecap.convert_character() == {"FINISHED"}
+        converted_elbow = synthetic.pose.bones["left_elbow"]
+        converted_elbow.rotation_mode = "XYZ"
+        listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        listener.bind(("127.0.0.1", 0))
+        listener.listen(1)
+        host, port = listener.getsockname()
+        frame = PoseFrame(
+            SCHEMA_VERSION,
+            2,
+            101.0,
+            "ok",
+            payload(left_elbow_angle=0.5),
+        )
+
+        def serve_one_frame() -> None:
+            with listener:
+                connection, _address = listener.accept()
+                with connection:
+                    connection.sendall((encode_pose_frame(frame) + "\\n").encode("utf-8"))
+
+        threading.Thread(target=serve_one_frame, daemon=True).start()
+        panels = sys.modules["posecap_extension_smoke.posecap_addon.panels"]
+        panels.start_engine_stream = lambda _command: LoopbackEngine(host, port)
+        settings.pear_root = "synthetic-pear-root"
+        assert bpy.ops.posecap.start_stream() == {"FINISHED"}
+        session = panels._ACTIVE_SESSION
+        assert session is not None
+        deadline = time.monotonic() + 5.0
+        while time.monotonic() < deadline:
+            session.timer_callback()
+            if abs(converted_elbow.rotation_quaternion.z - math.sin(0.25)) < 1e-6:
+                break
+            time.sleep(0.01)
+        assert converted_elbow.rotation_mode == "QUATERNION"
+        assert abs(converted_elbow.rotation_quaternion.w - math.cos(0.25)) < 1e-6
+        assert abs(converted_elbow.rotation_quaternion.z - math.sin(0.25)) < 1e-6
+        assert settings.lifecycle_state == "STREAMING"
+        assert bpy.ops.posecap.stop_stream() == {"FINISHED"}
+        assert settings.lifecycle_state == "STOPPED"
     finally:
         posecap_extension.unregister()
         posecap_extension.unregister()
 
-    print("posecap blender smoke ok")
+    print("posecap blender conversion smoke ok")
     """
 ).strip()

@@ -35,6 +35,10 @@ _FIXTURES = [
     ("stretch_slow_static_1280x720_25fps.mp4", 250),
     ("handstand_inversion_1280x720_25fps.mp4", 156),
     ("dance_fast_indoor_1280x720_30fps.mp4", 300),
+    ("ale_t_pose_1280x720_30fps.mp4", 240),
+    ("ale_upper_body_dynamic_1280x720_30fps.mp4", 240),
+    ("ale_full_body_dance_1280x720_30fps.mp4", 240),
+    ("ale_spin_1280x720_30fps.mp4", 240),
 ]
 
 
