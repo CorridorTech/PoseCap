@@ -18,6 +18,44 @@ def test_blender_background_register_unregister_and_simulated_frame_apply(
     if blender is None:
         pytest.skip("set POSECAP_BLENDER or put blender on PATH to run e2e smoke")
 
+    completed = _run_blender_script(
+        blender,
+        tmp_path,
+        script_source=_BLENDER_SMOKE_SCRIPT,
+        script_name="posecap_blender_smoke.py",
+    )
+
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    assert "posecap blender conversion smoke ok" in completed.stdout
+
+
+def test_blender_panel_survives_out_of_order_and_repeated_user_workflows(
+    tmp_path: Path,
+) -> None:
+    blender = _blender_executable()
+    if blender is None:
+        pytest.skip("set POSECAP_BLENDER or put blender on PATH to run e2e smoke")
+
+    completed = _run_blender_script(
+        blender,
+        tmp_path,
+        script_source=_BLENDER_PANEL_STRESS_SCRIPT,
+        script_name="posecap_blender_panel_stress.py",
+    )
+
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    assert "posecap panel workflow stress ok" in completed.stdout
+    if os.environ.get("POSECAP_E2E_FBX"):
+        assert "posecap real fbx workflow ok" in completed.stdout
+
+
+def _run_blender_script(
+    blender: Path,
+    tmp_path: Path,
+    *,
+    script_source: str,
+    script_name: str,
+) -> subprocess.CompletedProcess[str]:
     build_extension = _load_build_extension_module()
     zip_path = build_extension.build_extension(
         repo_root=Path(__file__).parents[2],
@@ -28,10 +66,10 @@ def test_blender_background_register_unregister_and_simulated_frame_apply(
     with zipfile.ZipFile(zip_path) as archive:
         archive.extractall(extension_root)
 
-    smoke_script = tmp_path / "posecap_blender_smoke.py"
-    smoke_script.write_text(_BLENDER_SMOKE_SCRIPT, encoding="utf-8")
+    smoke_script = tmp_path / script_name
+    smoke_script.write_text(script_source, encoding="utf-8")
 
-    completed = subprocess.run(
+    return subprocess.run(
         [
             str(blender),
             "--background",
@@ -46,9 +84,6 @@ def test_blender_background_register_unregister_and_simulated_frame_apply(
         text=True,
         timeout=120,
     )
-
-    assert completed.returncode == 0, completed.stdout + completed.stderr
-    assert "posecap blender conversion smoke ok" in completed.stdout
 
 
 def _blender_executable() -> Path | None:
@@ -352,6 +387,7 @@ _BLENDER_SMOKE_SCRIPT = textwrap.dedent(
         settings.target_armature = synthetic
         settings.character_preset = "AUTO"
         assert bpy.ops.posecap.convert_character() == {"FINISHED"}
+        assert not bpy.ops.posecap.start_stream.poll()
         converted_elbow = synthetic.pose.bones["left_elbow"]
         converted_elbow.rotation_mode = "XYZ"
         listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -375,7 +411,9 @@ _BLENDER_SMOKE_SCRIPT = textwrap.dedent(
 
         threading.Thread(target=serve_one_frame, daemon=True).start()
         panels.start_engine_stream = lambda _command: LoopbackEngine(host, port)
+        panels.models_missing = lambda _root: False
         settings.pear_root = "synthetic-pear-root"
+        assert bpy.ops.posecap.start_stream.poll()
         assert bpy.ops.posecap.start_stream() == {"FINISHED"}
         session = panels._ACTIVE_SESSION
         assert session is not None
@@ -397,5 +435,212 @@ _BLENDER_SMOKE_SCRIPT = textwrap.dedent(
         assert scene_update_handler not in bpy.app.handlers.depsgraph_update_post
 
     print("posecap blender conversion smoke ok")
+    """
+).strip()
+
+
+_BLENDER_PANEL_STRESS_SCRIPT = textwrap.dedent(
+    """
+    from __future__ import annotations
+
+    import importlib.util
+    import os
+    import sys
+    from pathlib import Path
+    from types import SimpleNamespace
+
+    extension_root = Path(sys.argv[sys.argv.index("--") + 1])
+    sys.path.insert(0, str(extension_root))
+    for wheel_path in sorted((extension_root / "wheels").glob("*.whl")):
+        sys.path.insert(0, str(wheel_path))
+
+    import bpy
+
+    extension_spec = importlib.util.spec_from_file_location(
+        "posecap_extension_stress",
+        extension_root / "__init__.py",
+        submodule_search_locations=[str(extension_root)],
+    )
+    if extension_spec is None or extension_spec.loader is None:
+        raise RuntimeError("could not load PoseCap extension entry point")
+    posecap_extension = importlib.util.module_from_spec(extension_spec)
+    sys.modules[extension_spec.name] = posecap_extension
+    extension_spec.loader.exec_module(posecap_extension)
+
+    class RecordingLayout:
+        def __init__(self, labels=None, operators=None) -> None:
+            self.enabled = True
+            self.alert = False
+            self.labels = [] if labels is None else labels
+            self.operators = [] if operators is None else operators
+
+        def row(self, **_kwargs):
+            return RecordingLayout(self.labels, self.operators)
+
+        def column(self, **_kwargs):
+            return RecordingLayout(self.labels, self.operators)
+
+        def box(self):
+            return RecordingLayout(self.labels, self.operators)
+
+        def label(self, *, text: str, **_kwargs) -> None:
+            self.labels.append(text)
+
+        def prop(self, *_args, **_kwargs) -> None:
+            return None
+
+        def operator(self, operator_id: str, **_kwargs):
+            self.operators.append(operator_id)
+            return SimpleNamespace()
+
+        def template_list(self, *_args, **_kwargs) -> None:
+            return None
+
+        def separator(self) -> None:
+            return None
+
+    def panel_class():
+        return next(
+            cls
+            for cls in reversed(bpy.types.Panel.__subclasses__())
+            if cls.__name__ == "POSECAP_PT_LiveStream"
+            and cls.__module__.startswith("posecap_extension_stress")
+        )
+
+    def draw_panel(stage: str) -> None:
+        layout = RecordingLayout()
+        panel_class().draw(SimpleNamespace(layout=layout), bpy.context)
+        assert any(label.startswith("PoseCap ") for label in layout.labels), stage
+        assert "PoseCap could not refresh this panel." not in layout.labels, stage
+        assert {"posecap.start_stream", "posecap.stop_stream"}.issubset(
+            layout.operators
+        ), stage
+        assert "Character Setup" in layout.labels, stage
+        if "Character ready for capture" not in layout.labels:
+            assert "posecap.convert_character" in layout.operators, stage
+
+    def create_armature(name: str):
+        bpy.ops.object.select_all(action="DESELECT")
+        armature_data = bpy.data.armatures.new(name)
+        armature = bpy.data.objects.new(name, armature_data)
+        bpy.context.collection.objects.link(armature)
+        bpy.context.view_layer.objects.active = armature
+        armature.select_set(True)
+        bpy.ops.object.mode_set(mode="EDIT")
+        bone = armature_data.edit_bones.new("pelvis")
+        bone.head = (0.0, 0.0, 0.0)
+        bone.tail = (0.0, 0.0, 1.0)
+        bpy.ops.object.mode_set(mode="OBJECT")
+        return armature
+
+    def delete_armatures() -> None:
+        for obj in tuple(bpy.context.scene.objects):
+            if obj.type == "ARMATURE":
+                bpy.data.objects.remove(obj, do_unlink=True)
+        bpy.context.view_layer.update()
+
+    def import_armature(fbx_path: Path):
+        before = set(bpy.data.objects)
+        assert bpy.ops.import_scene.fbx(filepath=str(fbx_path)) == {"FINISHED"}
+        bpy.context.view_layer.update()
+        imported = [obj for obj in bpy.data.objects if obj not in before and obj.type == "ARMATURE"]
+        assert len(imported) == 1
+        return imported[0]
+
+    def posecap_handlers():
+        return [
+            handler
+            for handler in bpy.app.handlers.depsgraph_update_post
+            if getattr(handler, "__module__", "").startswith("posecap_extension_stress")
+        ]
+
+    seed = create_armature("PoseCapStressSeed")
+    fbx_path = extension_root.parent / "posecap-panel-stress.fbx"
+    assert bpy.ops.export_scene.fbx(
+        filepath=str(fbx_path),
+        use_selection=True,
+        add_leaf_bones=False,
+    ) == {"FINISHED"}
+    bpy.data.objects.remove(seed, do_unlink=True)
+    bpy.context.view_layer.update()
+
+    posecap_extension.register()
+    try:
+        assert len(posecap_handlers()) == 1
+
+        draw_panel("empty scene before import")
+        assert not bpy.ops.posecap.start_stream.poll()
+        try:
+            bpy.ops.posecap.convert_character()
+        except RuntimeError as exc:
+            assert "Pick a target armature first" in str(exc)
+        else:
+            raise AssertionError("out-of-order conversion should be rejected")
+
+        imported_before_draw = import_armature(fbx_path)
+        assert bpy.context.scene.posecap.target_armature == imported_before_draw
+        assert not bpy.ops.posecap.start_stream.poll()
+        draw_panel("import before opening panel")
+
+        delete_armatures()
+        assert bpy.context.scene.posecap.target_armature is None
+        draw_panel("delete imported target")
+
+        draw_panel("open panel before import")
+        imported_after_draw = import_armature(fbx_path)
+        assert bpy.context.scene.posecap.target_armature == imported_after_draw
+        draw_panel("import after opening panel")
+
+        second_armature = import_armature(fbx_path)
+        bpy.context.scene.posecap.target_armature = imported_after_draw
+        bpy.context.view_layer.objects.active = second_armature
+        bpy.context.view_layer.update()
+        assert bpy.context.scene.posecap.target_armature == imported_after_draw
+        draw_panel("manual choice survives another import")
+
+        delete_armatures()
+        for cycle in range(30):
+            armature = create_armature(f"PoseCapStress{cycle:02d}")
+            bpy.context.view_layer.update()
+            assert bpy.context.scene.posecap.target_armature == armature, cycle
+            draw_panel(f"stress import cycle {cycle}")
+            bpy.data.objects.remove(armature, do_unlink=True)
+            bpy.context.view_layer.update()
+            assert bpy.context.scene.posecap.target_armature is None, cycle
+            draw_panel(f"stress delete cycle {cycle}")
+
+        assert len(posecap_handlers()) == 1
+        bpy.ops.wm.read_factory_settings(use_empty=True)
+        assert len(posecap_handlers()) == 1
+        imported_after_file_load = import_armature(fbx_path)
+        assert bpy.context.scene.posecap.target_armature == imported_after_file_load
+        draw_panel("new file then import")
+        delete_armatures()
+
+        real_fbx_value = os.environ.get("POSECAP_E2E_FBX", "").strip()
+        if real_fbx_value:
+            real_fbx = Path(real_fbx_value)
+            assert real_fbx.is_file()
+            imported_real = import_armature(real_fbx)
+            assert bpy.context.scene.posecap.target_armature == imported_real
+            draw_panel("real FBX import")
+            assert bpy.ops.posecap.convert_character() == {"FINISHED"}
+            draw_panel("real FBX conversion")
+            delete_armatures()
+            print("posecap real fbx workflow ok")
+
+        for cycle in range(5):
+            posecap_extension.unregister()
+            posecap_extension.unregister()
+            assert posecap_handlers() == [], cycle
+            posecap_extension.register()
+            assert len(posecap_handlers()) == 1, cycle
+            draw_panel(f"addon reload cycle {cycle}")
+    finally:
+        posecap_extension.unregister()
+        posecap_extension.unregister()
+
+    assert posecap_handlers() == []
+    print("posecap panel workflow stress ok")
     """
 ).strip()

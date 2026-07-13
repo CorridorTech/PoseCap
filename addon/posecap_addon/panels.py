@@ -513,7 +513,11 @@ def _build_blender_classes(bpy_module: Any) -> tuple[type[Any], ...]:
 
         @classmethod
         def poll(cls, context: Any) -> bool:
-            return _settings_from_context(context).lifecycle_state == "STOPPED"
+            settings = _settings_from_context(context)
+            return (
+                settings.lifecycle_state == "STOPPED"
+                and _capture_setup_issue(context, settings) is None
+            )
 
         def execute(self, context: Any) -> set[str]:
             return _start_live_stream(context, bpy_module)
@@ -930,6 +934,11 @@ def _is_armature_object(_settings: Any, candidate: Any) -> bool:
 def _start_live_stream(context: Any, bpy_module: Any) -> set[str]:
     global _ACTIVE_SESSION
     settings = _settings_from_context(context)
+    setup_issue = _capture_setup_issue(context, settings)
+    if setup_issue is not None:
+        settings.lifecycle_state = "STOPPED"
+        settings.status_message = setup_issue
+        return {"CANCELLED"}
     _stop_active_session(bpy_module)
     # A fresh stream never inherits recording state: a session that ended
     # abnormally (engine crash, apply error) would otherwise leave the flag set
@@ -991,6 +1000,14 @@ def _start_live_stream(context: Any, bpy_module: Any) -> set[str]:
         settings.status_message = _friendly_start_error(exc)
         return {"CANCELLED"}
     return {"FINISHED"}
+
+
+def _capture_setup_issue(context: Any, settings: Any) -> str | None:
+    if not _character_ready(settings):
+        return "Import and convert a character before starting capture."
+    if models_missing(_panel_pear_root(context)):
+        return "Set up the PoseCap body models before starting capture."
+    return None
 
 
 def _stop_live_stream(context: Any, bpy_module: Any) -> set[str]:

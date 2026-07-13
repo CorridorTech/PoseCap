@@ -185,6 +185,7 @@ def test_start_stream_passes_engine_settings_from_the_advanced_section(monkeypat
     settings.detector_model = "yolov8x"
     settings.capture_width = 1920
     settings.capture_height = 1080
+    _mark_capture_ready(settings, monkeypatch)
     context = _FakeContext(settings)
     engine = _FakeEngine()
     commands: list[tuple[str, ...]] = []
@@ -215,6 +216,81 @@ def test_start_stream_passes_engine_settings_from_the_advanced_section(monkeypat
         unregister_blender_ui(bpy)
 
 
+def test_start_stream_rejects_an_out_of_order_start_before_character_setup(monkeypatch) -> None:
+    bpy = _FakeBpy()
+    register_blender_ui(bpy)
+    settings = _Settings(lifecycle_state="STOPPED")
+    settings.pear_root = "C:/PEAR"
+    context = _FakeContext(settings)
+    engine_starts: list[tuple[str, ...]] = []
+    monkeypatch.setattr(
+        posecap_addon.panels,
+        "start_engine_stream",
+        lambda command: engine_starts.append(tuple(command)) or _FakeEngine(),
+        raising=False,
+    )
+
+    try:
+        start_cls = bpy.utils.registered_class("POSECAP_OT_StartStream")
+
+        assert start_cls().execute(context) == {"CANCELLED"}
+        assert engine_starts == []
+        assert settings.lifecycle_state == "STOPPED"
+        assert settings.status_message == (
+            "Import and convert a character before starting capture."
+        )
+    finally:
+        unregister_blender_ui(bpy)
+
+
+def test_start_stream_poll_only_unlocks_after_character_setup(monkeypatch) -> None:
+    bpy = _FakeBpy()
+    register_blender_ui(bpy)
+    settings = _Settings(lifecycle_state="STOPPED")
+    context = _FakeContext(settings)
+
+    try:
+        start_cls = bpy.utils.registered_class("POSECAP_OT_StartStream")
+
+        assert not start_cls.poll(context)
+
+        _mark_capture_ready(settings, monkeypatch)
+
+        assert start_cls.poll(context)
+    finally:
+        unregister_blender_ui(bpy)
+
+
+def test_start_stream_rejects_an_out_of_order_start_before_model_setup(monkeypatch) -> None:
+    bpy = _FakeBpy()
+    register_blender_ui(bpy)
+    settings = _Settings(lifecycle_state="STOPPED")
+    settings.pear_root = "C:/PEAR"
+    _mark_capture_ready(settings, monkeypatch)
+    context = _FakeContext(settings)
+    engine_starts: list[tuple[str, ...]] = []
+    monkeypatch.setattr(posecap_addon.panels, "models_missing", lambda _root: True)
+    monkeypatch.setattr(
+        posecap_addon.panels,
+        "start_engine_stream",
+        lambda command: engine_starts.append(tuple(command)) or _FakeEngine(),
+        raising=False,
+    )
+
+    try:
+        start_cls = bpy.utils.registered_class("POSECAP_OT_StartStream")
+
+        assert not start_cls.poll(context)
+        assert start_cls().execute(context) == {"CANCELLED"}
+        assert engine_starts == []
+        assert settings.lifecycle_state == "STOPPED"
+        assert settings.status_message == (
+            "Set up the PoseCap body models before starting capture."
+        )
+    finally:
+        unregister_blender_ui(bpy)
+
+
 def test_start_stream_builds_the_limb_filter_from_the_apply_checkboxes(monkeypatch) -> None:
     from posecap_core import LimbFilter
 
@@ -232,6 +308,7 @@ def test_start_stream_builds_the_limb_filter_from_the_apply_checkboxes(monkeypat
             self._stream.close()
 
     def run_start(settings: _Settings) -> None:
+        _mark_capture_ready(settings, monkeypatch)
         bpy = _FakeBpy()
         register_blender_ui(bpy)
         context = _FakeContext(settings)
@@ -622,6 +699,7 @@ def test_start_and_stop_operators_own_stream_runtime(monkeypatch) -> None:
     register_blender_ui(bpy)
     settings = _Settings(lifecycle_state="STOPPED")
     settings.pear_root = "C:/PEAR"
+    _mark_capture_ready(settings, monkeypatch)
     settings.camera_index = 4
     # A stale flag left by a previous session that ended abnormally must not
     # carry into the new stream and silently record (spec R6 / the POC defect).
@@ -710,6 +788,7 @@ def test_start_stream_turns_log_setup_failure_into_a_visible_status(monkeypatch)
     register_blender_ui(bpy)
     settings = _Settings(lifecycle_state="STOPPED")
     settings.pear_root = "C:/PEAR"
+    _mark_capture_ready(settings, monkeypatch)
     context = _FakeContext(settings)
     monkeypatch.setattr(
         posecap_addon.panels,
@@ -732,6 +811,7 @@ def test_starting_shows_first_run_warmup_hint_after_ten_seconds(monkeypatch) -> 
     register_blender_ui(bpy)
     settings = _Settings(lifecycle_state="STOPPED")
     settings.pear_root = "C:/PEAR"
+    _mark_capture_ready(settings, monkeypatch)
     context = _FakeContext(settings)
     clients: list[_FakeClient] = []
     clock = {"t": 0.0}
@@ -1218,6 +1298,7 @@ def test_start_stream_uses_addon_preferences_when_scene_runtime_fields_are_empty
     register_blender_ui(bpy)
     settings = _Settings(lifecycle_state="STOPPED")
     settings.camera_index = 4
+    _mark_capture_ready(settings, monkeypatch)
     preferences = _FakeAddonPreferences(
         pear_root="C:/PEAR",
         engine_executable="C:/PoseCap/posecap-engine.exe",
@@ -1281,6 +1362,7 @@ def test_start_stream_configures_apply_time_instrumentation(monkeypatch, tmp_pat
     register_blender_ui(bpy)
     settings = _Settings(lifecycle_state="STOPPED")
     settings.pear_root = "C:/PEAR"
+    _mark_capture_ready(settings, monkeypatch)
     context = _FakeContext(settings)
     engine = _FakeEngine()
     clients: list[_FakeClient] = []
@@ -1336,6 +1418,7 @@ def test_starting_stream_stops_from_timer_when_client_reports_connect_error(monk
     register_blender_ui(bpy)
     settings = _Settings(lifecycle_state="STOPPED")
     settings.pear_root = "C:/PEAR"
+    _mark_capture_ready(settings, monkeypatch)
     context = _FakeContext(settings)
     engine = _FakeEngine()
     clients: list[_FakeClient] = []
@@ -1373,6 +1456,7 @@ def test_apply_exception_stops_session_and_surfaces_error(monkeypatch) -> None:
     register_blender_ui(bpy)
     settings = _Settings(lifecycle_state="STOPPED")
     settings.pear_root = "C:/PEAR"
+    _mark_capture_ready(settings, monkeypatch)
     context = _FakeContext(settings)
     engine = _FakeEngine()
     clients: list[_FakeClient] = []
@@ -1417,6 +1501,7 @@ def test_start_stream_real_client_timeout_stops_engine_process(monkeypatch) -> N
     register_blender_ui(bpy)
     settings = _Settings(lifecycle_state="STOPPED")
     settings.pear_root = "C:/PEAR"
+    _mark_capture_ready(settings, monkeypatch)
     context = _FakeContext(settings)
     unused_port = _unused_localhost_port()
     script = (
@@ -1486,6 +1571,7 @@ def test_streaming_socket_drop_shows_reconnecting_until_next_frame(monkeypatch) 
     register_blender_ui(bpy)
     settings = _Settings(lifecycle_state="STOPPED")
     settings.pear_root = "C:/PEAR"
+    _mark_capture_ready(settings, monkeypatch)
     context = _FakeContext(settings)
     engine = _FakeEngine()
     clients: list[_FakeClient] = []
@@ -1529,6 +1615,7 @@ def test_streaming_socket_drop_does_not_resume_from_queued_stale_frame(monkeypat
     register_blender_ui(bpy)
     settings = _Settings(lifecycle_state="STOPPED")
     settings.pear_root = "C:/PEAR"
+    _mark_capture_ready(settings, monkeypatch)
     context = _FakeContext(settings)
     engine = _FakeEngine()
     clients: list[_FakeClient] = []
@@ -1568,6 +1655,7 @@ def test_streaming_engine_death_stops_with_reported_reason(monkeypatch) -> None:
     register_blender_ui(bpy)
     settings = _Settings(lifecycle_state="STOPPED")
     settings.pear_root = "C:/PEAR"
+    _mark_capture_ready(settings, monkeypatch)
     context = _FakeContext(settings)
     engine = _FakeEngine()
     clients: list[_FakeClient] = []
@@ -1608,7 +1696,7 @@ def test_streaming_invalid_armature_warns_and_reselected_target_resumes(monkeypa
     register_blender_ui(bpy)
     settings = _Settings(lifecycle_state="STOPPED")
     settings.pear_root = "C:/PEAR"
-    settings.target_armature = _RemovedArmature()
+    _mark_capture_ready(settings, monkeypatch)
     context = _FakeContext(settings)
     engine = _FakeEngine()
     clients: list[_FakeClient] = []
@@ -1629,6 +1717,7 @@ def test_streaming_invalid_armature_warns_and_reselected_target_resumes(monkeypa
     try:
         start_cls = bpy.utils.registered_class("POSECAP_OT_StartStream")
         assert start_cls().execute(context) == {"FINISHED"}
+        settings.target_armature = _RemovedArmature()
         clients[0].frames.append(PoseFrame(SCHEMA_VERSION, 1, 100.0, "ok", _payload()))
 
         assert bpy.app.timers.registered[0]() == 1.0 / 60.0
@@ -1636,7 +1725,7 @@ def test_streaming_invalid_armature_warns_and_reselected_target_resumes(monkeypa
         assert settings.lifecycle_state == "WARNING"
         assert settings.status_message == "target armature is unavailable"
 
-        replacement = _FakeArmature(["pelvis"])
+        replacement = _FakeArmature(list(SMPLX_BODY_JOINTS))
         settings.target_armature = replacement
         clients[0].frames.append(PoseFrame(SCHEMA_VERSION, 2, 100.5, "ok", _payload()))
 
@@ -1654,6 +1743,7 @@ def test_stop_stream_terminates_engine_process_and_removes_pid(monkeypatch) -> N
     register_blender_ui(bpy)
     settings = _Settings(lifecycle_state="STOPPED")
     settings.pear_root = "C:/PEAR"
+    _mark_capture_ready(settings, monkeypatch)
     context = _FakeContext(settings)
     process = subprocess.Popen(
         [sys.executable, "-c", "import time; time.sleep(30)"],
@@ -2008,6 +2098,7 @@ class _RemovedPanelTarget:
 
 class _FakeArmature:
     def __init__(self, bone_names: list[str]) -> None:
+        self.type = "ARMATURE"
         self.pose = _FakePose(bone_names)
 
 
@@ -2039,6 +2130,15 @@ class _FakeBone:
 
     def keyframe_insert(self, *, data_path: str) -> None:
         self.keyframes.append(data_path)
+
+
+def _mark_character_ready(settings: _Settings) -> None:
+    settings.target_armature = _FakeArmature(list(SMPLX_BODY_JOINTS))
+
+
+def _mark_capture_ready(settings: _Settings, monkeypatch: pytest.MonkeyPatch) -> None:
+    _mark_character_ready(settings)
+    monkeypatch.setattr(posecap_addon.panels, "models_missing", lambda _root: False)
 
 
 def _assert_posecap_engine_log(log_path: str) -> None:
