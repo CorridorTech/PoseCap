@@ -3,7 +3,11 @@
 from types import SimpleNamespace
 
 import posecap_addon.character_setup_panel as character_setup_panel
-from posecap_addon.character_setup import ConversionError, ConversionResult
+from posecap_addon.character_setup import (
+    SMPLX_BODY_JOINTS,
+    ConversionError,
+    ConversionResult,
+)
 from posecap_addon.character_setup_panel import (
     build_character_setup_classes,
     draw_character_setup_section,
@@ -66,6 +70,27 @@ def test_custom_preset_reveals_the_mapping_file_field() -> None:
     draw_character_setup_section(layout, _settings(preset="CUSTOM"))
 
     assert "character_mapping_json" in layout.props_drawn
+
+
+def test_converted_character_shows_ready_state_instead_of_convert_again() -> None:
+    layout = _FakeLayout()
+    settings = _settings()
+    settings.target_armature = _Armature(SMPLX_BODY_JOINTS)
+
+    draw_character_setup_section(layout, settings)
+
+    assert "posecap.convert_character" not in layout.operator_ids
+    assert "Character ready for capture" in layout._sink["labels"]
+
+
+def test_partially_named_character_still_offers_conversion() -> None:
+    layout = _FakeLayout()
+    settings = _settings()
+    settings.target_armature = _Armature(("pelvis", "left_shoulder", "left_elbow"))
+
+    draw_character_setup_section(layout, settings)
+
+    assert "posecap.convert_character" in layout.operator_ids
 
 
 class _Operator:

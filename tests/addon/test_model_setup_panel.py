@@ -258,7 +258,7 @@ def test_setup_operator_asks_for_pear_root_when_unset(monkeypatch) -> None:
     result = setup_cls().execute(_operator_context(wm_group, pear_root=""))
 
     assert result == {"CANCELLED"}
-    assert "pear root" in wm_group.status.lower()
+    assert "setup (repair)" in wm_group.status.lower()
 
 
 def test_setup_operator_resolves_installer_pear_root_on_a_fresh_install(
@@ -303,7 +303,7 @@ def test_wizard_cancel_reports_the_error_to_blender(monkeypatch) -> None:
     )
     level, message = operator.reported[0]
     assert level == {"ERROR"}
-    assert "pear root" in message.lower()
+    assert "setup (repair)" in message.lower()
 
 
 def test_wizard_operator_opens_a_props_dialog() -> None:

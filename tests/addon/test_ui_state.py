@@ -63,7 +63,7 @@ def test_live_stream_panel_draws_state_controls_from_lifecycle() -> None:
     assert not layout.enabled_for_operator("posecap.stop_stream")
     assert not layout.enabled_for_operator("posecap.start_recording")
     assert layout.has_property("target_armature")
-    assert layout.has_label("Stopped")
+    assert layout.has_label("Ready to capture")
 
 
 def test_capture_actions_disabled_until_onboarding_is_complete() -> None:
@@ -74,7 +74,7 @@ def test_capture_actions_disabled_until_onboarding_is_complete() -> None:
     assert not layout.enabled_for_operator("posecap.start_stream"), (
         "Start Stream must be disabled until models + character are ready"
     )
-    assert any("Finish Getting Started" in text for text in layout._labels), (
+    assert any("Complete the setup" in text for text in layout._labels), (
         "a disabled button needs a hint pointing back to the checklist"
     )
 
@@ -96,9 +96,9 @@ def test_capture_hint_wraps_at_a_narrow_panel_width() -> None:
     )
 
     # The hint is fully present but spans several labels — nothing truncated.
-    hint = [text for text in layout._labels if "Finish" in text or "enable capture" in text]
+    hint = [text for text in layout._labels if "Complete" in text or "unlock capture" in text]
     assert len(hint) >= 2, "a narrow panel wraps the hint instead of truncating it"
-    assert "Finish Getting Started above to enable capture." in " ".join(layout._labels)
+    assert "Complete the setup steps above to unlock capture." in " ".join(layout._labels)
 
 
 def test_panel_wrap_chars_reads_region_width_and_ui_scale() -> None:
@@ -308,7 +308,7 @@ def test_main_panel_shows_getting_started_until_onboarding_is_complete(monkeypat
 
     posecap_addon.panels._draw_main_panel(layout, context)
 
-    assert any("Getting Started" in text for text in layout._labels)
+    assert any("Finish Setup" in text for text in layout._labels)
     assert layout.has_operator("posecap.setup_body_models_wizard")
     assert not layout.enabled_for_operator("posecap.start_stream"), (
         "capture stays gated while onboarding is incomplete"
@@ -332,11 +332,50 @@ def test_main_panel_collapses_getting_started_when_every_step_is_done(monkeypatc
 
     posecap_addon.panels._draw_main_panel(layout, context)
 
-    assert not any("Getting Started" in text for text in layout._labels)
+    assert not any("Finish Setup" in text for text in layout._labels)
     assert not layout.has_operator("posecap.setup_body_models_wizard")
     assert layout.enabled_for_operator("posecap.start_stream"), (
         "capture is enabled once every onboarding step is done"
     )
+
+
+def test_main_panel_shows_version_and_support_tools_on_demand(monkeypatch) -> None:
+    settings = _Settings(lifecycle_state="STOPPED")
+    settings.show_support = True
+    preferences = _FakeAddonPreferences(pear_root="C:/PEAR", engine_executable="posecap-engine")
+    context = _FakeContext(settings, addon_preferences=preferences)
+    monkeypatch.setattr(posecap_addon.panels, "models_missing", lambda _root: True)
+    monkeypatch.setattr(posecap_addon.panels, "active_model_setup_session", lambda: None)
+    layout = _FakeLayout()
+
+    posecap_addon.panels._draw_main_panel(layout, context)
+
+    assert any(label.startswith("PoseCap 1.0.1") for label in layout._labels)
+    assert layout.has_operator("posecap.open_logs")
+    assert layout.has_operator("posecap.create_support_bundle")
+    assert layout.has_property("pear_root")
+    assert layout.has_property("engine_executable")
+
+
+def test_open_logs_reports_a_filesystem_failure_in_the_panel(monkeypatch) -> None:
+    class _ReadOnlyLogs:
+        def mkdir(self, **_kwargs: object) -> None:
+            raise PermissionError("logs are read-only")
+
+    bpy = _FakeBpy()
+    register_blender_ui(bpy)
+    monkeypatch.setattr(posecap_addon.panels, "_logs_directory", lambda *_args: _ReadOnlyLogs())
+    reports: list[tuple[set[str], str]] = []
+
+    try:
+        operator_cls = bpy.utils.registered_class("POSECAP_OT_OpenLogs")
+        operator = operator_cls()
+        operator.report = lambda levels, message: reports.append((levels, message))
+
+        assert operator.execute(_FakeContext(_Settings(lifecycle_state="STOPPED"))) == {"CANCELLED"}
+        assert reports == [({"ERROR"}, "Could not open the logs folder: logs are read-only")]
+    finally:
+        unregister_blender_ui(bpy)
 
 
 def test_blender_ui_registration_adds_scene_state_and_unregisters_cleanly() -> None:
@@ -350,6 +389,8 @@ def test_blender_ui_registration_adds_scene_state_and_unregisters_cleanly() -> N
         "POSECAP_AP_AddonPreferences",
         "POSECAP_OT_StartStream",
         "POSECAP_OT_StopStream",
+        "POSECAP_OT_OpenLogs",
+        "POSECAP_OT_CreateSupportBundle",
         "POSECAP_OT_SetupBodyModels",
         "POSECAP_OT_WatchModelDownloads",
         "POSECAP_OT_SetupBodyModelsWizard",
@@ -396,6 +437,8 @@ def test_blender_ui_registration_adds_scene_state_and_unregisters_cleanly() -> N
         "POSECAP_OT_SetupBodyModelsWizard",
         "POSECAP_OT_WatchModelDownloads",
         "POSECAP_OT_SetupBodyModels",
+        "POSECAP_OT_CreateSupportBundle",
+        "POSECAP_OT_OpenLogs",
         "POSECAP_OT_StopStream",
         "POSECAP_OT_StartStream",
         "POSECAP_AP_AddonPreferences",
@@ -452,26 +495,28 @@ def test_start_and_stop_operators_own_stream_runtime(monkeypatch) -> None:
         assert settings.lifecycle_state == "STARTING"
         assert settings.status_message == "Starting"
         assert settings.record_live_mocap is False, "start clears any stale record flag"
-        assert commands == [
-            (
-                "posecap-engine",
-                "live",
-                "--pear-root",
-                "C:/PEAR",
-                "--camera-index",
-                "4",
-                "--parent-pid",
-                str(os.getpid()),
-                "--yolo-threshold",
-                "0.3",
-                "--yolo-model",
-                "yolov8s",
-                "--width",
-                "1280",
-                "--height",
-                "720",
-            )
-        ]
+        command = commands[0]
+        assert command[:18] == (
+            "posecap-engine",
+            "live",
+            "--pear-root",
+            "C:/PEAR",
+            "--camera-index",
+            "4",
+            "--parent-pid",
+            str(os.getpid()),
+            "--yolo-threshold",
+            "0.3",
+            "--yolo-model",
+            "yolov8s",
+            "--width",
+            "1280",
+            "--height",
+            "720",
+            "--log-file",
+            command[17],
+        )
+        assert command[17].endswith("PoseCap\\logs\\posecap-engine.log")
         assert clients[0].endpoint == ("127.0.0.1", 42321)
         assert clients[0].started
         assert len(bpy.app.timers.registered) == 1
@@ -489,6 +534,28 @@ def test_start_and_stop_operators_own_stream_runtime(monkeypatch) -> None:
         assert not bpy.app.timers.registered
         assert clients[0].closed
         assert engine.stopped
+    finally:
+        unregister_blender_ui(bpy)
+
+
+def test_start_stream_turns_log_setup_failure_into_a_visible_status(monkeypatch) -> None:
+    bpy = _FakeBpy()
+    register_blender_ui(bpy)
+    settings = _Settings(lifecycle_state="STOPPED")
+    settings.pear_root = "C:/PEAR"
+    context = _FakeContext(settings)
+    monkeypatch.setattr(
+        posecap_addon.panels,
+        "configure_addon_logging",
+        lambda _path: (_ for _ in ()).throw(PermissionError("logs are read-only")),
+    )
+
+    try:
+        start_cls = bpy.utils.registered_class("POSECAP_OT_StartStream")
+        assert start_cls().execute(context) == {"CANCELLED"}
+        assert settings.lifecycle_state == "STOPPED"
+        assert "could not start" in settings.status_message.lower()
+        assert "logs are read-only" in settings.status_message
     finally:
         unregister_blender_ui(bpy)
 
@@ -593,6 +660,47 @@ def test_panel_resolves_installer_pear_root_on_a_fresh_install() -> None:
     )
 
     assert resolved == str(installer_pear)
+
+
+def test_panel_persists_detected_installer_paths_without_overwriting_custom_values() -> None:
+    preferences = _FakeAddonPreferences(pear_root="", engine_executable="posecap-engine")
+    local = "C:/Users/Corridor/AppData/Local"
+    pear = Path(local, "PoseCap", "pear")
+    engine = Path(local, "PoseCap", "runtime", "venv", "Scripts", "posecap-engine.exe")
+
+    posecap_addon.panels._autoconfigure_preferences(
+        preferences,
+        environ={"LOCALAPPDATA": local},
+        path_exists={pear, engine}.__contains__,
+    )
+
+    assert preferences.pear_root == str(pear)
+    assert preferences.engine_executable == str(engine)
+
+    preferences.pear_root = "D:/Custom/pear"
+    preferences.engine_executable = "D:/Custom/posecap-engine.exe"
+    posecap_addon.panels._autoconfigure_preferences(
+        preferences,
+        environ={"LOCALAPPDATA": local},
+        path_exists={pear, engine}.__contains__,
+    )
+    assert preferences.pear_root == "D:/Custom/pear"
+    assert preferences.engine_executable == "D:/Custom/posecap-engine.exe"
+
+
+def test_panel_auto_selects_the_only_armature_but_leaves_ambiguous_scenes_alone() -> None:
+    settings = _Settings(lifecycle_state="STOPPED")
+    armature = SimpleNamespace(type="ARMATURE")
+    context = SimpleNamespace(scene=SimpleNamespace(objects=[armature]), active_object=None)
+
+    posecap_addon.panels._auto_select_target_armature(context, settings)
+
+    assert settings.target_armature is armature
+
+    settings.target_armature = None
+    context.scene.objects = [armature, SimpleNamespace(type="ARMATURE")]
+    posecap_addon.panels._auto_select_target_armature(context, settings)
+    assert settings.target_armature is None
 
 
 def test_engine_command_passes_video_source_only_in_video_mode() -> None:
@@ -774,32 +882,34 @@ def test_start_stream_uses_addon_preferences_when_scene_runtime_fields_are_empty
         start_cls = bpy.utils.registered_class("POSECAP_OT_StartStream")
         assert start_cls().execute(context) == {"FINISHED"}
 
-        assert commands == [
-            (
-                "C:/PoseCap/posecap-engine.exe",
-                "live",
-                "--pear-root",
-                "C:/PEAR",
-                "--camera-index",
-                "4",
-                "--parent-pid",
-                str(os.getpid()),
-                "--yolo-threshold",
-                "0.3",
-                "--yolo-model",
-                "yolov8s",
-                "--width",
-                "1280",
-                "--height",
-                "720",
-            )
-        ]
+        command = commands[0]
+        assert command[:17] == (
+            "C:/PoseCap/posecap-engine.exe",
+            "live",
+            "--pear-root",
+            "C:/PEAR",
+            "--camera-index",
+            "4",
+            "--parent-pid",
+            str(os.getpid()),
+            "--yolo-threshold",
+            "0.3",
+            "--yolo-model",
+            "yolov8s",
+            "--width",
+            "1280",
+            "--height",
+            "720",
+            "--log-file",
+        )
+        assert command[17].endswith("PoseCap\\logs\\posecap-engine.log")
         assert clients[0].started
     finally:
         unregister_blender_ui(bpy)
 
 
 def test_start_stream_configures_apply_time_instrumentation(monkeypatch, tmp_path) -> None:
+    monkeypatch.delenv("LOCALAPPDATA", raising=False)
     bpy = _FakeBpy()
     bpy.app.tempdir = str(tmp_path)
     register_blender_ui(bpy)
@@ -849,7 +959,7 @@ def test_start_stream_configures_apply_time_instrumentation(monkeypatch, tmp_pat
         start_cls = bpy.utils.registered_class("POSECAP_OT_StartStream")
         assert start_cls().execute(context) == {"FINISHED"}
 
-        assert log_paths == [tmp_path / "posecap-addon.log"]
+        assert log_paths == [tmp_path / "PoseCap" / "logs" / "posecap-addon.log"]
         assert instrumentation_loggers == [logger]
     finally:
         unregister_blender_ui(bpy)
@@ -1245,6 +1355,7 @@ class _Settings:
         self.world_position_experimental = False
         self.pose_smoothing = True
         self.show_advanced = False
+        self.show_support = False
         self.pose_smoothing_min_cutoff = 1.0
         self.pose_smoothing_beta = 0.5
         self.detection_confidence = 0.3
@@ -1348,6 +1459,7 @@ class _FakeBpy:
         self.props = _FakeBpyProps()
         self.utils = _FakeBpyUtils()
         self.app = _FakeBpyApp()
+        self.ops = SimpleNamespace(wm=SimpleNamespace(path_open=lambda **_kwargs: None))
         # Live module context, resolved at call time by the apply-timer redraw
         # (the operator context dies after execute(); see panels start path).
         self.context = _FakeContext(_Settings(lifecycle_state="STOPPED"))

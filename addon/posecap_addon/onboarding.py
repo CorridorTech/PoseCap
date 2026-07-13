@@ -32,19 +32,19 @@ def onboarding_steps(*, models_ready: bool, character_ready: bool) -> tuple[Onbo
     return (
         OnboardingStep(
             key="models",
-            label="Install the body models",
+            label="1. Body models",
             done=models_ready,
             action_operator=None if models_ready else _MODELS_WIZARD_OPERATOR,
-            action_label=None if models_ready else "Set Up",
+            action_label=None if models_ready else "Set Up Body Models",
         ),
         OnboardingStep(
             key="character",
-            label="Choose a target character",
+            label="2. Target character",
             done=character_ready,
         ),
         OnboardingStep(
             key="ready",
-            label="Ready to capture",
+            label="3. Ready to capture",
             done=models_ready and character_ready,
         ),
     )
@@ -63,8 +63,14 @@ def draw_getting_started(layout: Any, steps: tuple[OnboardingStep, ...]) -> None
     its own row underneath, an obvious full-width target.
     """
     box = layout.box()
-    box.label(text="Getting Started with PoseCap", icon="INFO")
+    box.label(text="Finish Setup", icon="INFO")
+    box.label(text="PoseCap will remember this installation.")
     for step in steps:
-        box.label(text=step.label, icon="CHECKMARK" if step.done else "DOT")
+        suffix = " ready" if step.done else " required"
+        if step.key == "character" and step.done:
+            suffix = " selected"
+        if step.key == "ready" and not step.done:
+            suffix = " after the steps above"
+        box.label(text=step.label + suffix, icon="CHECKMARK" if step.done else "ERROR")
         if not step.done and step.action_operator is not None:
             box.row().operator(step.action_operator, text=step.action_label or "")

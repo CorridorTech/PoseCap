@@ -13,12 +13,10 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from .support import default_installation_paths
+
 # Mirrors engine POSECAP_PEAR_ROOT_ENV; the addon must not import posecap_engine.
 POSECAP_PEAR_ROOT_ENV = "POSECAP_PEAR_ROOT"
-# Default install layout (Inno {localappdata}\PoseCap): a fresh install works
-# with nothing typed, and this even repairs installs made before this fallback.
-INSTALLER_PEAR_SUBPATH = ("PoseCap", "pear")
-
 PathExists = Callable[[Path], bool]
 
 
@@ -42,18 +40,10 @@ def resolve_pear_root(
     env_root = env.get(POSECAP_PEAR_ROOT_ENV, "").strip()
     if env_root != "" and exists(Path(env_root)):
         return env_root
-    installer_root = installer_path(env, INSTALLER_PEAR_SUBPATH)
-    if installer_root is not None and exists(installer_root):
-        return str(installer_root)
+    installed = default_installation_paths(env)
+    if installed is not None and exists(installed.pear_root):
+        return str(installed.pear_root)
     return ""
-
-
-def installer_path(env: dict[str, str], subpath: tuple[str, ...]) -> Path | None:
-    """The default install location for a subpath under %LOCALAPPDATA%."""
-    local_app_data = env.get("LOCALAPPDATA", "").strip()
-    if local_app_data == "":
-        return None
-    return Path(local_app_data, *subpath)
 
 
 def first_nonempty(*values: object) -> str:
