@@ -66,7 +66,9 @@ def test_repository_policies_define_security_support_conduct_and_ownership() -> 
     assert "private security report" in support
     assert "Contributor Covenant" in conduct
     assert "alexandre.alvaro@hotmail.com" in conduct
-    assert "* @alexandremendoncaalvaro @s-deanhughes" in codeowners
+    assert "* @alexandremendoncaalvaro" in codeowners
+    assert "@s-deanhughes" not in codeowners
+    assert "sole code reviewer" in contributing
     assert "git clone https://github.com/CorridorTech/PoseCap.git" in contributing
     assert "git clone https://github.com/alexandremendoncaalvaro/PoseCap.git" not in contributing
 

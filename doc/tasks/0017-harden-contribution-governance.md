@@ -21,9 +21,9 @@ easy to submit.
 
 Verifiable conditions. Each as a checkbox so progress is point-editable.
 
-- [x] Pull requests into `main` require one independent approval, resolved threads,
-      a green required CI result, and valid DCO sign-offs; force-pushes and deletion
-      of `main` are blocked.
+- [x] Pull requests into `main` require the sole code reviewer's explicit merge
+      decision, resolved threads, a green required CI result, and valid DCO sign-offs;
+      force-pushes and deletion of `main` are blocked.
 - [x] GitHub Actions run with explicit least privilege, immutable Action SHAs,
       concurrency cancellation, bounded timeouts, Python 3.11, workflow linting, and
       the existing Linux/Windows quality gates.
@@ -97,6 +97,12 @@ PR #37 publishes the signed implementation history. GitHub observed `CI required
 DCO, Linux/Windows gates, package smoke, dependency audit, workflow
 security, licensed-binary scan, and both CodeQL language analyses passing under the
 active ruleset. The PR remains blocked for the independent CODEOWNER decision.
+
+Alê decided that he is currently the sole code reviewer; Dean is not a programmer and
+does not perform technical reviews. GitHub cannot record an approval from a PR's own
+author, so the ruleset no longer requires an impossible independent approval. The
+maintainer's squash-merge action records the review decision while CI, DCO, CodeQL,
+resolved-thread, linear-history, deletion, and force-push controls remain mandatory.
 
 ## Definition of Done
 

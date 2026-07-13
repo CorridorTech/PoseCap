@@ -70,7 +70,8 @@ This guide summarizes; the normative rules live in [AGENTS.md](AGENTS.md) and [G
 - PR titles follow [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) and become the final squash-commit title. Intermediate commit subjects may be plain language.
 - Every commit carries a matching DCO sign-off — use `git commit -s`. To repair a branch, rebase and sign each commit; do not add one catch-all sign-off commit.
 - One concern per commit. A feature and an unrelated fix are two commits.
-- PRs need green `CI required`, an independent approval, and all review threads resolved. Reference the task or spec the change implements (`Refs task-0003`).
+- Alexandre Mendonça Alvaro (`@alexandremendoncaalvaro`) is currently the sole code reviewer; Dean does not perform technical reviews.
+- PRs need green `CI required`, all review threads resolved, and Alê's explicit merge decision. GitHub cannot record approval by the PR author, so maintainer-authored PRs use the merge action as that review record. Reference the task or spec the change implements (`Refs task-0003`).
 
 ## Licensing of contributions
 

@@ -68,7 +68,8 @@ Planned tree (POC paths in parentheses are reference only):
 See [`GUIDELINES.md`](GUIDELINES.md) §10 for the full reference. Non-negotiable subset:
 
 * PR titles use Conventional Commits; every commit carries a matching DCO `Signed-off-by`; concerns stay atomic (use `/ad-commit`).
-* `main` accepts squash merges only, after independent approval, resolved review threads, and green required CI.
+* Alê (`@alexandremendoncaalvaro`) is currently the sole code reviewer and merge gate; Dean does not perform technical reviews.
+* `main` accepts squash merges only after Alê's review, resolved review threads, and green required CI. GitHub cannot record self-approval, so the merge action records the maintainer decision.
 * Never push to `main` directly once a remote exists.
 
 ## Security & Privacy

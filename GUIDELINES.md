@@ -116,7 +116,7 @@ Wired via pre-commit (`.pre-commit-config.yaml`; install once with `uv run pre-c
 ## 10. Git Workflow
 
 * PR titles follow Conventional Commits 1.0.0 and become the squash commit title. Intermediate commit subjects may be plain language; every commit carries a matching DCO `Signed-off-by` (use `/ad-commit`). No `Co-Authored-By` trailers.
-* Branches: `feat/`, `fix/`, `chore/`; protected `main` accepts squash-only PRs via `/ad-pr`, after green `CI required`, independent approval, and resolved review threads; merge via `/ad-merge`.
+* Branches: `feat/`, `fix/`, `chore/`; protected `main` accepts squash-only PRs via `/ad-pr`, after green `CI required`, resolved review threads, and review by the sole code reviewer, Alê (`@alexandremendoncaalvaro`); merge via `/ad-merge`. Dean does not perform technical reviews. GitHub cannot record self-approval, so the maintainer's merge action records the decision on maintainer-authored PRs.
 * Atomic commits: one concern each. Mixed-concern diffs get stage-split, not bundled.
 * Line endings: LF in repo (`.gitattributes` with `* text=auto eol=lf` — to be added with the scaffold).
 
