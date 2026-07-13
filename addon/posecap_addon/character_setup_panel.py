@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from .character_setup import (
+    SMPLX_BODY_JOINTS,
     ConversionError,
     SkeletonPreset,
     convert_armature,
@@ -21,6 +22,7 @@ from .character_setup import (
     ue_preset,
     validate_mapping,
 )
+from .panel_text import DEFAULT_WRAP_CHARS, draw_wrapped_label
 
 CHARACTER_PRESET_ITEMS = (
     ("AUTO", "Auto-Detect", "Recognize the skeleton family from bone names"),
@@ -34,7 +36,18 @@ def draw_character_setup_section(layout: Any, settings: Any) -> None:
     """Draw the character conversion controls."""
     box = layout.box()
     box.label(text="Character Setup", icon="OUTLINER_OB_ARMATURE")
+    armature = getattr(settings, "target_armature", None)
+    if is_converted_armature(armature):
+        box.label(text="Character ready for capture", icon="CHECKMARK")
+        return
     column = box.column()
+    if armature is None:
+        draw_wrapped_label(
+            column,
+            "Import a character; PoseCap will select its armature.",
+            chars=DEFAULT_WRAP_CHARS,
+            icon="INFO",
+        )
     column.prop(settings, "character_preset")
     if settings.character_preset == "CUSTOM":
         column.prop(settings, "character_mapping_json")
@@ -74,7 +87,7 @@ def build_character_setup_classes(bpy_module: Any) -> tuple[type[Any], ...]:
                 return {"CANCELLED"}
             self.report(
                 {"INFO"},
-                f"Character converted ({preset.label}) — probe error {result.max_probe_error:.4f}",
+                f"Character ready ({preset.label}); verification {result.max_probe_error:.4f}",
             )
             return {"FINISHED"}
 
@@ -146,3 +159,15 @@ def _bone_names(armature: Any) -> tuple[str, ...]:
         names: Any = keys()
         return tuple(str(name) for name in names)
     return tuple(str(getattr(bone, "name", "")) for bone in bones)
+
+
+def is_converted_armature(armature: Any) -> bool:
+    if armature is None:
+        return False
+    try:
+        if getattr(armature, "type", None) != "ARMATURE":
+            return False
+        names = set(_bone_names(armature))
+    except (AttributeError, ReferenceError):
+        return False
+    return set(SMPLX_BODY_JOINTS).issubset(names)

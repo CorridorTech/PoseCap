@@ -84,6 +84,17 @@ def test_wizard_form_offers_signup_credentials_and_manual_path() -> None:
     assert "posecap.watch_model_downloads" in layout.operator_ids
 
 
+def test_wizard_does_not_recommend_password_reuse_across_model_sites() -> None:
+    layout = _FakeLayout()
+
+    draw_body_models_wizard(layout, _wm_group())
+
+    guidance = " ".join(layout.labels).casefold()
+    assert "same email and password" not in guidance
+    assert "unique passwords" in guidance
+    assert "download each original archive" in guidance
+
+
 def test_unresolved_pear_root_counts_as_models_missing() -> None:
     # A blank PEAR Root can't confirm the models exist, so it must read as
     # missing — otherwise the checklist falsely ticks "Install the body models"
@@ -258,7 +269,7 @@ def test_setup_operator_asks_for_pear_root_when_unset(monkeypatch) -> None:
     result = setup_cls().execute(_operator_context(wm_group, pear_root=""))
 
     assert result == {"CANCELLED"}
-    assert "pear root" in wm_group.status.lower()
+    assert "setup (repair)" in wm_group.status.lower()
 
 
 def test_setup_operator_resolves_installer_pear_root_on_a_fresh_install(
@@ -303,7 +314,7 @@ def test_wizard_cancel_reports_the_error_to_blender(monkeypatch) -> None:
     )
     level, message = operator.reported[0]
     assert level == {"ERROR"}
-    assert "pear root" in message.lower()
+    assert "setup (repair)" in message.lower()
 
 
 def test_wizard_operator_opens_a_props_dialog() -> None:

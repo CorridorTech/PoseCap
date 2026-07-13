@@ -20,6 +20,7 @@ from .character_setup_panel import (
     CHARACTER_PRESET_ITEMS,
     build_character_setup_classes,
     draw_character_setup_section,
+    is_converted_armature,
 )
 from .engine_process import start_engine_stream
 from .instrumentation import ApplyTimeInstrumentation, configure_addon_logging
@@ -37,9 +38,16 @@ from .model_setup_panel import (
 )
 from .onboarding import draw_getting_started, onboarding_complete, onboarding_steps
 from .panel_text import DEFAULT_WRAP_CHARS, draw_wrapped_label, region_wrap_chars
-from .pear_root import PathExists, first_nonempty, installer_path, resolve_pear_root
+from .pear_root import PathExists, first_nonempty, resolve_pear_root
 from .recording import build_recording_classes, pause_playback
 from .stream_client import TcpPoseStreamClient
+from .support import (
+    addon_version,
+    create_support_bundle,
+    default_installation_paths,
+    diagnostic_summary,
+    resolve_logs_directory,
+)
 from .ui_state import LIFECYCLE_STATE_ITEMS, LifecycleState, lifecycle_controls
 
 SCENE_PROPERTY_NAME = "posecap"
@@ -54,6 +62,7 @@ ADDON_ID = (
 _REGISTERED_CLASSES: tuple[type[Any], ...] = ()
 _ACTIVE_SESSION: _LiveStreamSession | None = None
 _RECONNECTABLE_STATES = frozenset({"STREAMING", "RECORDING"})
+_ADDON_VERSION = addon_version()
 
 # The installer pre-fetches the pinned PEAR pose weight during setup, so on an
 # installed machine the first Start Stream only warms up the engine (a cold
@@ -81,6 +90,7 @@ class _LiveStreamSettings(Protocol):
     world_position_experimental: bool
     pose_smoothing: bool
     show_advanced: bool
+    show_support: bool
     pose_smoothing_min_cutoff: float
     pose_smoothing_beta: float
     record_live_mocap: bool
@@ -121,14 +131,22 @@ def draw_live_stream_panel(
     )
 
     box = layout.box()
+    visible_status = settings.status_message or (
+        "Ready to capture" if capture_ready else "Setup needed"
+    )
+    status_text, status_icon, status_alert = _status_presentation(
+        settings.lifecycle_state,
+        visible_status,
+        capture_ready=capture_ready,
+    )
+    box.alert = status_alert
     # The status line carries long messages too (the first-run warmup hint), so
     # it wraps like the rest rather than truncating.
-    draw_wrapped_label(box, controls.status_text, chars=wrap_chars, icon="INFO")
+    draw_wrapped_label(box, status_text, chars=wrap_chars, icon=status_icon)
 
     column = layout.column()
     column.prop(settings, "target_armature")
     _draw_source(column, settings)
-    column.prop(settings, "pear_root")
     column.prop(settings, "apply_orientation_fix")
     column.prop(settings, "world_position_experimental")
     column.prop(settings, "pose_smoothing")
@@ -161,7 +179,7 @@ def draw_live_stream_panel(
     if not capture_ready:
         draw_wrapped_label(
             layout,
-            "Finish Getting Started above to enable capture.",
+            "Complete the setup steps above to unlock capture.",
             chars=wrap_chars,
             icon="INFO",
         )
@@ -203,6 +221,8 @@ def _draw_source(column: Any, settings: _LiveStreamSettings) -> None:
 
 def draw_addon_preferences(layout: Any, preferences: _AddonPreferences) -> None:
     """Draw persistent addon defaults."""
+    layout.label(text=f"PoseCap {_ADDON_VERSION}", icon="INFO")
+    layout.label(text="Paths are detected automatically. Change them only for a custom install.")
     layout.prop(preferences, "pear_root")
     layout.prop(preferences, "engine_executable")
 
@@ -337,6 +357,11 @@ def _build_blender_classes(bpy_module: Any) -> tuple[type[Any], ...]:
         "show_advanced": bpy_module.props.BoolProperty(
             name="Advanced",
             description="Show fine-tuning controls; defaults work for most captures",
+            default=False,
+        ),
+        "show_support": bpy_module.props.BoolProperty(
+            name="Help & Support",
+            description="Show version, installation health, logs, and support tools",
             default=False,
         ),
         "pose_smoothing_min_cutoff": bpy_module.props.FloatProperty(
@@ -496,6 +521,66 @@ def _build_blender_classes(bpy_module: Any) -> tuple[type[Any], ...]:
         def execute(self, context: Any) -> set[str]:
             return _stop_live_stream(context, bpy_module)
 
+    class POSECAP_OT_OpenLogs(bpy_module.types.Operator):
+        bl_idname = "posecap.open_logs"
+        bl_label = "Open Logs Folder"
+        bl_description = "Open the folder containing PoseCap setup, addon, and engine logs"
+        bl_options = {"REGISTER"}
+
+        def execute(self, context: Any) -> set[str]:
+            try:
+                logs = _logs_directory(context, bpy_module)
+                logs.mkdir(parents=True, exist_ok=True)
+                bpy_module.ops.wm.path_open(filepath=str(logs))
+            except Exception as exc:
+                self.report({"ERROR"}, f"Could not open the logs folder: {exc}")
+                return {"CANCELLED"}
+            return {"FINISHED"}
+
+    class POSECAP_OT_CreateSupportBundle(bpy_module.types.Operator):
+        bl_idname = "posecap.create_support_bundle"
+        bl_label = "Create Support Bundle"
+        bl_description = "Create a local zip with PoseCap diagnostics and logs; nothing is uploaded"
+        bl_options = {"REGISTER"}
+
+        def execute(self, context: Any) -> set[str]:
+            try:
+                settings = _settings_from_context(context)
+                preferences = _addon_preferences(context)
+                env = dict(os.environ)
+                logs = _logs_directory(context, bpy_module)
+                pear_root = _panel_pear_root(context)
+                engine = _resolve_engine_executable(
+                    preferences,
+                    env,
+                    lambda path: path.exists(),
+                )
+                diagnostics = diagnostic_summary(
+                    version=_ADDON_VERSION,
+                    blender_version=".".join(str(part) for part in bpy_module.app.version),
+                    lifecycle_state=str(settings.lifecycle_state),
+                    pear_root=pear_root,
+                    engine_executable=engine,
+                    logs_directory=logs,
+                )
+                downloads = Path.home() / "Downloads"
+                destination = downloads if downloads.is_dir() else Path(tempfile.gettempdir())
+                bundle = create_support_bundle(
+                    destination_directory=destination,
+                    logs_directory=logs,
+                    diagnostics=diagnostics,
+                )
+                context.window_manager.clipboard = str(bundle)
+                bpy_module.ops.wm.path_open(filepath=str(bundle.parent))
+            except Exception as exc:
+                self.report({"ERROR"}, f"Could not create the Support Bundle: {exc}")
+                return {"CANCELLED"}
+            self.report(
+                {"INFO"},
+                "Support bundle created. Its path was copied to the clipboard.",
+            )
+            return {"FINISHED"}
+
     class POSECAP_PT_LiveStream(bpy_module.types.Panel):
         bl_label = "PoseCap"
         bl_idname = "POSECAP_PT_live_stream"
@@ -544,6 +629,8 @@ def _build_blender_classes(bpy_module: Any) -> tuple[type[Any], ...]:
         POSECAP_AP_AddonPreferences,
         POSECAP_OT_StartStream,
         POSECAP_OT_StopStream,
+        POSECAP_OT_OpenLogs,
+        POSECAP_OT_CreateSupportBundle,
         *setup_operator_classes,
         *character_operator_classes,
         *recording_operator_classes,
@@ -554,6 +641,12 @@ def _build_blender_classes(bpy_module: Any) -> tuple[type[Any], ...]:
 
 def _draw_main_panel(layout: Any, context: Any) -> None:
     settings = _settings_from_context(context)
+    preferences = _addon_preferences(context)
+    _autoconfigure_preferences(preferences)
+    _auto_select_target_armature(context, settings)
+    header = layout.row(align=True)
+    header.label(text=f"PoseCap {_ADDON_VERSION}", icon="ARMATURE_DATA")
+    header.prop(settings, "show_support", text="", icon="QUESTION")
     # Measure the panel so long status/hint text wraps to the actual width
     # instead of truncating (a non-technical user must read the whole message).
     wrap_chars = _panel_wrap_chars(context)
@@ -573,6 +666,13 @@ def _draw_main_panel(layout: Any, context: Any) -> None:
     draw_character_setup_section(layout, settings)
     if getattr(settings, "target_armature", None) is not None:
         draw_keyframe_manager_section(layout, context.scene)
+    _draw_support_section(
+        layout,
+        context,
+        settings,
+        preferences,
+        models_ready=not models_missing(_panel_pear_root(context)),
+    )
 
 
 def _getting_started_steps(context: Any, settings: Any) -> Any:
@@ -587,21 +687,119 @@ def _getting_started_steps(context: Any, settings: Any) -> Any:
 
 
 def _character_ready(settings: Any) -> bool:
-    """True when a valid armature is picked as the capture target.
+    """True when the selected armature follows the PoseCap convention.
 
     Guards a removed StructRNA: the panel redraws every frame, and reading
     ``.type`` on an armature deleted mid-session raises (AGENTS.md gotcha)."""
     armature = getattr(settings, "target_armature", None)
-    if armature is None:
-        return False
-    try:
-        return getattr(armature, "type", None) == "ARMATURE"
-    except ReferenceError:
-        return False
+    return is_converted_armature(armature)
 
 
 def _settings_from_context(context: Any) -> Any:
     return getattr(context.scene, SCENE_PROPERTY_NAME)
+
+
+def _status_presentation(
+    lifecycle_state: LifecycleState,
+    status_text: str,
+    *,
+    capture_ready: bool,
+) -> tuple[str, str, bool]:
+    """Return concise text, semantic icon, and alert styling for the status card."""
+    lowered = status_text.casefold()
+    if any(marker in lowered for marker in ("failed", "exited", "could not", "stopped:")):
+        return status_text, "ERROR", True
+    if lifecycle_state in {"WARNING", "RECONNECTING"}:
+        return status_text, "ERROR", True
+    if lifecycle_state == "STOPPED" and not status_text.strip():
+        return ("Ready to capture" if capture_ready else "Setup needed"), "INFO", False
+    if lifecycle_state == "STOPPED" and status_text == "Stopped":
+        return "Capture stopped", "CHECKMARK", False
+    if lifecycle_state in {"STREAMING", "RECORDING"}:
+        return status_text, "CHECKMARK", False
+    if lifecycle_state == "STARTING":
+        return status_text, "TIME", False
+    return status_text, "INFO", False
+
+
+def _autoconfigure_preferences(
+    preferences: _AddonPreferences | None,
+    *,
+    environ: dict[str, str] | None = None,
+    path_exists: PathExists | None = None,
+) -> None:
+    """Persist detected installer paths without replacing explicit user choices."""
+    if preferences is None:
+        return
+    env = environ if environ is not None else dict(os.environ)
+    exists = path_exists if path_exists is not None else (lambda path: path.exists())
+    installed = default_installation_paths(env)
+    if installed is None:
+        return
+    if not first_nonempty(getattr(preferences, "pear_root", "")) and exists(installed.pear_root):
+        preferences.pear_root = str(installed.pear_root)
+    engine_setting = first_nonempty(getattr(preferences, "engine_executable", ""))
+    if engine_setting in {"", "posecap-engine"} and exists(installed.engine_executable):
+        preferences.engine_executable = str(installed.engine_executable)
+
+
+def _auto_select_target_armature(context: Any, settings: _LiveStreamSettings) -> None:
+    """Select the obvious armature automatically; ambiguous scenes stay manual."""
+    selected = getattr(settings, "target_armature", None)
+    try:
+        if selected is not None and getattr(selected, "type", None) == "ARMATURE":
+            return
+    except ReferenceError:
+        pass
+    active = getattr(context, "active_object", None)
+    if getattr(active, "type", None) == "ARMATURE":
+        settings.target_armature = active
+        return
+    objects = getattr(getattr(context, "scene", None), "objects", ())
+    armatures = [obj for obj in objects if getattr(obj, "type", None) == "ARMATURE"]
+    if len(armatures) == 1:
+        settings.target_armature = armatures[0]
+
+
+def _draw_support_section(
+    layout: Any,
+    context: Any,
+    settings: _LiveStreamSettings,
+    preferences: _AddonPreferences | None,
+    *,
+    models_ready: bool,
+) -> None:
+    """Draw compact support tools with technical paths behind disclosure."""
+    if not bool(getattr(settings, "show_support", False)):
+        return
+    box = layout.box()
+    box.label(text="Help & Support", icon="QUESTION")
+    installed = default_installation_paths(dict(os.environ))
+    engine = _resolve_engine_executable(
+        preferences,
+        dict(os.environ),
+        lambda path: path.exists(),
+    )
+    runtime_ready = Path(engine).is_file()
+    box.label(
+        text="Runtime ready" if runtime_ready else "Runtime needs repair",
+        icon="CHECKMARK" if runtime_ready else "ERROR",
+    )
+    box.label(
+        text="Body models ready" if models_ready else "Body models need setup",
+        icon="CHECKMARK" if models_ready else "ERROR",
+    )
+    actions = box.row(align=True)
+    actions.operator("posecap.open_logs", text="Open Logs", icon="FILE_FOLDER")
+    actions.operator("posecap.create_support_bundle", text="Support Bundle", icon="PACKAGE")
+    box.label(text="The bundle stays on this computer until you share it.", icon="INFO")
+    if preferences is not None:
+        paths = box.column()
+        paths.label(text="Installation Paths", icon="SETTINGS")
+        paths.prop(preferences, "pear_root")
+        paths.prop(preferences, "engine_executable")
+    elif installed is None:
+        box.label(text="PoseCap installation was not detected.", icon="ERROR")
 
 
 def _panel_wrap_chars(context: Any) -> int:
@@ -645,7 +843,9 @@ def _start_live_stream(context: Any, bpy_module: Any) -> set[str]:
     settings.lifecycle_state = "STARTING"
     settings.status_message = "Starting"
     engine = None
+    logger = None
     try:
+        logger = configure_addon_logging(_addon_log_path(context, bpy_module))
         preferences = _addon_preferences(context)
         engine = start_engine_stream(_engine_command(settings, preferences))
         client = TcpPoseStreamClient(
@@ -662,7 +862,6 @@ def _start_live_stream(context: Any, bpy_module: Any) -> set[str]:
             # (2026-07-10 GUI demo root cause).
             redraw=lambda: tag_view3d_redraw(bpy_module.context),
         )
-        logger = configure_addon_logging(_addon_log_path(bpy_module))
         timer = PoseApplyTimer(
             lifecycle_stream,
             writer,
@@ -689,10 +888,12 @@ def _start_live_stream(context: Any, bpy_module: Any) -> set[str]:
         bpy_module.app.timers.register(session.timer_callback, first_interval=0.0)
         _ACTIVE_SESSION = session
     except Exception as exc:
+        if logger is not None:
+            logger.exception("capture start failed")
         if engine is not None:
             engine.stop(timeout_seconds=1.0)
         settings.lifecycle_state = "STOPPED"
-        settings.status_message = f"Start failed: {exc}"
+        settings.status_message = _friendly_start_error(exc)
         return {"CANCELLED"}
     return {"FINISHED"}
 
@@ -716,11 +917,6 @@ def _stop_active_session(bpy_module: Any) -> None:
     _ACTIVE_SESSION = None
     if session is not None:
         session.stop(unregister_timer=True, bpy_module=bpy_module)
-
-
-# Default install layout (Inno {localappdata}\PoseCap): a fresh install works
-# with nothing typed, and this even repairs installs made before this fallback.
-_INSTALLER_ENGINE_SUBPATH = ("PoseCap", "runtime", "venv", "Scripts", "posecap-engine.exe")
 
 
 def _engine_command(
@@ -767,6 +963,8 @@ def _engine_command(
             command += ["--source", video_source, "--source-loop"]
     if bool(getattr(settings, "preview_enabled", False)):
         command += ["--preview-window"]
+    logs = resolve_logs_directory(preferences, env)
+    command += ["--log-file", str(logs / "posecap-engine.log")]
     return tuple(command)
 
 
@@ -780,9 +978,9 @@ def _resolve_engine_executable(
     candidate = first_nonempty(getattr(preferences, "engine_executable", ""))
     if candidate != "" and exists(Path(candidate)):
         return candidate
-    installer_exe = installer_path(env, _INSTALLER_ENGINE_SUBPATH)
-    if installer_exe is not None and exists(installer_exe):
-        return str(installer_exe)
+    installed = default_installation_paths(env)
+    if installed is not None and exists(installed.engine_executable):
+        return str(installed.engine_executable)
     return candidate if candidate != "" else "posecap-engine"
 
 
@@ -834,10 +1032,29 @@ def _handle_apply_recovery(settings: _LiveStreamSettings) -> None:
     settings.status_message = "Streaming"
 
 
-def _addon_log_path(bpy_module: Any) -> Path:
+def _friendly_start_error(error: Exception) -> str:
+    if isinstance(error, FileNotFoundError):
+        return "PoseCap Engine was not found. Run PoseCap Setup (repair), then try again."
+    message = str(error).strip()
+    if "PEAR Root is required" in message:
+        return "PoseCap setup is incomplete. Run PoseCap Setup (repair), then try again."
+    if not message:
+        return "Capture could not start. Create a Support Bundle so we can help."
+    return f"Capture could not start: {message}"
+
+
+def _logs_directory(context: Any, bpy_module: Any) -> Path:
+    preferences = _addon_preferences(context)
     tempdir = str(getattr(bpy_module.app, "tempdir", "")).strip()
-    root = Path(tempdir) if tempdir != "" else Path(tempfile.gettempdir())
-    return root / "posecap-addon.log"
+    return resolve_logs_directory(
+        preferences,
+        dict(os.environ),
+        temp_directory=tempdir or tempfile.gettempdir(),
+    )
+
+
+def _addon_log_path(context: Any, bpy_module: Any) -> Path:
+    return _logs_directory(context, bpy_module) / "posecap-addon.log"
 
 
 class _LiveTargetArmaturePoseWriter:

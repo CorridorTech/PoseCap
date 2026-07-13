@@ -24,7 +24,7 @@ AppSupportURL=https://github.com/CorridorTech/PoseCap/issues
 VersionInfoVersion=@@BASE_VERSION@@
 VersionInfoTextVersion=@@DISPLAY_LABEL@@
 DefaultDirName={localappdata}\PoseCap
-DisableDirPage=auto
+DisableDirPage=yes
 DisableProgramGroupPage=yes
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
@@ -35,6 +35,10 @@ SolidCompression=yes
 SetupLogging=yes
 WizardStyle=modern
 LicenseFile=@@STAGING@@\LICENSE
+
+[InstallDelete]
+Type: files; Name: "{app}\wheels\*.whl"
+Type: files; Name: "{app}\extension\*.zip"
 
 [Files]
 Source: "@@STAGING@@\bin\*"; DestDir: "{app}\bin"; Flags: ignoreversion recursesubdirs
@@ -51,8 +55,41 @@ Source: "@@STAGING@@\THIRD_PARTY_NOTICES.md"; DestDir: "{app}"; Flags: ignorever
 Name: "{userprograms}\PoseCap\PoseCap Setup (repair)"; Filename: "powershell.exe"; Parameters: "-ExecutionPolicy Bypass -File ""{app}\bootstrap\bootstrap_install.ps1"""; WorkingDir: "{app}"
 Name: "{userprograms}\PoseCap\PoseCap Doctor"; Filename: "powershell.exe"; Parameters: "-ExecutionPolicy Bypass -NoExit -Command ""& '{app}\runtime\venv\Scripts\python.exe' -m posecap_engine.cli doctor --pear-root '{app}\pear'"""; WorkingDir: "{app}"
 
-[Run]
-Filename: "powershell.exe"; Parameters: "-ExecutionPolicy Bypass -File ""{app}\bootstrap\bootstrap_install.ps1"""; StatusMsg: "Setting up the GPU runtime (downloads about 4 GB -- this is the long step)..."; Flags: waituntilterminated
+[Code]
+procedure CurStepChanged(CurStep: TSetupStep);
+var
+  ResultCode: Integer;
+begin
+  if CurStep <> ssPostInstall then
+    Exit;
+
+  WizardForm.StatusLabel.Caption :=
+    'Preparing PoseCap (this downloads the GPU runtime and can take several minutes)...';
+  if not Exec(
+    ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
+    ExpandConstant('-NoProfile -ExecutionPolicy Bypass -File "{app}\bootstrap\bootstrap_install.ps1"'),
+    ExpandConstant('{app}'),
+    SW_SHOWNORMAL,
+    ewWaitUntilTerminated,
+    ResultCode
+  ) then
+  begin
+    MsgBox('PoseCap could not start its runtime setup.', mbError, MB_OK);
+    RaiseException('Could not start PoseCap runtime setup: ' + SysErrorMessage(ResultCode));
+  end;
+
+  if ResultCode <> 0 then
+  begin
+    MsgBox(
+      ExpandConstant(
+        'PoseCap setup could not finish. Run PoseCap Setup (repair), then share the newest log from {app}\logs if it still fails.'
+      ),
+      mbError,
+      MB_OK
+    );
+    RaiseException('PoseCap runtime setup failed with exit code ' + IntToStr(ResultCode));
+  end;
+end;
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}\python"

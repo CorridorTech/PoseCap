@@ -103,19 +103,29 @@ def draw_body_models_wizard(layout: Any, wm_group: Any) -> None:
     manual-download alternative.
     """
     column = layout.column()
-    column.label(text="PoseCap needs the licensed body models — a free, one-time setup.")
+    column.label(text="One-time Body Model Setup", icon="ARMATURE_DATA")
+    draw_wrapped_label(
+        column,
+        "The model licenses require your own free accounts. PoseCap installs the files for you.",
+        chars=_WIZARD_WRAP_CHARS,
+        icon="INFO",
+    )
     if wm_group.status != "":
-        draw_wrapped_label(column, wm_group.status, chars=_WIZARD_WRAP_CHARS, icon="INFO")
-    column.label(text="1. Create free accounts (use the same email + password):")
+        status_icon = "ERROR" if "fail" in wm_group.status.casefold() else "INFO"
+        draw_wrapped_label(column, wm_group.status, chars=_WIZARD_WRAP_CHARS, icon=status_icon)
+    column.label(text="Step 1: Create the three accounts")
+    column.label(text="Use unique passwords on each site.")
     signup_row = column.row(align=True)
     for site_name, url in MODEL_SIGNUP_URLS.items():
         signup_row.operator("wm.url_open", text=site_name, icon="URL").url = url
-    column.label(text="Signing up on the official sites is the license step.")
-    column.label(text="2. Enter that email and password (never saved):")
+    column.label(text="Account registration is the required license step.")
+    column.label(text="Step 2: Let PoseCap install the files")
+    column.label(text="Automatic install requires credentials accepted by all three sites.")
+    column.label(text="Your password is used once and is never saved.")
     column.prop(wm_group, "mpi_email")
     column.prop(wm_group, "mpi_password")
-    column.label(text="Click OK to download and install the models.")
-    column.label(text="Prefer the browser? Download the files yourself, then:")
+    column.label(text="Click OK to download and install automatically.")
+    column.label(text="Using unique passwords? Download each original archive, then:")
     column.operator(
         "posecap.watch_model_downloads",
         text="Watch my Downloads Folder",
@@ -177,7 +187,9 @@ def build_model_setup_classes(bpy_module: Any) -> tuple[type[Any], ...]:
             pear_root = _resolve_pear_root(context)
             if pear_root == "":
                 return _report_setup_cancelled(
-                    self, wm_group, "Set the PEAR Root first (in the panel or preferences)."
+                    self,
+                    wm_group,
+                    "PoseCap could not find its installation. Run PoseCap Setup (repair).",
                 )
             wm_group.status = ""
             session = _new_session(context)
@@ -198,7 +210,9 @@ def _start_credential_install(operator: Any, context: Any, bpy_module: Any) -> s
     pear_root = _resolve_pear_root(context)
     if pear_root == "":
         return _report_setup_cancelled(
-            operator, wm_group, "Set the PEAR Root first (in the panel or preferences)."
+            operator,
+            wm_group,
+            "PoseCap could not find its installation. Run PoseCap Setup (repair).",
         )
     email = str(wm_group.mpi_email).strip()
     password = str(wm_group.mpi_password)
@@ -238,7 +252,7 @@ def _new_session(context: Any) -> ModelSetupSession:
 
 
 def _verify_skipped(_pear_root: Path) -> str:
-    return "Models installed (set the engine path to also run the doctor check)."
+    return "Models installed. Run PoseCap Setup (repair) to verify the engine too."
 
 
 def _start_session_poll(bpy_module: Any) -> None:

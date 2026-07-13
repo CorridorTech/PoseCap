@@ -60,6 +60,17 @@ def test_draw_getting_started_offers_a_cta_for_the_incomplete_models_step() -> N
     assert any("body models" in text.lower() for text, _icon in layout.labels)
 
 
+def test_draw_getting_started_shows_all_three_setup_steps() -> None:
+    layout = _DrawLayout()
+
+    draw_getting_started(layout, onboarding_steps(models_ready=False, character_ready=False))
+
+    labels = [text for text, _icon in layout.labels]
+    assert any(text.startswith("1. Body models") for text in labels)
+    assert any(text.startswith("2. Character conversion") for text in labels)
+    assert any(text.startswith("3. Ready to capture") for text in labels)
+
+
 def test_draw_getting_started_has_no_cta_when_every_step_is_done() -> None:
     layout = _DrawLayout()
 

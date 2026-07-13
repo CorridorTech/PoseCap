@@ -63,6 +63,53 @@ def test_iss_template_tokens_match_renderer() -> None:
     )
 
 
+def test_installer_uses_one_fixed_per_user_location() -> None:
+    template = _read("installer/posecap.iss.template")
+    assert "DefaultDirName={localappdata}\\PoseCap" in template
+    assert "DisableDirPage=yes" in template
+
+
+def test_installer_removes_versioned_payload_from_previous_releases() -> None:
+    template = _read("installer/posecap.iss.template")
+
+    assert "[InstallDelete]" in template
+    assert 'Type: files; Name: "{app}\\wheels\\*.whl"' in template
+    assert 'Type: files; Name: "{app}\\extension\\*.zip"' in template
+
+
+def test_installer_propagates_bootstrap_failure_to_its_exit_code() -> None:
+    template = _read("installer/posecap.iss.template")
+
+    assert "[Run]" not in template
+    assert "[Code]" in template
+    assert "ewWaitUntilTerminated" in template
+    assert "ResultCode <> 0" in template
+    assert "RaiseException" in template
+
+
+def test_bootstrap_requires_and_verifies_the_blender_extension() -> None:
+    bootstrap = _read("installer/bootstrap_install.ps1")
+    assert "Blender 4.2 or newer was not found" in bootstrap
+    assert "extension install-file -r user_default -e" in bootstrap
+    assert "extension list" in bootstrap
+    assert "posecap\\s+\\[installed\\]" in bootstrap
+    assert "best effort" not in bootstrap.lower()
+
+
+def test_bootstrap_selects_the_newest_supported_blender() -> None:
+    bootstrap = _read("installer/bootstrap_install.ps1")
+
+    assert "--version" in bootstrap
+    assert "[version]'4.2'" in bootstrap
+    assert "Sort-Object Version -Descending" in bootstrap
+
+
+def test_bootstrap_repair_recreates_the_runtime_without_prompting() -> None:
+    bootstrap = _read("installer/bootstrap_install.ps1")
+
+    assert 'Invoke-Uv @("venv", "--clear", "--python", "3.11", $VenvDir)' in bootstrap
+
+
 def test_bootstrap_never_downloads_licensed_models() -> None:
     bootstrap = _read("installer/bootstrap_install.ps1").lower()
     download_lines = [

@@ -96,7 +96,7 @@ Step -Label "Install Python 3.11 runtime (app-local, via uv)" `
 
 Step -Label "Create engine virtual environment" `
     -Fix "Delete '$VenvDir' and re-run setup." `
-    -Action { Invoke-Uv @("venv", "--python", "3.11", $VenvDir) }
+    -Action { Invoke-Uv @("venv", "--clear", "--python", "3.11", $VenvDir) }
 
 Step -Label "Install PyTorch CUDA 12.4 wheels (~2.5 GB download)" `
     -Fix "Check your internet connection and disk space (needs ~8 GB free), then re-run setup." `
@@ -195,38 +195,57 @@ Step -Label "Verify install (doctor) and fetch pose-model weights (~2.6 GB)" `
         throw "doctor reported failing checks: $($errors -join ', ')"
     }
 
-# --- Blender extension: best effort, never fails the install -------------------
+# --- Blender extension: required so Finish means ready to open -----------------
 Write-Host ""
-Write-Host "==> Install Blender extension (best effort)"
+Write-Host "==> Install and verify the Blender extension"
 $extensionZip = Get-ChildItem -Path (Join-Path $InstallDir "extension") -Filter *.zip | Select-Object -First 1
 $blenderCandidates = @()
 $onPath = Get-Command blender -ErrorAction SilentlyContinue
 if ($null -ne $onPath) { $blenderCandidates += $onPath.Source }
 $blenderCandidates += Get-ChildItem "$env:ProgramFiles\Blender Foundation\Blender*\blender.exe" -ErrorAction SilentlyContinue |
     Sort-Object FullName -Descending | ForEach-Object { $_.FullName }
-$blender = $blenderCandidates | Select-Object -First 1
-if ($null -ne $blender -and $null -ne $extensionZip) {
-    & $blender --command extension install-file -r user_default -e $extensionZip.FullName | Out-Host
-    if ($LASTEXITCODE -eq 0) {
-        Write-Host "    Extension installed into Blender ($blender)."
+$compatibleBlenders = foreach ($candidate in ($blenderCandidates | Select-Object -Unique)) {
+    try {
+        $versionLine = & $candidate --version 2>&1 | Select-Object -First 1
+        if ($versionLine -notmatch '^Blender\s+(\d+\.\d+(?:\.\d+)?)') { continue }
+        $version = [version]$Matches[1]
+        if ($version -lt [version]'4.2') { continue }
+        [pscustomobject]@{ Path = [string]$candidate; Version = $version }
     }
-    else {
-        Write-Host "    Automatic install failed -- install manually: Blender > Edit > Preferences >"
-        Write-Host "    Get Extensions > Install from Disk... -> $($extensionZip.FullName)"
+    catch {
+        continue
     }
 }
-else {
-    Write-Host "    Blender not found. Install the extension manually: Blender > Edit > Preferences >"
-    Write-Host "    Get Extensions > Install from Disk... -> $(Join-Path $InstallDir 'extension')"
+$blender = $compatibleBlenders |
+    Sort-Object Version -Descending |
+    Select-Object -First 1 -ExpandProperty Path
+if ($null -eq $blender) {
+    Fail -What "Blender 4.2 or newer was not found" `
+        -Fix "Install Blender from blender.org, then run 'PoseCap Setup (repair)' from the Start Menu."
 }
+if ($null -eq $extensionZip) {
+    Fail -What "the PoseCap Blender extension package is missing" `
+        -Fix "Reinstall PoseCap; the installer payload is incomplete."
+}
+& $blender --command extension install-file -r user_default -e $extensionZip.FullName | Out-Host
+if ($LASTEXITCODE -ne 0) {
+    Fail -What "Blender could not install the PoseCap extension" `
+        -Fix "Close Blender, then run 'PoseCap Setup (repair)' from the Start Menu."
+}
+$extensionList = & $blender --command extension list 2>&1
+$extensionList | Out-Host
+if ($LASTEXITCODE -ne 0 -or -not ($extensionList -match '(?m)^\s*posecap\s+\[installed\]')) {
+    Fail -What "Blender did not report PoseCap as installed" `
+        -Fix "Close Blender, then run 'PoseCap Setup (repair)'. If it still fails, share the newest log from '$LogDir'."
+}
+Write-Host "    PoseCap is installed and enabled in Blender."
 
 $EnginePath = Join-Path $VenvDir "Scripts\posecap-engine.exe"
 Set-Content -Path (Join-Path $LogDir "SETUP_OK") -Value (Get-Date -Format "o") -Encoding ascii
 Write-Host ""
 Write-Host "PoseCap setup complete." -ForegroundColor Green
-Write-Host "Engine executable: $EnginePath"
-Write-Host "In Blender: the PoseCap panel lives in the 3D Viewport sidebar (N key)."
-Write-Host "If the extension asks for the engine path, point it at the executable above."
+Write-Host "Open Blender, press N in the 3D Viewport, and choose the PoseCap tab."
+Write-Host "PoseCap detects its runtime automatically; no paths need to be configured."
 if ($LicensedModelsPending) {
     Write-Host ""
     Write-Host "ACTION REQUIRED - licensed body models (one-time, ~5 minutes):" -ForegroundColor Yellow
