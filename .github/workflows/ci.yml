@@ -54,7 +54,15 @@ jobs:
           enable-cache: true
       - name: Install FFmpeg (Linux)
         if: ${{ runner.os == 'Linux' }}
-        run: sudo apt-get update && sudo apt-get install --yes ffmpeg
+        run: |
+          if command -v ffprobe >/dev/null 2>&1; then
+            ffprobe -version | head -n 1
+            exit 0
+          fi
+          timeout 300s sudo apt-get \
+            -o Acquire::Retries=3 \
+            -o DPkg::Lock::Timeout=60 \
+            install --yes ffmpeg
       - name: Install FFmpeg (Windows)
         if: ${{ runner.os == 'Windows' }}
         run: choco install ffmpeg --no-progress --yes
