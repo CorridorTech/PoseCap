@@ -36,7 +36,7 @@ def draw_character_setup_section(layout: Any, settings: Any) -> None:
     """Draw the character conversion controls."""
     box = layout.box()
     box.label(text="Character Setup", icon="OUTLINER_OB_ARMATURE")
-    armature = getattr(settings, "target_armature", None)
+    armature = _target_armature(settings)
     if is_converted_armature(armature):
         box.label(text="Character ready for capture", icon="CHECKMARK")
         return
@@ -95,13 +95,27 @@ def build_character_setup_classes(bpy_module: Any) -> tuple[type[Any], ...]:
 
 
 def _picked_armature(context: Any, settings: Any) -> Any | None:
-    armature = getattr(settings, "target_armature", None)
-    if armature is not None and getattr(armature, "type", None) == "ARMATURE":
-        return armature
+    armature = _target_armature(settings)
+    try:
+        if armature is not None and getattr(armature, "type", None) == "ARMATURE":
+            return armature
+    except ReferenceError:
+        pass
     active = getattr(context, "active_object", None)
-    if active is not None and getattr(active, "type", None) == "ARMATURE":
-        return active
+    try:
+        if active is not None and getattr(active, "type", None) == "ARMATURE":
+            return active
+    except ReferenceError:
+        pass
     return None
+
+
+def _target_armature(settings: Any) -> Any | None:
+    """Read the target without leaking Blender's removed-RNA exception."""
+    try:
+        return getattr(settings, "target_armature", None)
+    except ReferenceError:
+        return None
 
 
 def _resolve_preset(settings: Any, armature: Any) -> SkeletonPreset:

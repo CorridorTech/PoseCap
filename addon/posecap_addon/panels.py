@@ -62,6 +62,7 @@ ADDON_ID = (
 _REGISTERED_CLASSES: tuple[type[Any], ...] = ()
 _ACTIVE_SESSION: _LiveStreamSession | None = None
 _LAST_PANEL_DRAW_FAILURE: tuple[type[BaseException], str] | None = None
+_SCENE_UPDATE_HANDLER: Callable[..., None] | None = None
 _RECONNECTABLE_STATES = frozenset({"STREAMING", "RECORDING"})
 _ADDON_VERSION = addon_version()
 
@@ -271,12 +272,18 @@ def register_blender_ui(bpy_module: Any) -> None:
         bpy_module.props.IntProperty(default=0),
     )
     _REGISTERED_CLASSES = classes
+    _register_scene_update_handler(bpy_module)
+    context = getattr(bpy_module, "context", None)
+    if context is not None:
+        _autoconfigure_preferences(_addon_preferences(context))
+        _sync_scene_target(getattr(context, "scene", None), bpy_module)
 
 
 def unregister_blender_ui(bpy_module: Any) -> None:
     """Unregister PoseCap UI classes against a bpy-like module."""
     global _REGISTERED_CLASSES
     _stop_active_session(bpy_module)
+    _unregister_scene_update_handler(bpy_module)
     for scene_property in (SCENE_PROPERTY_NAME, KEY_POSES_PROPERTY, KEY_POSES_INDEX_PROPERTY):
         if hasattr(bpy_module.types.Scene, scene_property):
             delattr(bpy_module.types.Scene, scene_property)
@@ -667,8 +674,6 @@ def _build_blender_classes(bpy_module: Any) -> tuple[type[Any], ...]:
 def _draw_main_panel(layout: Any, context: Any) -> None:
     settings = _settings_from_context(context)
     preferences = _addon_preferences(context)
-    _autoconfigure_preferences(preferences)
-    _auto_select_target_armature(context, settings)
     header = layout.row(align=True)
     header.label(text=f"PoseCap {_ADDON_VERSION}", icon="ARMATURE_DATA")
     header.prop(settings, "show_support", text="", icon="QUESTION")
@@ -689,7 +694,7 @@ def _draw_main_panel(layout: Any, context: Any) -> None:
         draw_model_setup_status(layout, session, wrap_chars=wrap_chars)
     draw_live_stream_panel(layout, settings, capture_ready=capture_ready, wrap_chars=wrap_chars)
     draw_character_setup_section(layout, settings)
-    if getattr(settings, "target_armature", None) is not None:
+    if _valid_target_armature(settings) is not None:
         draw_keyframe_manager_section(layout, context.scene)
     _draw_support_section(
         layout,
@@ -716,8 +721,16 @@ def _character_ready(settings: Any) -> bool:
 
     Guards a removed StructRNA: the panel redraws every frame, and reading
     ``.type`` on an armature deleted mid-session raises (AGENTS.md gotcha)."""
-    armature = getattr(settings, "target_armature", None)
-    return is_converted_armature(armature)
+    return is_converted_armature(_valid_target_armature(settings))
+
+
+def _valid_target_armature(settings: Any) -> Any | None:
+    """Read a target safely without mutating a removed Blender RNA pointer."""
+    try:
+        armature = getattr(settings, "target_armature", None)
+        return armature if getattr(armature, "type", None) == "ARMATURE" else None
+    except ReferenceError:
+        return None
 
 
 def _settings_from_context(context: Any) -> Any:
@@ -768,25 +781,79 @@ def _autoconfigure_preferences(
         preferences.engine_executable = str(installed.engine_executable)
 
 
-def _auto_select_target_armature(context: Any, settings: _LiveStreamSettings) -> None:
+def _auto_select_target_armature(
+    scene: Any,
+    settings: _LiveStreamSettings,
+    *,
+    active_object: Any = None,
+) -> None:
     """Select the obvious armature automatically; ambiguous scenes stay manual."""
-    selected = getattr(settings, "target_armature", None)
     try:
+        selected = getattr(settings, "target_armature", None)
         if selected is not None and getattr(selected, "type", None) == "ARMATURE":
             return
     except ReferenceError:
         settings.target_armature = None
-    active = getattr(context, "active_object", None)
     try:
-        if getattr(active, "type", None) == "ARMATURE":
-            settings.target_armature = active
+        if getattr(active_object, "type", None) == "ARMATURE":
+            settings.target_armature = active_object
             return
     except ReferenceError:
         pass
-    objects = getattr(getattr(context, "scene", None), "objects", ())
-    armatures = [obj for obj in objects if getattr(obj, "type", None) == "ARMATURE"]
-    if len(armatures) == 1:
-        settings.target_armature = armatures[0]
+    objects = getattr(scene, "objects", ())
+    only_armature = None
+    for obj in objects:
+        try:
+            if getattr(obj, "type", None) != "ARMATURE":
+                continue
+        except ReferenceError:
+            continue
+        if only_armature is not None:
+            return
+        only_armature = obj
+    if only_armature is not None:
+        settings.target_armature = only_armature
+
+
+def _sync_scene_target(scene: Any, bpy_module: Any) -> None:
+    """Persist the obvious target outside Panel.draw's read-only context."""
+    if scene is None:
+        return
+    settings = getattr(scene, SCENE_PROPERTY_NAME, None)
+    if settings is None:
+        return
+    context = getattr(bpy_module, "context", None)
+    context_scene = getattr(context, "scene", None)
+    active_object = getattr(context, "active_object", None) if context_scene is scene else None
+    _auto_select_target_armature(scene, settings, active_object=active_object)
+
+
+def _register_scene_update_handler(bpy_module: Any) -> None:
+    """Auto-select imported armatures from Blender's safe scene-update lifecycle."""
+    global _SCENE_UPDATE_HANDLER
+    if _SCENE_UPDATE_HANDLER is not None:
+        return
+
+    def sync_after_update(scene: Any, _depsgraph: Any = None) -> None:
+        _sync_scene_target(scene, bpy_module)
+
+    handlers = bpy_module.app.handlers
+    persistent = getattr(handlers, "persistent", lambda callback: callback)
+    handler = persistent(sync_after_update)
+    handlers.depsgraph_update_post.append(handler)
+    _SCENE_UPDATE_HANDLER = handler
+
+
+def _unregister_scene_update_handler(bpy_module: Any) -> None:
+    """Remove the scene-update callback without disturbing other add-ons."""
+    global _SCENE_UPDATE_HANDLER
+    handler = _SCENE_UPDATE_HANDLER
+    if handler is None:
+        return
+    callbacks = bpy_module.app.handlers.depsgraph_update_post
+    if handler in callbacks:
+        callbacks.remove(handler)
+    _SCENE_UPDATE_HANDLER = None
 
 
 def _draw_support_section(

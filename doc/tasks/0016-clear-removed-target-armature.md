@@ -51,6 +51,23 @@ behavior test and the full quality gate pass.
 The focused regression test passed, the panel suite passed 52 tests, and the
 full quality gate passed 389 tests. The ad-review pass reported zero findings.
 
+### 2026-07-13
+
+Production reports against 1.0.3 exposed that the original implementation
+cleared and auto-selected the target by writing Scene properties from
+`Panel.draw`. Blender rejects ID writes in that context, so importing an FBX
+collapsed the panel into its recovery-only UI. The acceptance outcome remains
+the same for Blender's real lifecycle — the stale pointer is cleared before the
+next redraw — but the mutation now runs from the persistent
+`depsgraph_update_post` handler and `Panel.draw` is strictly read-only.
+
+The regression was reproduced in a visible Blender 5.1.2 session with the real
+`X Bot.fbx`, then verified from isolated installs on Blender 4.2.22, 5.0.1, and
+5.1.2. Coverage now also includes unique/ambiguous/active armature selection,
+manual selection preservation, removed RNA reads, removed scene objects,
+handler registration cleanup, FBX delete/reimport, and a draw guard that rejects
+Scene or preference writes.
+
 ## Definition of Done
 
 All Acceptance Criteria checked, plus:
@@ -59,5 +76,4 @@ All Acceptance Criteria checked, plus:
 - [x] Code review completed (ad-review reported zero findings)
 - [x] No orphan `TODO`/`FIXME` introduced
 - [x] Status updated to `done` and Notes log closes the task
-
 

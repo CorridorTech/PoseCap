@@ -260,6 +260,8 @@ _BLENDER_SMOKE_SCRIPT = textwrap.dedent(
         ) == {"FINISHED"}
         removed_active_object = armature
         bpy.data.objects.remove(armature, do_unlink=True)
+        bpy.context.view_layer.update()
+        assert bpy.context.scene.posecap.target_armature is None
 
         stale_layout = RecordingLayout()
         panel_class.draw(
@@ -273,6 +275,8 @@ _BLENDER_SMOKE_SCRIPT = textwrap.dedent(
         imported = [obj for obj in bpy.data.objects if obj not in before]
         imported_armatures = [obj for obj in imported if obj.type == "ARMATURE"]
         assert len(imported_armatures) == 1
+        bpy.context.view_layer.update()
+        assert bpy.context.scene.posecap.target_armature == imported_armatures[0]
 
         imported_layout = RecordingLayout()
         panel_class.draw(SimpleNamespace(layout=imported_layout), bpy.context)
@@ -294,11 +298,19 @@ _BLENDER_SMOKE_SCRIPT = textwrap.dedent(
             else:
                 os.environ["LOCALAPPDATA"] = original_local_app_data
 
+    original_scene_update_handlers = tuple(bpy.app.handlers.depsgraph_update_post)
     posecap_extension.register()
     posecap_extension.unregister()
     posecap_extension.unregister()
     posecap_extension.register()
     panels = sys.modules["posecap_extension_smoke.posecap_addon.panels"]
+    scene_update_handlers = [
+        handler
+        for handler in bpy.app.handlers.depsgraph_update_post
+        if all(handler is not original for original in original_scene_update_handlers)
+    ]
+    assert len(scene_update_handlers) == 1
+    scene_update_handler = scene_update_handlers[0]
     panel_class = next(
         cls
         for cls in reversed(bpy.types.Panel.__subclasses__())
@@ -311,6 +323,9 @@ _BLENDER_SMOKE_SCRIPT = textwrap.dedent(
         bpy.ops.object.mode_set(mode="EDIT")
         armature.data.edit_bones[0].name = "pelvis"
         bpy.ops.object.mode_set(mode="OBJECT")
+        bpy.context.view_layer.update()
+        settings = bpy.context.scene.posecap
+        assert settings.target_armature == armature
 
         pose_bone = armature.pose.bones["pelvis"]
         pose_bone.rotation_mode = "XYZ"
@@ -328,9 +343,12 @@ _BLENDER_SMOKE_SCRIPT = textwrap.dedent(
         timer.stop()
         assert stream.closed
 
+        bpy.data.objects.remove(armature, do_unlink=True)
+        bpy.context.view_layer.update()
+        assert settings.target_armature is None
+
         synthetic = fbx_roundtrip(synthetic_mixamo_armature())
         bpy.context.view_layer.objects.active = synthetic
-        settings = bpy.context.scene.posecap
         settings.target_armature = synthetic
         settings.character_preset = "AUTO"
         assert bpy.ops.posecap.convert_character() == {"FINISHED"}
@@ -376,6 +394,7 @@ _BLENDER_SMOKE_SCRIPT = textwrap.dedent(
     finally:
         posecap_extension.unregister()
         posecap_extension.unregister()
+        assert scene_update_handler not in bpy.app.handlers.depsgraph_update_post
 
     print("posecap blender conversion smoke ok")
     """

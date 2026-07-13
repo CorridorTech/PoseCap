@@ -840,46 +840,165 @@ def test_panel_persists_detected_installer_paths_without_overwriting_custom_valu
     engine.write_bytes(b"")
     settings = _Settings(lifecycle_state="STOPPED")
     context = _FakeContext(settings, addon_preferences=preferences)
-    layout = _FakeLayout()
+    bpy = _FakeBpy()
+    bpy.context = context
     monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
-    monkeypatch.setattr(posecap_addon.panels, "models_missing", lambda _root: False)
-    monkeypatch.setattr(posecap_addon.panels, "active_model_setup_session", lambda: None)
 
-    posecap_addon.panels._draw_main_panel(layout, context)
+    try:
+        register_blender_ui(bpy)
 
-    assert preferences.pear_root == str(pear)
-    assert preferences.engine_executable == str(engine)
+        assert preferences.pear_root == str(pear)
+        assert preferences.engine_executable == str(engine)
+    finally:
+        unregister_blender_ui(bpy)
 
     preferences.pear_root = "D:/Custom/pear"
     preferences.engine_executable = "D:/Custom/posecap-engine.exe"
-    posecap_addon.panels._draw_main_panel(_FakeLayout(), context)
-    assert preferences.pear_root == "D:/Custom/pear"
-    assert preferences.engine_executable == "D:/Custom/posecap-engine.exe"
+    try:
+        register_blender_ui(bpy)
+
+        assert preferences.pear_root == "D:/Custom/pear"
+        assert preferences.engine_executable == "D:/Custom/posecap-engine.exe"
+    finally:
+        unregister_blender_ui(bpy)
 
 
-def test_panel_auto_selects_the_only_armature_but_leaves_ambiguous_scenes_alone(
-    monkeypatch,
-) -> None:
+def test_scene_update_auto_selects_the_only_armature_but_leaves_ambiguous_scenes_alone() -> None:
     settings = _Settings(lifecycle_state="STOPPED")
     armature = SimpleNamespace(type="ARMATURE")
     context = _FakeContext(settings)
     context.scene.objects = [armature]
     context.active_object = None
+    bpy = _FakeBpy()
+    bpy.context = context
+
+    try:
+        register_blender_ui(bpy)
+
+        assert settings.target_armature is armature
+
+        settings.target_armature = None
+        other_armature = SimpleNamespace(type="ARMATURE")
+        context.scene.objects = [armature, other_armature]
+        bpy.app.handlers.depsgraph_update_post[0](context.scene, None)
+
+        assert settings.target_armature is None
+
+        context.active_object = other_armature
+        bpy.app.handlers.depsgraph_update_post[0](context.scene, None)
+
+        assert settings.target_armature is other_armature
+    finally:
+        unregister_blender_ui(bpy)
+
+
+def test_panel_draw_never_writes_scene_or_preferences(monkeypatch, tmp_path) -> None:
+    class DrawGuardSettings(_Settings):
+        writes_forbidden = False
+
+        def __setattr__(self, name: str, value: object) -> None:
+            if self.writes_forbidden and name == "target_armature":
+                raise AttributeError("Writing to ID classes in this context is not allowed")
+            super().__setattr__(name, value)
+
+    class DrawGuardPreferences(_FakeAddonPreferences):
+        writes_forbidden = False
+
+        def __setattr__(self, name: str, value: object) -> None:
+            if self.writes_forbidden and name in {"pear_root", "engine_executable"}:
+                raise AttributeError("Writing preferences during draw is not allowed")
+            super().__setattr__(name, value)
+
+    settings = DrawGuardSettings(lifecycle_state="STOPPED")
+    preferences = DrawGuardPreferences(pear_root="", engine_executable="posecap-engine")
+    context = _FakeContext(settings, addon_preferences=preferences)
+    context.scene.objects = [SimpleNamespace(type="ARMATURE")]
+    pear = tmp_path / "PoseCap" / "pear"
+    engine = tmp_path / "PoseCap" / "runtime" / "venv" / "Scripts" / "posecap-engine.exe"
+    pear.mkdir(parents=True)
+    engine.parent.mkdir(parents=True)
+    engine.write_bytes(b"")
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
     monkeypatch.setattr(posecap_addon.panels, "models_missing", lambda _root: True)
     monkeypatch.setattr(posecap_addon.panels, "active_model_setup_session", lambda: None)
-    monkeypatch.setattr(posecap_addon.panels, "draw_keyframe_manager_section", lambda *a, **k: None)
+    monkeypatch.setattr(posecap_addon.panels, "draw_keyframe_manager_section", lambda *a: None)
+    bpy = _FakeBpy()
+    bpy.context = context
 
-    posecap_addon.panels._draw_main_panel(_FakeLayout(), context)
+    try:
+        register_blender_ui(bpy)
+        preferences.pear_root = ""
+        preferences.engine_executable = "posecap-engine"
+        settings.target_armature = None
+        settings.writes_forbidden = True
+        preferences.writes_forbidden = True
+        panel_cls = bpy.utils.registered_class("POSECAP_PT_LiveStream")
+        panel = panel_cls()
+        panel.layout = _FakeLayout()
 
-    assert settings.target_armature is armature
+        panel.draw(context)
 
-    settings.target_armature = None
-    context.scene.objects = [armature, SimpleNamespace(type="ARMATURE")]
-    posecap_addon.panels._draw_main_panel(_FakeLayout(), context)
-    assert settings.target_armature is None
+        assert settings.target_armature is None
+        assert not panel.layout.has_label("PoseCap could not refresh this panel.")
+    finally:
+        settings.writes_forbidden = False
+        preferences.writes_forbidden = False
+        unregister_blender_ui(bpy)
 
 
-def test_panel_auto_select_preserves_a_manual_unconverted_target(monkeypatch) -> None:
+def test_panel_and_scene_update_tolerate_a_pointer_that_raises_on_read(monkeypatch) -> None:
+    class RemovedPointerSettings(_Settings):
+        fail_pointer_reads = False
+
+        def __getattribute__(self, name: str) -> object:
+            if name == "target_armature" and object.__getattribute__(self, "fail_pointer_reads"):
+                raise ReferenceError("StructRNA of type Object has been removed")
+            return super().__getattribute__(name)
+
+    settings = RemovedPointerSettings(lifecycle_state="STOPPED")
+    context = _FakeContext(settings)
+    bpy = _FakeBpy()
+    bpy.context = context
+    monkeypatch.setattr(posecap_addon.panels, "models_missing", lambda _root: True)
+    monkeypatch.setattr(posecap_addon.panels, "active_model_setup_session", lambda: None)
+
+    try:
+        register_blender_ui(bpy)
+        settings.fail_pointer_reads = True
+        panel_cls = bpy.utils.registered_class("POSECAP_PT_LiveStream")
+        panel = panel_cls()
+        panel.layout = _FakeLayout()
+
+        panel.draw(context)
+        bpy.app.handlers.depsgraph_update_post[0](context.scene, None)
+
+        assert not panel.layout.has_label("PoseCap could not refresh this panel.")
+        settings.fail_pointer_reads = False
+        assert settings.target_armature is None
+    finally:
+        settings.fail_pointer_reads = False
+        unregister_blender_ui(bpy)
+
+
+def test_scene_update_handler_auto_selects_after_import_and_is_unregistered() -> None:
+    bpy = _FakeBpy()
+    register_blender_ui(bpy)
+    settings = bpy.context.scene.posecap
+    armature = SimpleNamespace(type="ARMATURE")
+    bpy.context.scene.objects = [armature]
+
+    try:
+        assert len(bpy.app.handlers.depsgraph_update_post) == 1
+        bpy.app.handlers.depsgraph_update_post[0](bpy.context.scene, None)
+
+        assert settings.target_armature is armature
+    finally:
+        unregister_blender_ui(bpy)
+
+    assert bpy.app.handlers.depsgraph_update_post == []
+
+
+def test_panel_auto_select_preserves_a_manual_unconverted_target() -> None:
     manual = SimpleNamespace(type="ARMATURE")
     other = SimpleNamespace(type="ARMATURE")
     settings = _Settings(lifecycle_state="STOPPED")
@@ -887,18 +1006,19 @@ def test_panel_auto_select_preserves_a_manual_unconverted_target(monkeypatch) ->
     context = _FakeContext(settings)
     context.scene.objects = [manual, other]
     context.active_object = other
-    monkeypatch.setattr(posecap_addon.panels, "models_missing", lambda _root: True)
-    monkeypatch.setattr(posecap_addon.panels, "active_model_setup_session", lambda: None)
-    monkeypatch.setattr(posecap_addon.panels, "draw_keyframe_manager_section", lambda *a, **k: None)
+    bpy = _FakeBpy()
+    bpy.context = context
 
-    posecap_addon.panels._draw_main_panel(_FakeLayout(), context)
+    try:
+        register_blender_ui(bpy)
 
-    assert settings.target_armature is manual
+        assert settings.target_armature is manual
+    finally:
+        unregister_blender_ui(bpy)
 
 
-def test_panel_clears_a_removed_target_armature_during_redraw(monkeypatch) -> None:
+def test_panel_reads_removed_target_without_writing_and_scene_update_clears_it(monkeypatch) -> None:
     settings = _Settings(lifecycle_state="STOPPED")
-    settings.target_armature = _RemovedPanelTarget()
     context = _FakeContext(settings)
     keyframe_sections: list[object] = []
     monkeypatch.setattr(posecap_addon.panels, "models_missing", lambda _root: True)
@@ -908,26 +1028,45 @@ def test_panel_clears_a_removed_target_armature_during_redraw(monkeypatch) -> No
         "draw_keyframe_manager_section",
         lambda *args: keyframe_sections.append(args),
     )
+    bpy = _FakeBpy()
+    bpy.context = context
 
-    posecap_addon.panels._draw_main_panel(_FakeLayout(), context)
+    try:
+        register_blender_ui(bpy)
+        settings.target_armature = _RemovedPanelTarget()
+        panel_cls = bpy.utils.registered_class("POSECAP_PT_LiveStream")
+        panel = panel_cls()
+        panel.layout = _FakeLayout()
 
-    assert settings.target_armature is None
-    assert keyframe_sections == []
+        panel.draw(context)
+
+        assert isinstance(settings.target_armature, _RemovedPanelTarget)
+        assert keyframe_sections == []
+
+        bpy.app.handlers.depsgraph_update_post[0](context.scene, None)
+
+        assert settings.target_armature is None
+    finally:
+        unregister_blender_ui(bpy)
 
 
-def test_panel_ignores_a_removed_active_object_during_redraw(monkeypatch) -> None:
+def test_scene_update_ignores_a_removed_active_object() -> None:
     settings = _Settings(lifecycle_state="STOPPED")
     armature = SimpleNamespace(type="ARMATURE")
     context = _FakeContext(settings)
     context.active_object = _RemovedPanelTarget()
-    context.scene.objects = [armature]
-    monkeypatch.setattr(posecap_addon.panels, "models_missing", lambda _root: True)
-    monkeypatch.setattr(posecap_addon.panels, "active_model_setup_session", lambda: None)
-    monkeypatch.setattr(posecap_addon.panels, "draw_keyframe_manager_section", lambda *a: None)
+    context.scene.objects = []
+    bpy = _FakeBpy()
+    bpy.context = context
 
-    posecap_addon.panels._draw_main_panel(_FakeLayout(), context)
+    try:
+        register_blender_ui(bpy)
+        context.scene.objects = [_RemovedPanelTarget(), armature]
+        bpy.app.handlers.depsgraph_update_post[0](context.scene, None)
 
-    assert settings.target_armature is armature
+        assert settings.target_armature is armature
+    finally:
+        unregister_blender_ui(bpy)
 
 
 def test_engine_command_passes_video_source_only_in_video_mode() -> None:
@@ -1765,8 +1904,18 @@ class _FakeBpyUtils:
 class _FakeBpyApp:
     def __init__(self) -> None:
         self.timers = _FakeTimers()
+        self.handlers = _FakeHandlers()
         self.tempdir = ""
         self.version = (5, 0, 1)
+
+
+class _FakeHandlers:
+    def __init__(self) -> None:
+        self.depsgraph_update_post: list[Callable[..., None]] = []
+
+    @staticmethod
+    def persistent(callback: Callable[..., None]) -> Callable[..., None]:
+        return callback
 
 
 class _FakeTimers:
