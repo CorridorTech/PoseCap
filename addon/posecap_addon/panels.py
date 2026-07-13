@@ -750,7 +750,7 @@ def _auto_select_target_armature(context: Any, settings: _LiveStreamSettings) ->
         if selected is not None and getattr(selected, "type", None) == "ARMATURE":
             return
     except ReferenceError:
-        pass
+        settings.target_armature = None
     active = getattr(context, "active_object", None)
     if getattr(active, "type", None) == "ARMATURE":
         settings.target_armature = active

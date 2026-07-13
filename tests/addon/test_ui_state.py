@@ -796,6 +796,25 @@ def test_panel_auto_select_preserves_a_manual_unconverted_target(monkeypatch) ->
     assert settings.target_armature is manual
 
 
+def test_panel_clears_a_removed_target_armature_during_redraw(monkeypatch) -> None:
+    settings = _Settings(lifecycle_state="STOPPED")
+    settings.target_armature = _RemovedPanelTarget()
+    context = _FakeContext(settings)
+    keyframe_sections: list[object] = []
+    monkeypatch.setattr(posecap_addon.panels, "models_missing", lambda _root: True)
+    monkeypatch.setattr(posecap_addon.panels, "active_model_setup_session", lambda: None)
+    monkeypatch.setattr(
+        posecap_addon.panels,
+        "draw_keyframe_manager_section",
+        lambda *args: keyframe_sections.append(args),
+    )
+
+    posecap_addon.panels._draw_main_panel(_FakeLayout(), context)
+
+    assert settings.target_armature is None
+    assert keyframe_sections == []
+
+
 def test_engine_command_passes_video_source_only_in_video_mode() -> None:
     settings = _Settings(lifecycle_state="STOPPED")
     settings.pear_root = "C:/PEAR"
@@ -1714,6 +1733,12 @@ class _FakeAddon:
 class _RemovedArmature:
     @property
     def pose(self):
+        raise ReferenceError("StructRNA of type Object has been removed")
+
+
+class _RemovedPanelTarget:
+    @property
+    def type(self):
         raise ReferenceError("StructRNA of type Object has been removed")
 
 
