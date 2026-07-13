@@ -37,7 +37,7 @@ def draw_character_setup_section(layout: Any, settings: Any) -> None:
     box = layout.box()
     box.label(text="Character Setup", icon="OUTLINER_OB_ARMATURE")
     armature = getattr(settings, "target_armature", None)
-    if _is_converted_armature(armature):
+    if is_converted_armature(armature):
         box.label(text="Character ready for capture", icon="CHECKMARK")
         return
     column = box.column()
@@ -161,7 +161,7 @@ def _bone_names(armature: Any) -> tuple[str, ...]:
     return tuple(str(getattr(bone, "name", "")) for bone in bones)
 
 
-def _is_converted_armature(armature: Any) -> bool:
+def is_converted_armature(armature: Any) -> bool:
     if armature is None or getattr(armature, "type", None) != "ARMATURE":
         return False
     try:

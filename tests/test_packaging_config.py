@@ -96,6 +96,14 @@ def test_bootstrap_requires_and_verifies_the_blender_extension() -> None:
     assert "best effort" not in bootstrap.lower()
 
 
+def test_bootstrap_selects_the_newest_supported_blender() -> None:
+    bootstrap = _read("installer/bootstrap_install.ps1")
+
+    assert "--version" in bootstrap
+    assert "[version]'4.2'" in bootstrap
+    assert "Sort-Object Version -Descending" in bootstrap
+
+
 def test_bootstrap_repair_recreates_the_runtime_without_prompting() -> None:
     bootstrap = _read("installer/bootstrap_install.ps1")
 

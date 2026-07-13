@@ -20,6 +20,7 @@ from .character_setup_panel import (
     CHARACTER_PRESET_ITEMS,
     build_character_setup_classes,
     draw_character_setup_section,
+    is_converted_armature,
 )
 from .engine_process import start_engine_stream
 from .instrumentation import ApplyTimeInstrumentation, configure_addon_logging
@@ -531,7 +532,7 @@ def _build_blender_classes(bpy_module: Any) -> tuple[type[Any], ...]:
                 logs = _logs_directory(context, bpy_module)
                 logs.mkdir(parents=True, exist_ok=True)
                 bpy_module.ops.wm.path_open(filepath=str(logs))
-            except OSError as exc:
+            except Exception as exc:
                 self.report({"ERROR"}, f"Could not open the logs folder: {exc}")
                 return {"CANCELLED"}
             return {"FINISHED"}
@@ -571,7 +572,7 @@ def _build_blender_classes(bpy_module: Any) -> tuple[type[Any], ...]:
                 )
                 context.window_manager.clipboard = str(bundle)
                 bpy_module.ops.wm.path_open(filepath=str(bundle.parent))
-            except OSError as exc:
+            except Exception as exc:
                 self.report({"ERROR"}, f"Could not create the Support Bundle: {exc}")
                 return {"CANCELLED"}
             self.report(
@@ -686,17 +687,12 @@ def _getting_started_steps(context: Any, settings: Any) -> Any:
 
 
 def _character_ready(settings: Any) -> bool:
-    """True when a valid armature is picked as the capture target.
+    """True when the selected armature follows the PoseCap convention.
 
     Guards a removed StructRNA: the panel redraws every frame, and reading
     ``.type`` on an armature deleted mid-session raises (AGENTS.md gotcha)."""
     armature = getattr(settings, "target_armature", None)
-    if armature is None:
-        return False
-    try:
-        return getattr(armature, "type", None) == "ARMATURE"
-    except ReferenceError:
-        return False
+    return is_converted_armature(armature)
 
 
 def _settings_from_context(context: Any) -> Any:
@@ -749,8 +745,12 @@ def _autoconfigure_preferences(
 
 def _auto_select_target_armature(context: Any, settings: _LiveStreamSettings) -> None:
     """Select the obvious armature automatically; ambiguous scenes stay manual."""
-    if _character_ready(settings):
-        return
+    selected = getattr(settings, "target_armature", None)
+    try:
+        if selected is not None and getattr(selected, "type", None) == "ARMATURE":
+            return
+    except ReferenceError:
+        pass
     active = getattr(context, "active_object", None)
     if getattr(active, "type", None) == "ARMATURE":
         settings.target_armature = active

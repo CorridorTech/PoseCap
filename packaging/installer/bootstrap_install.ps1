@@ -204,7 +204,21 @@ $onPath = Get-Command blender -ErrorAction SilentlyContinue
 if ($null -ne $onPath) { $blenderCandidates += $onPath.Source }
 $blenderCandidates += Get-ChildItem "$env:ProgramFiles\Blender Foundation\Blender*\blender.exe" -ErrorAction SilentlyContinue |
     Sort-Object FullName -Descending | ForEach-Object { $_.FullName }
-$blender = $blenderCandidates | Select-Object -First 1
+$compatibleBlenders = foreach ($candidate in ($blenderCandidates | Select-Object -Unique)) {
+    try {
+        $versionLine = & $candidate --version 2>&1 | Select-Object -First 1
+        if ($versionLine -notmatch '^Blender\s+(\d+\.\d+(?:\.\d+)?)') { continue }
+        $version = [version]$Matches[1]
+        if ($version -lt [version]'4.2') { continue }
+        [pscustomobject]@{ Path = [string]$candidate; Version = $version }
+    }
+    catch {
+        continue
+    }
+}
+$blender = $compatibleBlenders |
+    Sort-Object Version -Descending |
+    Select-Object -First 1 -ExpandProperty Path
 if ($null -eq $blender) {
     Fail -What "Blender 4.2 or newer was not found" `
         -Fix "Install Blender from blender.org, then run 'PoseCap Setup (repair)' from the Start Menu."

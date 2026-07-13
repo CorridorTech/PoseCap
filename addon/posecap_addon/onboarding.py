@@ -39,7 +39,7 @@ def onboarding_steps(*, models_ready: bool, character_ready: bool) -> tuple[Onbo
         ),
         OnboardingStep(
             key="character",
-            label="2. Target character",
+            label="2. Character conversion",
             done=character_ready,
         ),
         OnboardingStep(
@@ -67,8 +67,6 @@ def draw_getting_started(layout: Any, steps: tuple[OnboardingStep, ...]) -> None
     box.label(text="PoseCap will remember this installation.")
     for step in steps:
         suffix = " ready" if step.done else " required"
-        if step.key == "character" and step.done:
-            suffix = " selected"
         if step.key == "ready" and not step.done:
             suffix = " after the steps above"
         box.label(text=step.label + suffix, icon="CHECKMARK" if step.done else "ERROR")

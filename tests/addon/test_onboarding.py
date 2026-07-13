@@ -67,7 +67,7 @@ def test_draw_getting_started_shows_all_three_setup_steps() -> None:
 
     labels = [text for text, _icon in layout.labels]
     assert any(text.startswith("1. Body models") for text in labels)
-    assert any(text.startswith("2. Target character") for text in labels)
+    assert any(text.startswith("2. Character conversion") for text in labels)
     assert any(text.startswith("3. Ready to capture") for text in labels)
 
 

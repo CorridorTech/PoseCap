@@ -10,6 +10,7 @@ from typing import Any
 
 import posecap_addon.panels
 import pytest
+from posecap_addon.character_setup import SMPLX_BODY_JOINTS
 from posecap_addon.engine_process import EngineEndpoint, EngineProcess
 from posecap_addon.panels import (
     ADDON_ID,
@@ -315,11 +316,33 @@ def test_main_panel_shows_getting_started_until_onboarding_is_complete(monkeypat
     )
 
 
+def test_main_panel_keeps_capture_locked_until_the_character_is_converted(monkeypatch) -> None:
+    settings = _Settings(lifecycle_state="STOPPED")
+    settings.target_armature = SimpleNamespace(
+        type="ARMATURE",
+        data=SimpleNamespace(bones=[SimpleNamespace(name="mixamorig:Hips")]),
+    )
+    context = _FakeContext(settings)
+    monkeypatch.setattr(posecap_addon.panels, "models_missing", lambda _root: False)
+    monkeypatch.setattr(posecap_addon.panels, "active_model_setup_session", lambda: None)
+    monkeypatch.setattr(posecap_addon.panels, "draw_keyframe_manager_section", lambda *a, **k: None)
+    layout = _FakeLayout()
+
+    posecap_addon.panels._draw_main_panel(layout, context)
+
+    assert any("Finish Setup" in text for text in layout._labels)
+    assert layout.has_operator("posecap.convert_character")
+    assert not layout.enabled_for_operator("posecap.start_stream")
+
+
 def test_main_panel_collapses_getting_started_when_every_step_is_done(monkeypatch) -> None:
     # Models installed and a valid armature picked: the checklist collapses and
     # the normal stream controls are the panel's face.
     settings = _Settings(lifecycle_state="STOPPED")
-    settings.target_armature = SimpleNamespace(type="ARMATURE")
+    settings.target_armature = SimpleNamespace(
+        type="ARMATURE",
+        pose=_FakePose(list(SMPLX_BODY_JOINTS)),
+    )
     context = _FakeContext(settings)
     monkeypatch.setattr(posecap_addon.panels, "models_missing", lambda _root: False, raising=False)
     monkeypatch.setattr(
@@ -374,6 +397,50 @@ def test_open_logs_reports_a_filesystem_failure_in_the_panel(monkeypatch) -> Non
 
         assert operator.execute(_FakeContext(_Settings(lifecycle_state="STOPPED"))) == {"CANCELLED"}
         assert reports == [({"ERROR"}, "Could not open the logs folder: logs are read-only")]
+    finally:
+        unregister_blender_ui(bpy)
+
+
+def test_open_logs_reports_a_blender_path_open_failure(monkeypatch, tmp_path) -> None:
+    bpy = _FakeBpy()
+    bpy.ops.wm.path_open = lambda **_kwargs: (_ for _ in ()).throw(
+        RuntimeError("Windows could not open the folder")
+    )
+    register_blender_ui(bpy)
+    monkeypatch.setattr(posecap_addon.panels, "_logs_directory", lambda *_args: tmp_path)
+    reports: list[tuple[set[str], str]] = []
+
+    try:
+        operator_cls = bpy.utils.registered_class("POSECAP_OT_OpenLogs")
+        operator = operator_cls()
+        operator.report = lambda levels, message: reports.append((levels, message))
+
+        assert operator.execute(_FakeContext(_Settings(lifecycle_state="STOPPED"))) == {"CANCELLED"}
+        assert reports == [
+            ({"ERROR"}, "Could not open the logs folder: Windows could not open the folder")
+        ]
+    finally:
+        unregister_blender_ui(bpy)
+
+
+def test_support_bundle_reports_a_zip_failure_in_the_panel(monkeypatch, tmp_path) -> None:
+    bpy = _FakeBpy()
+    register_blender_ui(bpy)
+    monkeypatch.setattr(posecap_addon.panels, "_logs_directory", lambda *_args: tmp_path)
+    monkeypatch.setattr(
+        posecap_addon.panels,
+        "create_support_bundle",
+        lambda **_kwargs: (_ for _ in ()).throw(RuntimeError("ZIP creation failed")),
+    )
+    reports: list[tuple[set[str], str]] = []
+
+    try:
+        operator_cls = bpy.utils.registered_class("POSECAP_OT_CreateSupportBundle")
+        operator = operator_cls()
+        operator.report = lambda levels, message: reports.append((levels, message))
+
+        assert operator.execute(_FakeContext(_Settings(lifecycle_state="STOPPED"))) == {"CANCELLED"}
+        assert reports == [({"ERROR"}, "Could not create the Support Bundle: ZIP creation failed")]
     finally:
         unregister_blender_ui(bpy)
 
@@ -701,6 +768,21 @@ def test_panel_auto_selects_the_only_armature_but_leaves_ambiguous_scenes_alone(
     context.scene.objects = [armature, SimpleNamespace(type="ARMATURE")]
     posecap_addon.panels._auto_select_target_armature(context, settings)
     assert settings.target_armature is None
+
+
+def test_panel_auto_select_preserves_a_manual_unconverted_target() -> None:
+    manual = SimpleNamespace(type="ARMATURE")
+    other = SimpleNamespace(type="ARMATURE")
+    settings = _Settings(lifecycle_state="STOPPED")
+    settings.target_armature = manual
+    context = SimpleNamespace(
+        scene=SimpleNamespace(objects=[manual, other]),
+        active_object=other,
+    )
+
+    posecap_addon.panels._auto_select_target_armature(context, settings)
+
+    assert settings.target_armature is manual
 
 
 def test_engine_command_passes_video_source_only_in_video_mode() -> None:
@@ -1537,6 +1619,7 @@ class _FakeBpyApp:
     def __init__(self) -> None:
         self.timers = _FakeTimers()
         self.tempdir = ""
+        self.version = (5, 0, 1)
 
 
 class _FakeTimers:

@@ -163,6 +163,43 @@ passed the video-to-X-Bot E2E with
 `POSECAP_E2E_OK version=1.0.1-win.1 source=video target=Armature`. Final candidate
 SHA-256: `46F2AF38B3F6324E77E9CC71F3EED63F512AEA68927F8BE42E840A22B5CA293F`.
 
+### 2026-07-13 — Pre-release fresh-context review
+
+The fresh-context review found that the installer accepted the first Blender on
+`PATH` without verifying the supported version, panel redraw could replace a
+manually selected unconverted armature, and support operators did not translate
+all Blender/ZIP failures into user-facing errors. Regression tests were observed
+RED before each correction and GREEN afterward. The installer now probes every
+candidate, ignores Blender versions older than 4.2, and chooses the newest
+supported installation. Capture remains locked until the selected armature has
+the complete PoseCap bone convention, while auto-selection only runs when no
+valid manual target exists. Support actions now report failures through the
+Blender operator boundary instead of leaking tracebacks.
+
+The workstation has a hypervisor but Windows Sandbox is not installed; querying
+or enabling the optional feature requires elevation. The empty-`LOCALAPPDATA`
+run remains an installation-state simulation on a development workstation, not
+proof of the clean-machine acceptance criterion. The clean VM/Sandbox, ten-minute
+FPS and latency session, Doctor failure-path matrix, and orphan-process checks
+remain open and must not be claimed in the patch release notes.
+
+The reviewed source rebuilt
+`PoseCap_v1.0.1-win.1_Windows_Setup.exe` with SHA-256
+`E1F3743AB4F3549109EDFCD55FED02301057BD37D4A94C04594DCC06B8D9E36A`.
+An in-place repair completed with exit code zero, selected Blender 5.0.1 after
+the new version probe, installed and listed the extension, retained only the
+1.0.1 PoseCap wheels, and preserved the installer build label. The installed
+artifact then imported and converted X Bot with probe error `0.0000`, streamed
+`Ale-PoseCAp.mp4` through the installed engine, changed the `left_elbow`
+rotation, and emitted
+`POSECAP_E2E_OK version=1.0.1-win.1 source=video target=Armature`.
+
+The parent-process shutdown probe started Blender and the installed engine as
+its child, terminated Blender, and observed the engine exit after 0.233 seconds.
+This satisfies the five-second orphan-process criterion on the development
+workstation; the clean-machine and ten-minute performance/latency criteria
+remain open.
+
 ## Definition of Done
 
 All Acceptance Criteria checked, plus:
