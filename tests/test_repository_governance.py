@@ -137,6 +137,22 @@ def test_release_workflow_uses_protected_runner_signing_and_attestation() -> Non
     assert "Get-AuthenticodeSignature" in commands
     assert "Get-FileHash -Algorithm SHA256" in commands
     assert "gh release create" in commands
+    assert (
+        "https://github.com/$env:GITHUB_REPOSITORY/releases/download/$env:GITHUB_REF_NAME"
+        in commands
+    )
+    assert "packaging\\build_pear_payload.ps1" in commands
+    assert "packaging\\build_mediapipe_payload.ps1" in commands
+    assert "-Pytorch3dSitePackages .venv-pear\\Lib\\site-packages" in commands
+    assert "-PearPayloadManifest $pearPayloadManifest" in commands
+    assert "-MediaPipePayloadManifest $mediaPipePayloadManifest" in commands
+    assert (
+        "gh release create $env:GITHUB_REF_NAME @assets --verify-tag --generate-notes --draft"
+        in commands
+    )
+    assert "gh release view $env:GITHUB_REF_NAME --json assets" in commands
+    assert "gh release edit $env:GITHUB_REF_NAME --draft=false" in commands
+    assert "packaging/dist/*.json" in workflow_text
     references = {
         str(step["uses"]) for step in release["steps"] if isinstance(step, dict) and "uses" in step
     }

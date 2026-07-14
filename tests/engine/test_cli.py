@@ -308,6 +308,62 @@ def test_live_command_serves_no_person_frame_from_pear_source(monkeypatch, tmp_p
     assert (frame.seq, frame.status, frame.pose) == (0, "no_person", None)
 
 
+def test_live_command_logs_unexpected_frame_failure_after_listening(
+    monkeypatch, tmp_path: Path
+) -> None:
+    class ExplodingPearFrameSource:
+        def __init__(self, pear_root: Path, **_kwargs: object) -> None:
+            self._pear_root = pear_root
+
+        def frames(self):
+            assert self._pear_root == tmp_path / "pear"
+            raise RuntimeError("CUDA kernel is incompatible with this GPU")
+            yield
+
+    monkeypatch.setattr("posecap_engine.cli.PearFrameSource", ExplodingPearFrameSource)
+    stdout = _ThreadedStdout()
+    stderr = StringIO()
+    outcome: Queue[int | BaseException] = Queue()
+    log_file = tmp_path / "posecap-engine.log"
+
+    def invoke() -> None:
+        try:
+            outcome.put(
+                run(
+                    [
+                        "live",
+                        "--pear-root",
+                        str(tmp_path / "pear"),
+                        "--port",
+                        "0",
+                        "--log-file",
+                        str(log_file),
+                    ],
+                    stdout=stdout,
+                    stderr=stderr,
+                )
+            )
+        except BaseException as error:
+            outcome.put(error)
+
+    thread = Thread(target=invoke, daemon=True)
+    thread.start()
+
+    listening = json.loads(stdout.next_line(timeout=2))
+    with socket.create_connection((listening["host"], listening["port"]), timeout=2) as client:
+        assert client.recv(1) == b""
+
+    thread.join(timeout=2)
+    if thread.is_alive():
+        raise AssertionError("live command did not exit after the frame failure")
+
+    assert outcome.get(timeout=0) == 1
+    assert "CUDA kernel is incompatible with this GPU" in stderr.getvalue()
+    log = log_file.read_text(encoding="utf-8")
+    assert "ERROR posecap_engine live capture failed" in log
+    assert "RuntimeError: CUDA kernel is incompatible with this GPU" in log
+
+
 def test_doctor_command_prints_json_and_returns_error_code(monkeypatch) -> None:
     monkeypatch.setattr(
         "posecap_engine.cli.run_doctor",

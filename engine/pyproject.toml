@@ -12,6 +12,7 @@ dependencies = [
 
 [project.scripts]
 posecap-engine = "posecap_engine.cli:main"
+posecap-mediapipe = "posecap_engine.mediapipe_cli:main"
 
 [tool.uv.sources]
 posecap-contracts = { workspace = true }

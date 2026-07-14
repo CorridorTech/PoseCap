@@ -40,6 +40,38 @@ def test_mixamo_mapping_covers_all_smplx_body_joints_with_the_prefix() -> None:
     assert mapping["left_foot"] == "mixamorig:LeftToeBase"
 
 
+def test_full_mixamo_auto_detection_maps_every_finger() -> None:
+    prefix = "mixamorig:"
+    source_bones = set(mixamo_mapping(prefix).values())
+    source_bones.update(
+        f"{prefix}{side}Hand{finger}{joint}"
+        for side in ("Left", "Right")
+        for finger in ("Index", "Middle", "Pinky", "Ring", "Thumb")
+        for joint in range(1, 4)
+    )
+
+    preset = detect_skeleton_preset(source_bones)
+
+    assert preset is not None
+    assert {
+        f"{side}_{finger}{joint}"
+        for side in ("left", "right")
+        for finger in ("index", "middle", "pinky", "ring", "thumb")
+        for joint in range(1, 4)
+    } <= set(preset.mapping)
+
+
+def test_mixamo_with_an_incomplete_hand_stays_body_only() -> None:
+    prefix = "mixamorig:"
+    source_bones = set(mixamo_mapping(prefix).values())
+    source_bones.add(f"{prefix}LeftHandIndex1")
+
+    preset = detect_skeleton_preset(source_bones)
+
+    assert preset is not None
+    assert set(preset.mapping) == set(SMPLX_BODY_JOINTS)
+
+
 def test_detects_the_unreal_skeleton_from_bone_names() -> None:
     bones = {"pelvis", "thigh_l", "thigh_r", "clavicle_l", "spine_05", "hand_r"}
     preset = detect_skeleton_preset(bones)

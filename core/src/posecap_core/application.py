@@ -61,6 +61,7 @@ def plan_pose_application(
     smoother: PoseSmoother | None = None,
     captured_at: float = 0.0,
     camera_pitch_radians: float = 0.0,
+    supported_bones: frozenset[str] | None = None,
 ) -> PoseApplication:
     """Build the bone-level plan for one frame.
 
@@ -86,14 +87,15 @@ def plan_pose_application(
     only takes effect when apply_orientation_fix is on. Positive = camera
     looking down, negative = looking up; 0.0 (default) is no compensation.
     """
-    allowed = limb_filter.allowed_bones()
+    filter_allowed = limb_filter.allowed_bones()
+    allowed = _intersect_allowed_bones(filter_allowed, supported_bones)
     previous: Mapping[str, FloatArray] = (
         previous_quaternions if previous_quaternions is not None else {}
     )
     rotations: list[BoneRotation] = []
     world_offset: FloatArray | None = None
 
-    if allowed is None:
+    if filter_allowed is None and (supported_bones is None or PELVIS in supported_bones):
         orient = np.asarray(payload.global_orient, dtype=np.float64)
         if apply_orientation_fix:
             orient = flip_global_orient(orient, camera_pitch_radians)
@@ -124,6 +126,17 @@ def plan_pose_application(
     return PoseApplication(
         clear_bones=allowed, rotations=tuple(rotations), world_offset=world_offset
     )
+
+
+def _intersect_allowed_bones(
+    filter_allowed: frozenset[str] | None,
+    supported_bones: frozenset[str] | None,
+) -> frozenset[str] | None:
+    if filter_allowed is None:
+        return supported_bones
+    if supported_bones is None:
+        return filter_allowed
+    return filter_allowed & supported_bones
 
 
 def _world_offset(transl: list[float], translation_origin: FloatArray | None) -> FloatArray:

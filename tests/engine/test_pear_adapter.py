@@ -487,12 +487,16 @@ def test_load_pear_runtime_runs_upstream_initialization_from_pear_root(
 def test_pose_payload_from_outputs_converts_pear_rotations_to_contract_payload() -> None:
     cv2 = pytest.importorskip("cv2")
     identity = np.eye(3, dtype=np.float32)
+    left_hand_pose = np.tile(identity, (1, NUM_HAND_JOINTS, 1, 1))
+    left_hand_pose[0, 0] = cv2.Rodrigues(np.asarray([0.0, 0.0, 0.25], dtype=np.float32))[0]
+    right_hand_pose = np.tile(identity, (1, NUM_HAND_JOINTS, 1, 1))
+    right_hand_pose[0, 14] = cv2.Rodrigues(np.asarray([0.75, 0.0, 0.0], dtype=np.float32))[0]
     outputs = {
         "body_param": {
             "global_pose": identity.reshape(1, 1, 3, 3),
             "body_pose": np.tile(identity, (1, NUM_BODY_JOINTS, 1, 1)),
-            "left_hand_pose": np.tile(identity, (1, NUM_HAND_JOINTS, 1, 1)),
-            "right_hand_pose": np.tile(identity, (1, NUM_HAND_JOINTS, 1, 1)),
+            "left_hand_pose": left_hand_pose,
+            "right_hand_pose": right_hand_pose,
             "shape": np.arange(NUM_BETAS + 2, dtype=np.float32).reshape(1, -1),
             "exp": np.arange(NUM_EXPRESSION, dtype=np.float32).reshape(1, -1),
         },
@@ -519,6 +523,8 @@ def test_pose_payload_from_outputs_converts_pear_rotations_to_contract_payload()
     assert len(payload.left_hand_pose) == NUM_HAND_JOINTS
     assert len(payload.right_hand_pose) == NUM_HAND_JOINTS
     assert payload.body_pose[0] == [0.0, 0.0, 0.0]
+    assert payload.left_hand_pose[0] == pytest.approx([0.0, 0.0, 0.25])
+    assert payload.right_hand_pose[14] == pytest.approx([0.75, 0.0, 0.0])
     assert payload.jaw_pose == pytest.approx([0.1, 0.2, 0.3])
     assert payload.betas == pytest.approx(list(range(NUM_BETAS)))
     assert payload.expression == pytest.approx(list(range(NUM_EXPRESSION)))

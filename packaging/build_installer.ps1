@@ -1,20 +1,22 @@
 # Build the PoseCap Windows installer (task 0006; CK2P pattern, light flavor).
 #
-#   powershell -ExecutionPolicy Bypass -File packaging\build_installer.ps1 [-BuildNumber 1]
+#   powershell -ExecutionPolicy Bypass -File packaging\build_installer.ps1 `
+#     -PearPayloadManifest packaging\dist\posecap-pear-bootstrap-<version>.json `
+#     -MediaPipePayloadManifest packaging\dist\posecap-mediapipe-bootstrap-<version>.json
 #
-# Stages the bundled payload (uv.exe, PoseCap wheels, repacked PyTorch3D wheel,
-# Blender extension zip, bootstrap script, pinned lockfiles, manifest), renders
-# the Inno Setup template, and compiles the setup exe into packaging\dist.
+# Stages PoseCap Base, renders the checksummed external PEAR payload entry, and
+# compiles the setup exe into packaging\dist.
 #
-# Requires on the BUILD machine: uv, Inno Setup 6 (ISCC), and the validated
-# .venv-pear from tools\install\setup_pear_runtime.ps1 (source of the repacked
-# PyTorch3D wheel). End-user machines need none of this.
+# Requires on the BUILD machine: uv, Inno Setup 6 (ISCC), and a payload manifest
+# produced by build_pear_payload.ps1. End-user machines need none of this.
 
 #Requires -Version 5.1
 [CmdletBinding()]
 param(
     # 0 is reserved for dev builds; a shipped installer carries a real id.
-    [ValidateRange(1, 999999)] [int]$BuildNumber = 1
+    [ValidateRange(1, 999999)] [int]$BuildNumber = 1,
+    [Parameter(Mandatory = $true)] [string]$PearPayloadManifest,
+    [Parameter(Mandatory = $true)] [string]$MediaPipePayloadManifest
 )
 
 $ErrorActionPreference = 'Stop'
@@ -52,30 +54,7 @@ $pearRevision = $Matches[1]
 # --- Stage bundled payload ------------------------------------------------------
 Write-Host '==> staging payload'
 New-Item -ItemType Directory -Force -Path `
-    (Join-Path $Staging 'bin'), (Join-Path $Staging 'wheels'), `
     (Join-Path $Staging 'extension'), (Join-Path $Staging 'bootstrap') | Out-Null
-
-# uv.exe: the one binary the bootstrap needs; copied from the build machine.
-$uvSource = (Get-Command uv -ErrorAction SilentlyContinue).Source
-if ($null -eq $uvSource) { throw 'uv not found on PATH -- install uv before building the installer' }
-Copy-Item $uvSource (Join-Path $Staging 'bin\uv.exe')
-
-# PoseCap workspace wheels.
-Invoke-Checked -Label 'build posecap-contracts wheel' -Command @('uv', 'build', '--wheel', '--package', 'posecap-contracts', '--out-dir', (Join-Path $Staging 'wheels'))
-Invoke-Checked -Label 'build posecap-core wheel' -Command @('uv', 'build', '--wheel', '--package', 'posecap-core', '--out-dir', (Join-Path $Staging 'wheels'))
-Invoke-Checked -Label 'build posecap-engine wheel' -Command @('uv', 'build', '--wheel', '--package', 'posecap-engine', '--out-dir', (Join-Path $Staging 'wheels'))
-
-# PyTorch3D: repacked from the validated workstation venv (no Windows wheel upstream).
-$sitePackages = Join-Path $RepoRoot '.venv-pear\Lib\site-packages'
-if (-not (Test-Path (Join-Path $sitePackages 'pytorch3d'))) {
-    throw ".venv-pear with a built PyTorch3D not found -- run tools\install\setup_pear_runtime.ps1 first"
-}
-Invoke-Checked -Label 'repack pytorch3d wheel' -Command @(
-    'uv', 'run', 'python', (Join-Path $RepoRoot 'tools\repack_wheel.py'),
-    '--site-packages', $sitePackages,
-    '--distribution', 'pytorch3d',
-    '--output-dir', (Join-Path $Staging 'wheels')
-)
 
 # Blender extension zip.
 Invoke-Checked -Label 'build Blender extension' -Command @(
@@ -85,17 +64,44 @@ Invoke-Checked -Label 'build Blender extension' -Command @(
     '--release'
 )
 
-# Bootstrap, lockfiles, manifest, licenses.
-Copy-Item (Join-Path $ScriptRoot 'installer\bootstrap_install.ps1') (Join-Path $Staging 'bootstrap\bootstrap_install.ps1')
-Copy-Item (Join-Path $ScriptRoot 'requirements-torch.lock') $Staging
-Copy-Item (Join-Path $ScriptRoot 'requirements-pypi.lock') $Staging
+# Bootstrap, manifests, and licenses.
+foreach ($bootstrapScript in @(
+    'bootstrap_install.ps1',
+    'blender_discovery.ps1',
+    'component_lifecycle.ps1',
+    'install_base.ps1',
+    'install_mediapipe.ps1',
+    'install_pear.ps1',
+    'uninstall_base.ps1'
+)) {
+    Copy-Item `
+        (Join-Path $ScriptRoot "installer\$bootstrapScript") `
+        (Join-Path $Staging "bootstrap\$bootstrapScript")
+}
 Copy-Item (Join-Path $RepoRoot 'LICENSE') $Staging
+if (-not (Test-Path -LiteralPath $PearPayloadManifest -PathType Leaf)) {
+    throw "PEAR payload manifest not found: $PearPayloadManifest"
+}
+$pearPayloadManifestPath = (Resolve-Path -LiteralPath $PearPayloadManifest).Path
+Copy-Item $pearPayloadManifestPath (Join-Path $Staging 'pear_payload_manifest.json')
+$pearPayload = Get-Content -LiteralPath $pearPayloadManifestPath -Raw -Encoding UTF8 |
+    ConvertFrom-Json
+if (-not (Test-Path -LiteralPath $MediaPipePayloadManifest -PathType Leaf)) {
+    throw "MediaPipe payload manifest not found: $MediaPipePayloadManifest"
+}
+$mediaPipePayloadManifestPath = (Resolve-Path -LiteralPath $MediaPipePayloadManifest).Path
+Copy-Item $mediaPipePayloadManifestPath (Join-Path $Staging 'mediapipe_payload_manifest.json')
+$mediaPipePayload = Get-Content -LiteralPath $mediaPipePayloadManifestPath -Raw -Encoding UTF8 |
+    ConvertFrom-Json
 
 $manifest = [ordered]@{
-    version        = $displayLabel
-    pearRevision   = $pearRevision
-    pearArchiveUrl = "https://github.com/Pixel-Talk/PEAR/archive/$pearRevision.zip"
-    torchIndexUrl  = 'https://download.pytorch.org/whl/cu124'
+    version       = $displayLabel
+    pearRevision  = $pearRevision
+    pearPayload   = $pearPayload.archive
+    pearSource    = $pearPayload.pear_source
+    mediaPipePayload = $mediaPipePayload.archive
+    mediaPipeModel = $mediaPipePayload.model
+    torchIndexUrl = 'https://download.pytorch.org/whl/cu124'
 }
 $manifest | ConvertTo-Json | Out-File -Encoding utf8 (Join-Path $Staging 'installer_manifest.json')
 
@@ -104,8 +110,9 @@ $manifest | ConvertTo-Json | Out-File -Encoding utf8 (Join-Path $Staging 'instal
 
 Downloaded or bundled by the PoseCap installer, each under its own license:
 
-- PEAR (Pixel-Talk/PEAR, pinned $pearRevision) -- research code, see upstream repository license.
+- PEAR (Pixel-Talk/PEAR, pinned $pearRevision) -- fetched directly from upstream; see upstream terms.
 - PEAR model weights (Hugging Face BestWJH/PEAR_models, pinned revision) -- Apache-2.0.
+- MediaPipe 0.10.35 and Holistic Landmarker task bundle -- Apache-2.0.
 - PyTorch3D 0.7.9 (facebookresearch/pytorch3d, repacked build) -- BSD-3-Clause.
 - PyTorch / Torchvision cu124 wheels -- BSD-style, see pytorch.org.
 - YOLOv8x weights via Ultralytics -- AGPL-3.0 (weights fetched at install time).
@@ -113,24 +120,24 @@ Downloaded or bundled by the PoseCap installer, each under its own license:
 - CPython 3.11 (python-build-standalone) -- PSF license.
 - Python dependencies from PyPI per requirements-pypi.lock -- respective licenses.
 
-SMPL-X body models are licensed by MPI / Meshcapade and are neither bundled nor
-downloaded by this installer.
+PoseCap does not bundle or redistribute PEAR's upstream archive or user-acquired
+SMPL-X body-model files. MPI / Meshcapade terms remain applicable.
 "@ | Out-File -Encoding utf8 (Join-Path $Staging 'THIRD_PARTY_NOTICES.md')
 
 # --- Render + compile -----------------------------------------------------------
 $outputBase = "PoseCap_v${displayLabel}_Windows_Setup"
-# -Encoding UTF8: PS 5.1 Get-Content defaults to the ANSI codepage, which turns
-# any non-ASCII (an em-dash) into mojibake baked into the compiled installer.
-$template = Get-Content (Join-Path $ScriptRoot 'installer\posecap.iss.template') -Raw -Encoding UTF8
-$rendered = $template `
-    -replace '@@APP_VERSION@@', $displayLabel `
-    -replace '@@BASE_VERSION@@', $baseVersion `
-    -replace '@@DISPLAY_LABEL@@', $displayLabel `
-    -replace '@@OUTPUT_BASENAME@@', $outputBase `
-    -replace '@@STAGING@@', $Staging
-if ($rendered -match '@@[A-Z_]+@@') { throw "unrendered token remains: $($Matches[0])" }
 $iss = Join-Path $ScriptRoot 'work\posecap.iss'
-$rendered | Out-File -Encoding utf8 $iss
+Invoke-Checked -Label 'render online installer' -Command @(
+    'uv', 'run', 'python', (Join-Path $RepoRoot 'tools\render_windows_installer.py'),
+    '--template', (Join-Path $ScriptRoot 'installer\posecap.iss.template'),
+    '--payload-manifest', $pearPayloadManifestPath,
+    '--mediapipe-payload-manifest', $mediaPipePayloadManifestPath,
+    '--staging', $Staging,
+    '--app-version', $displayLabel,
+    '--base-version', $baseVersion,
+    '--output-basename', $outputBase,
+    '--output', $iss
+)
 
 $isccCandidates = @(
     "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe",

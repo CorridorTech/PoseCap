@@ -8,6 +8,7 @@ from .application import (
 )
 from .errors import PoseCapError
 from .filters import LimbFilter
+from .landmark_pose import LandmarkMap, LandmarkPoseConverter
 from .orientation import flip_global_orient
 from .ports import PoseStream
 from .retarget import (
@@ -52,6 +53,8 @@ __all__ = [
     "BoneRotation",
     "PoseCapError",
     "LimbFilter",
+    "LandmarkMap",
+    "LandmarkPoseConverter",
     "PoseApplication",
     "PoseSmoother",
     "PoseStream",

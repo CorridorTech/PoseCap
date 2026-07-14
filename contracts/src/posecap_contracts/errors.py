@@ -8,3 +8,7 @@ class FrameDecodeError(ContractError):
 
 class JobStatusDecodeError(ContractError):
     """A job status document could not be decoded."""
+
+
+class BackendManifestDecodeError(ContractError):
+    """A Pose Backend manifest could not be decoded."""

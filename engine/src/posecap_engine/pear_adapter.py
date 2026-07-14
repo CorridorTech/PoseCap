@@ -27,24 +27,7 @@ from posecap_contracts import (
 
 from .config import PEAR_MODELS_REVISION
 from .errors import CaptureUnavailableError
-
-
-@dataclass(frozen=True)
-class CameraSource:
-    """A live webcam selected by OpenCV device index."""
-
-    index: int
-
-
-@dataclass(frozen=True)
-class VideoFileSource:
-    """A finite video file. EOF ends the stream unless looping is enabled
-    (PearLiveConfig.source_loop), in which case it replays from frame 0."""
-
-    path: str
-
-
-LiveSource = CameraSource | VideoFileSource
+from .live_source import CameraSource, LiveSource, VideoFileSource
 
 
 @dataclass(frozen=True)

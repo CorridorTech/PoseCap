@@ -49,15 +49,19 @@ def test_iss_template_is_ascii_only() -> None:
 def test_installer_build_reads_template_as_utf8() -> None:
     # The renderer must decode the template as UTF-8; the ANSI default silently
     # corrupts any non-ASCII an author later adds.
-    build = _read("build_installer.ps1")
-    assert "posecap.iss.template') -Raw -Encoding UTF8" in build
+    renderer = (Path(__file__).parents[1] / "tools" / "render_windows_installer.py").read_text(
+        encoding="utf-8"
+    )
+    assert 'arguments.template.read_text(encoding="utf-8")' in renderer
 
 
 def test_iss_template_tokens_match_renderer() -> None:
     template = _read("installer/posecap.iss.template")
     tokens = set(re.findall(r"@@([A-Z_]+)@@", template))
-    renderer = _read("build_installer.ps1")
-    rendered_tokens = set(re.findall(r"'@@([A-Z_]+)@@'", renderer))
+    renderer = (Path(__file__).parents[1] / "tools" / "render_windows_installer.py").read_text(
+        encoding="utf-8"
+    )
+    rendered_tokens = set(re.findall(r'"@@([A-Z_]+)@@"', renderer))
     assert tokens == rendered_tokens, (
         f"token drift: template={sorted(tokens)} renderer={sorted(rendered_tokens)}"
     )
@@ -87,38 +91,88 @@ def test_installer_propagates_bootstrap_failure_to_its_exit_code() -> None:
     assert "RaiseException" in template
 
 
-def test_bootstrap_requires_and_verifies_the_blender_extension() -> None:
-    bootstrap = _read("installer/bootstrap_install.ps1")
-    assert "Blender 4.2 or newer was not found" in bootstrap
-    assert "extension install-file -r user_default -e" in bootstrap
-    assert "extension list" in bootstrap
-    assert "posecap\\s+\\[installed\\]" in bootstrap
-    assert "best effort" not in bootstrap.lower()
+def test_base_handler_requires_and_verifies_the_blender_extension() -> None:
+    base = _read("installer/install_base.ps1")
+    assert "Blender 4.2 or newer was not found" in base
+    assert "extension install-file -r user_default -e" in base
+    assert "extension list" in base
+    assert "posecap\\s+\\[installed\\]" in base
+    assert "best effort" not in base.lower()
 
 
-def test_bootstrap_selects_the_newest_supported_blender() -> None:
-    bootstrap = _read("installer/bootstrap_install.ps1")
+def test_base_handler_replaces_a_stale_blender_extension_before_installing() -> None:
+    base = _read("installer/install_base.ps1")
 
-    assert "--version" in bootstrap
-    assert "[version]'4.2'" in bootstrap
-    assert "Sort-Object Version -Descending" in bootstrap
-
-
-def test_bootstrap_repair_recreates_the_runtime_without_prompting() -> None:
-    bootstrap = _read("installer/bootstrap_install.ps1")
-
-    assert 'Invoke-Uv @("venv", "--clear", "--python", "3.11", $VenvDir)' in bootstrap
+    assert "if ($installedExtensions -match '(?m)^\\s*posecap\\s+\\[installed\\]')" in base
+    assert base.index("extension remove posecap") < base.index(
+        "extension install-file -r user_default -e"
+    )
 
 
-def test_bootstrap_never_downloads_licensed_models() -> None:
-    bootstrap = _read("installer/bootstrap_install.ps1").lower()
+def test_base_handler_selects_the_newest_supported_blender() -> None:
+    discovery = _read("installer/blender_discovery.ps1")
+
+    assert "--version" in discovery
+    assert "[version]'4.2'" in discovery
+    assert "Sort-Object Version -Descending" in discovery
+
+
+def test_pear_handler_preserves_healthy_repair_or_recreates_runtime() -> None:
+    pear = _read("installer/install_pear.ps1")
+
+    health_index = pear.index("if ($sameVersionRepair -and (Test-PearDoctorAcceptsRuntime))")
+    recreate_index = pear.index('Invoke-Uv @("venv", "--clear", "--python", "3.11", $VenvDir)')
+    assert health_index < recreate_index
+
+
+def test_pear_handler_never_downloads_licensed_models() -> None:
+    pear = _read("installer/install_pear.ps1").lower()
     download_lines = [
         line
-        for line in bootstrap.splitlines()
+        for line in pear.splitlines()
         if "invoke-webrequest" in line or "curl" in line or "hf_hub_download" in line
     ]
     for line in download_lines:
         assert "smpl" not in line and "flame" not in line, line
     # Instruction text must exist so the user knows the manual step.
-    assert "smpl-x" in bootstrap
-    assert "cannot ship with posecap" in bootstrap
+    assert "smpl-x" in pear
+    assert "cannot ship with posecap" in pear
+
+
+def test_pear_handler_consumes_the_inno_verified_local_source_archive() -> None:
+    pear = _read("installer/install_pear.ps1")
+
+    assert '$PearSourceArchive = Join-Path $InstallDir "payloads\\pear\\pear-source.zip"' in pear
+    assert "Invoke-WebRequest" not in pear
+    assert "Expand-Archive -LiteralPath $PearSourceArchive" in pear
+    assert (
+        'Set-Content -LiteralPath (Join-Path $PearDir ".posecap-source-revision") '
+        "-Value $Manifest.pearRevision -NoNewline" in pear
+    )
+
+
+def test_pear_handler_refreshes_changed_source_without_deleting_retained_data() -> None:
+    pear = _read("installer/install_pear.ps1")
+
+    assert "$installedRevision -eq [string]$Manifest.pearRevision" in pear
+    assert "Get-ChildItem -LiteralPath $inner.FullName -Force |" in pear
+    assert "Copy-Item -Destination $PearDir -Recurse -Force" in pear
+    assert "Remove-Item -Recurse -Force -LiteralPath $PearDir" not in pear
+
+
+def test_pear_handler_registers_backend_only_after_runtime_install() -> None:
+    pear = _read("installer/install_pear.ps1")
+
+    doctor_index = pear.index("Verify install (doctor) and fetch pose-model weights")
+    engine_index = pear.index('$EnginePath = Join-Path $VenvDir "Scripts\\posecap-engine.exe"')
+    assert engine_index > doctor_index
+    assert "schema_version = 1" in pear
+    assert 'id = "pear"' in pear
+    assert 'command = @($EnginePath, "live", "--pear-root", $PearDir)' in pear
+    assert "protocol_versions = @(1)" in pear
+    assert 'capabilities = @("body", "hands", "face")' in pear
+    assert 'operating_systems = @("windows")' in pear
+    assert 'accelerators = @("nvidia-cuda")' in pear
+    assert 'account = "MPI account required for model downloads"' in pear
+    assert "ConvertTo-Json -Depth 4" in pear
+    assert "Move-Item -Force" in pear
