@@ -27,18 +27,52 @@ from posecap_contracts import MPI_DOWNLOAD_URL, REQUIRED_MODEL_ASSETS, PublicDow
 CREDENTIALS = MpiCredentials(email="emmet@corridor.example", password="s3cret!pw")
 
 
-def test_forbidden_download_is_reported_as_an_authorization_problem(monkeypatch, tmp_path) -> None:
-    # A 403 (HTTPError, a URLError subclass) is the server refusing the account,
-    # not a connectivity problem — the message must not send the user to check
-    # their internet when the real fix is the credentials/verification/rate limit.
+def test_forbidden_download_explains_the_ambiguous_refusal_and_safe_recovery(
+    monkeypatch, tmp_path
+) -> None:
+    # A 403 proves only that the server refused the request. The message must
+    # neither guess the cause nor encourage a retry loop.
     import urllib.error
     import urllib.request
 
     class _ForbiddenOpener:
+        calls = 0
+
         def open(self, request, timeout=0.0):  # noqa: A003 - mirrors urllib API
+            self.calls += 1
             raise urllib.error.HTTPError(request.full_url, 403, "Forbidden", {}, None)  # type: ignore[arg-type]
 
-    monkeypatch.setattr(urllib.request, "build_opener", lambda *a, **k: _ForbiddenOpener())
+    opener = _ForbiddenOpener()
+    monkeypatch.setattr(urllib.request, "build_opener", lambda *a, **k: opener)
+
+    with pytest.raises(ModelSetupError) as raised:
+        _urllib_fetch(
+            "https://download.example/download.php?domain=smpl&sfile=SMPL_python_v.1.1.0.zip",
+            b"user=x",
+            tmp_path / "f",
+            lambda d, t: None,
+        )
+
+    message = str(raised.value).lower()
+    assert "internet" not in message, "a 403 is not a connectivity error"
+    assert "http 403" in message
+    assert "cannot tell" in message
+    assert "stop retrying" in message
+    assert "watch my downloads folder" in message
+    assert "already installed" in message
+    assert "smpl_python_v.1.1.0.zip" in message
+    assert opener.calls == 1, "PoseCap must not retry an ambiguous 403 automatically"
+
+
+def test_unauthorized_download_points_to_account_verification(monkeypatch, tmp_path) -> None:
+    import urllib.error
+    import urllib.request
+
+    class _UnauthorizedOpener:
+        def open(self, request, timeout=0.0):  # noqa: A003 - mirrors urllib API
+            raise urllib.error.HTTPError(request.full_url, 401, "Unauthorized", {}, None)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(urllib.request, "build_opener", lambda *a, **k: _UnauthorizedOpener())
 
     with pytest.raises(ModelSetupError) as raised:
         _urllib_fetch(
@@ -46,8 +80,10 @@ def test_forbidden_download_is_reported_as_an_authorization_problem(monkeypatch,
         )
 
     message = str(raised.value).lower()
-    assert "internet" not in message, "a 403 is not a connectivity error"
-    assert "authorized" in message or "password" in message
+    assert "http 401" in message
+    assert "email and password" in message
+    assert "verification email" in message
+    assert "temporarily" not in message
 
 
 @cache
@@ -352,6 +388,23 @@ def test_credential_session_surfaces_friendly_failure(tmp_path: Path) -> None:
     assert session.state == "FAILED"
     assert "password" in session.status_message.lower()
     assert "Traceback" not in session.status_message
+
+
+def test_credential_session_logs_expected_failure_without_the_password(
+    caplog, tmp_path: Path
+) -> None:
+    def refused_fetch(_url, _post_data, _sink_path, _progress) -> None:
+        raise ModelSetupError("The official model server refused this download (HTTP 403).")
+
+    session = ModelSetupSession(fetch=refused_fetch, assets=_test_assets())
+
+    with caplog.at_level("WARNING", logger="posecap_addon.model_setup"):
+        session.start_credential_install(tmp_path, CREDENTIALS)
+        session.join(timeout_seconds=60.0)
+
+    assert "HTTP 403" in caplog.text
+    assert CREDENTIALS.email not in caplog.text
+    assert CREDENTIALS.password not in caplog.text
 
 
 def test_watcher_session_installs_archives_as_they_appear(tmp_path: Path) -> None:

@@ -149,6 +149,19 @@ def test_status_wraps_a_long_failure_so_the_whole_message_is_readable() -> None:
     assert "official site" in joined
 
 
+def test_failed_status_keeps_manual_download_recovery_visible() -> None:
+    layout = _FakeLayout()
+    session = SimpleNamespace(
+        state="FAILED",
+        status_message="The official model server refused this download (HTTP 403).",
+    )
+
+    draw_model_setup_status(layout, session)
+
+    assert "posecap.watch_model_downloads" in layout.operator_ids
+    assert "already installed" in " ".join(layout.labels).lower()
+
+
 def test_status_shows_a_progress_bar_while_a_download_has_a_measurable_fraction() -> None:
     layout = _FakeLayout()
     session = SimpleNamespace(

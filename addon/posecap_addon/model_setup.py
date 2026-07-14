@@ -195,6 +195,13 @@ def _source_file_name(source: MpiDownload | PublicDownload) -> str:
     return source.url.rsplit("/", 1)[-1]
 
 
+def _requested_file_label(url: str) -> str:
+    values = urllib.parse.parse_qs(urllib.parse.urlparse(url).query).get("sfile", ())
+    if values and values[0]:
+        return values[0]
+    return "this download"
+
+
 def _request_for(
     source: MpiDownload | PublicDownload,
     credentials: MpiCredentials,
@@ -468,6 +475,7 @@ class ModelSetupSession:
             self.state = "FAILED"
             self.progress_fraction = None
             self.status_message = str(exc)
+            logging.getLogger(__name__).warning("model setup stopped: %s", exc)
             return
         except Exception:
             self.state = "FAILED"
@@ -565,16 +573,23 @@ def _urllib_fetch(
                     done += len(chunk)
                     progress(done, total)
     except urllib.error.HTTPError as exc:
-        # HTTPError is a URLError subclass, so it must be handled first. A refused
-        # request is not a connection problem: 401/403 means the credentials, an
-        # unconfirmed account, or rate-limiting after repeated downloads — saying
-        # "check your internet" would send the user down the wrong path.
-        if exc.code in (401, 403):
+        # HTTPError is a URLError subclass, so it must be handled first. A 401
+        # identifies authentication; a 403 only proves that the server refused
+        # the request, so guessing its cause or retrying automatically is unsafe.
+        if exc.code == 403:
+            file_name = _requested_file_label(url)
             raise ModelSetupError(
-                "The download server refused the request (the account is not "
-                "authorized). Check the email and password, confirm the account "
-                "verification email, and — if you have downloaded several times "
-                "just now — wait a few minutes before trying again."
+                f"The official model server refused {file_name} (HTTP 403). "
+                "PoseCap cannot tell whether the account is not approved or the "
+                "server is temporarily refusing this connection. Stop retrying "
+                "for now. After a browser download succeeds, choose Watch my "
+                "Downloads Folder; already installed models are kept."
+            ) from exc
+        if exc.code == 401:
+            raise ModelSetupError(
+                "The official model server rejected the login (HTTP 401). "
+                "Check the email and password, then confirm the account "
+                "verification email before trying again."
             ) from exc
         raise ModelSetupError(
             f"The download server returned an error (HTTP {exc.code}). Please try again."
