@@ -71,7 +71,23 @@ jobs:
           $baseVersion = uv run python -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])"
           $expectedTag = "v$baseVersion-win.$buildNumber"
           if ($env:GITHUB_REF_NAME -cne $expectedTag) { throw "Release tag $env:GITHUB_REF_NAME does not match project version $expectedTag." }
-          & packaging\build_installer.ps1 -BuildNumber $buildNumber
+          $releaseBaseUrl = "https://github.com/$env:GITHUB_REPOSITORY/releases/download/$env:GITHUB_REF_NAME"
+          $versionedLabel = "$baseVersion-win.$buildNumber"
+          $pearPayloadManifest = "packaging\dist\posecap-pear-bootstrap-$versionedLabel.json"
+          $mediaPipePayloadManifest = "packaging\dist\posecap-mediapipe-bootstrap-$versionedLabel.json"
+          & packaging\build_pear_payload.ps1 `
+            -BuildNumber $buildNumber `
+            -Pytorch3dSitePackages .venv-pear\Lib\site-packages `
+            -BaseUrl $releaseBaseUrl
+          if ($LASTEXITCODE -ne 0) { throw "PEAR payload build failed." }
+          & packaging\build_mediapipe_payload.ps1 `
+            -BuildNumber $buildNumber `
+            -BaseUrl $releaseBaseUrl
+          if ($LASTEXITCODE -ne 0) { throw "MediaPipe payload build failed." }
+          & packaging\build_installer.ps1 `
+            -BuildNumber $buildNumber `
+            -PearPayloadManifest $pearPayloadManifest `
+            -MediaPipePayloadManifest $mediaPipePayloadManifest
           if ($LASTEXITCODE -ne 0) { throw "Installer build failed." }
           uv run python tools/build_extension.py --output-dir packaging/dist --staging-dir packaging/work/release-extension --release
       - name: Sign and verify Windows installer
@@ -90,7 +106,7 @@ jobs:
       - name: Write SHA-256 checksums
         shell: pwsh
         run: |
-          Get-ChildItem packaging\dist\*.exe, packaging\dist\*.zip | ForEach-Object {
+          Get-ChildItem packaging\dist\*.exe, packaging\dist\*.zip, packaging\dist\*.json | ForEach-Object {
             $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $_.FullName).Hash.ToLowerInvariant()
             "$hash *$($_.Name)" | Set-Content -Encoding ascii -LiteralPath "$($_.FullName).sha256"
           }
@@ -100,6 +116,7 @@ jobs:
           subject-path: |
             packaging/dist/*.exe
             packaging/dist/*.zip
+            packaging/dist/*.json
             packaging/dist/*.sha256
       - name: Preserve release artifacts
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -108,13 +125,32 @@ jobs:
           path: |
             packaging/dist/*.exe
             packaging/dist/*.zip
+            packaging/dist/*.json
             packaging/dist/*.sha256
           if-no-files-found: error
           retention-days: 30
-      - name: Publish GitHub release
+      - name: Create draft GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
         shell: pwsh
         run: |
-          $assets = @(Get-ChildItem packaging\dist\*.exe, packaging\dist\*.zip, packaging\dist\*.sha256 | ForEach-Object FullName)
-          gh release create $env:GITHUB_REF_NAME @assets --verify-tag --generate-notes --title $env:GITHUB_REF_NAME
+          $assets = @(Get-ChildItem packaging\dist\*.exe, packaging\dist\*.zip, packaging\dist\*.json, packaging\dist\*.sha256 | ForEach-Object FullName)
+          gh release create $env:GITHUB_REF_NAME @assets --verify-tag --generate-notes --draft --title $env:GITHUB_REF_NAME
+      - name: Verify draft release asset inventory
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          $expectedAssets = @(Get-ChildItem packaging\dist\*.exe, packaging\dist\*.zip, packaging\dist\*.json, packaging\dist\*.sha256 | ForEach-Object Name)
+          $release = gh release view $env:GITHUB_REF_NAME --json assets | ConvertFrom-Json
+          $publishedNames = @($release.assets | ForEach-Object name)
+          foreach ($expectedAsset in $expectedAssets) {
+            if ($publishedNames -notcontains $expectedAsset) {
+              throw "Draft release is missing expected asset: $expectedAsset"
+            }
+          }
+      - name: Publish verified GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: gh release edit $env:GITHUB_REF_NAME --draft=false

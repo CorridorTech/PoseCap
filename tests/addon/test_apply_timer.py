@@ -30,6 +30,19 @@ def test_pose_apply_timer_applies_latest_ok_frame_and_reschedules() -> None:
     assert writer.redraws == 1
 
 
+def test_body_only_backend_does_not_touch_hand_bones() -> None:
+    stream = _FakeStream([PoseFrame(SCHEMA_VERSION, 1, 100.0, "ok", _payload())])
+    writer = _FakeWriter()
+    timer = PoseApplyTimer(stream, writer, supported_capabilities=("body",))
+
+    timer.tick()
+
+    names = {rotation.bone_name for rotation in writer.applied[0]}
+    assert "pelvis" in names
+    assert "left_wrist" in names
+    assert not any("index" in name or "thumb" in name for name in names)
+
+
 def test_pose_apply_timer_reads_live_recording_flag_each_tick() -> None:
     stream = _FakeStream(
         [

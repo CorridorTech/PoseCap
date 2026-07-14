@@ -5,6 +5,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+import re
 import subprocess
 import sys
 from collections.abc import Callable
@@ -53,6 +54,7 @@ _PEAR_IMPORTS = (
 )
 
 _RUNTIME_VERSION_MODULES = ("torch", "torchvision", "pytorch3d")
+_PEAR_ARCHIVE_REVISION_MARKER = ".posecap-source-revision"
 
 # Single source of truth for the required licensed files: the shared manifest.
 _LICENSED_ASSET_PATHS = tuple(Path(*asset.target_path) for asset in REQUIRED_MODEL_ASSETS)
@@ -279,6 +281,28 @@ def _check_torch_cuda() -> DoctorCheck:
         torch = importlib.import_module("torch")
         cuda_available = bool(torch.cuda.is_available())
         device_count = int(torch.cuda.device_count()) if cuda_available else 0
+        supported_architectures = (
+            [str(architecture) for architecture in torch.cuda.get_arch_list()]
+            if cuda_available
+            else []
+        )
+        supported_majors = {
+            int(match.group(1)) // 10
+            for architecture in supported_architectures
+            if (match := re.fullmatch(r"sm_(\d+)(?:a)?", architecture)) is not None
+        }
+        unsupported_devices = []
+        for index in range(device_count):
+            major, minor = torch.cuda.get_device_capability(index)
+            if int(major) in supported_majors:
+                continue
+            unsupported_devices.append(
+                {
+                    "index": index,
+                    "name": str(torch.cuda.get_device_name(index)),
+                    "capability": f"sm_{int(major)}{int(minor)}",
+                }
+            )
     except (AttributeError, ImportError, OSError, RuntimeError) as exc:
         return DoctorCheck(
             "torch_cuda",
@@ -293,11 +317,33 @@ def _check_torch_cuda() -> DoctorCheck:
             "PyTorch is installed but CUDA is not available; PEAR has no CPU live path.",
             {"device_count": device_count},
         )
+    if not supported_architectures:
+        return DoctorCheck(
+            "torch_cuda",
+            "warn",
+            "PyTorch reports CUDA available, but its compiled GPU architectures could not be "
+            "checked.",
+            {"device_count": device_count},
+        )
+    if unsupported_devices:
+        return DoctorCheck(
+            "torch_cuda",
+            "error",
+            "PyTorch can see CUDA, but this build has no compatible kernels for one or more GPUs.",
+            {
+                "device_count": device_count,
+                "supported_architectures": supported_architectures,
+                "unsupported_devices": unsupported_devices,
+            },
+        )
     return DoctorCheck(
         "torch_cuda",
         "ok",
         "PyTorch reports CUDA available.",
-        {"device_count": device_count},
+        {
+            "device_count": device_count,
+            "supported_architectures": supported_architectures,
+        },
     )
 
 
@@ -325,6 +371,32 @@ def _check_pear_checkout(pear_root: Path | None, command_runner: CommandRunner) 
             {"pear_root": str(pear_root), "expected_revision": PEAR_REVISION},
         )
 
+    archive_revision = pear_root / _PEAR_ARCHIVE_REVISION_MARKER
+    if archive_revision.is_file():
+        actual_revision = archive_revision.read_text(encoding="utf-8").strip()
+        if actual_revision != PEAR_REVISION:
+            return DoctorCheck(
+                "pear_checkout",
+                "error",
+                "PEAR archive is not at the pinned revision.",
+                {
+                    "pear_root": str(pear_root),
+                    "actual_revision": actual_revision,
+                    "expected_revision": PEAR_REVISION,
+                    "revision_source": "archive",
+                },
+            )
+        return DoctorCheck(
+            "pear_checkout",
+            "ok",
+            "PEAR archive is present at the pinned revision.",
+            {
+                "pear_root": str(pear_root),
+                "expected_revision": PEAR_REVISION,
+                "revision_source": "archive",
+            },
+        )
+
     revision_check = _git_revision_check(pear_root, command_runner)
     if revision_check is not None:
         return revision_check
@@ -337,6 +409,39 @@ def _check_pear_checkout(pear_root: Path | None, command_runner: CommandRunner) 
 
 
 def _git_revision_check(pear_root: Path, command_runner: CommandRunner) -> DoctorCheck | None:
+    try:
+        top_level = command_runner(["git", "-C", str(pear_root), "rev-parse", "--show-toplevel"])
+    except OSError as exc:
+        return DoctorCheck(
+            "pear_checkout",
+            "warn",
+            "PEAR checkout shape is valid, but git was unavailable to verify the revision.",
+            {"pear_root": str(pear_root), "error": str(exc), "expected_revision": PEAR_REVISION},
+        )
+    if top_level.returncode != 0:
+        return DoctorCheck(
+            "pear_checkout",
+            "warn",
+            "PEAR checkout shape is valid, but git could not verify the revision.",
+            {
+                "pear_root": str(pear_root),
+                "stderr": top_level.stderr.strip(),
+                "expected_revision": PEAR_REVISION,
+            },
+        )
+    detected_top_level = Path(top_level.stdout.strip()).resolve()
+    if detected_top_level != pear_root.resolve():
+        return DoctorCheck(
+            "pear_checkout",
+            "warn",
+            "PEAR checkout shape is valid, but it is not its own Git checkout.",
+            {
+                "pear_root": str(pear_root),
+                "detected_git_root": str(detected_top_level),
+                "expected_revision": PEAR_REVISION,
+            },
+        )
+
     try:
         completed = command_runner(["git", "-C", str(pear_root), "rev-parse", "HEAD"])
     except OSError as exc:

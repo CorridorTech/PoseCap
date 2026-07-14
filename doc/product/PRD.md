@@ -2,7 +2,7 @@
 
 Status: accepted
 Created: 2026-06-11
-Updated: 2026-06-12
+Updated: 2026-07-14
 Owner: alexandremendoncaalvaro
 
 ## Product
@@ -109,3 +109,85 @@ Later:
 * ARCHITECTURE.md — binding layer structure the roadmap items implement.
 * doc/reference/README.md — PEAR and Fast-SAM-3D-Body papers, upstream addon lineage.
 * ADRs: six accepted in [doc/adr/](../adr/) — hexagonal layers, TCP IPC, JSON wire format, uv vendoring, PEAR pinning, license split.
+
+## Amendment — Optional Pose Backends
+
+PoseCap remains one product with one camera-to-Blender preview and recording flow.
+PEAR is no longer assumed to be the only inference choice: a **Pose Backend** is an
+independently installable runtime behind the same live stream. Operating system,
+accelerator, model access, and license terms are compatibility properties of each
+backend, not separate product modes.
+
+This amendment supersedes the global statements above that every PoseCap runtime
+requires NVIDIA CUDA, that CPU-only operation is out of scope, and that Linux support
+belongs only after the original PEAR roadmap. Those statements remain true for the
+current PEAR backend, not for PoseCap as a whole. It also supersedes the proposed
+MHR-to-SMPL feedforward conversion: the tested direct-MHR path avoids restoring a
+licensed SMPL dependency and must use an explicit PoseCap retarget adapter.
+
+### Additional goals
+
+* Let an animator install MediaPipe, PEAR, MHR, or any combination without one
+  backend changing or constraining another backend's environment.
+* Show license acceptance, account, operating-system, and hardware requirements
+  before installation so the user can make an informed choice.
+* Provide at least one account-free, non-NVIDIA path on Windows and Linux while
+  retaining every useful channel each selected backend can actually produce.
+* Preserve the existing camera, preview, recording, target-armature, and latest-wins
+  behavior regardless of the selected backend.
+
+### Additional success metrics
+
+* A clean machine can install and run any one supported backend without installing
+  either of the other two, measured by isolated installer acceptance runs.
+* Installing or removing a second backend leaves the first backend's doctor and live
+  stream green, measured by pairwise installation tests.
+* MediaPipe live preview passes on supported Windows and Linux x86-64 machines
+  without an NVIDIA GPU, measured by the same frozen fixtures and stream acceptance
+  test used by its integration task.
+* The backend selector never offers an unavailable combination as ready: every shown
+  readiness state is backed by a machine-readable compatibility and doctor result.
+
+### Roadmap amendment
+
+MVP extension:
+
+* Pose Backend registry — discover validated manifests from a PoseCap-owned location,
+  select an installed backend, and launch its isolated process through the existing
+  TCP JSON stream. Register the current PEAR runtime first as a no-behavior-change
+  tracer bullet.
+
+Next:
+
+* MediaPipe backend — account-free CPU live preview on Windows and Linux, retaining
+  body, hand, and face channels that can be mapped honestly to the target rig.
+* MHR Experimental backend — low-rate live preview for stop-motion pose regulation,
+  with direct MHR output adapted to PoseCap and unsupported facial expression left
+  absent rather than represented as captured zeros.
+* Linux NVIDIA validation — prove PEAR and MHR on their upstream-friendly platform
+  without coupling Linux support to the account-free CPU path.
+
+Later:
+
+* AMD/ROCm investigation on Linux — a backend-specific spike, not a promise inferred
+  from PyTorch's general ROCm support.
+* MediaPipe validation on macOS after Windows and Linux establish the portable base.
+
+### Resolved product questions
+
+* Should licensing choices create separate PoseCap editions or workflows?
+
+  Resolved: no. They are optional Pose Backends inside the same product and live
+  workflow; the installer exposes the terms and the user chooses.
+* Should platform expansion start with Linux or removal of NVIDIA dependence?
+
+  Resolved: first prove MediaPipe CPU on Windows and Linux, because that single path
+  expands both hardware and operating-system access. Then validate PEAR and MHR on
+  Linux with NVIDIA; investigate AMD only with backend-specific evidence.
+
+### Related amendment decisions
+
+* [ADR-0008](../adr/0008-offer-mediapipe-lite-backend.md) — proposed MediaPipe
+  backend and measured account-free CPU path.
+* [ADR-0009](../adr/0009-offer-fast-sam-mhr-backend.md) — proposed MHR Experimental
+  backend and measured low-rate stop-motion value.

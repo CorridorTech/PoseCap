@@ -49,6 +49,7 @@ def test_default_installation_paths_use_the_fixed_per_user_layout() -> None:
     assert paths.engine_executable == Path(
         "C:/Users/Ale/AppData/Local/PoseCap/runtime/venv/Scripts/posecap-engine.exe"
     )
+    assert paths.backend_registry == Path("C:/Users/Ale/AppData/Local/PoseCap/backends")
     assert paths.logs == Path("C:/Users/Ale/AppData/Local/PoseCap/logs")
 
 

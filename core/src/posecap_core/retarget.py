@@ -16,6 +16,8 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
+from .skeleton import LEFT_HAND_JOINT_NAMES, RIGHT_HAND_JOINT_NAMES
+
 SMPLX_BODY_JOINTS = (
     "pelvis",
     "left_hip",
@@ -94,6 +96,16 @@ _MIXAMO_SUFFIXES: dict[str, str] = {
     "right_wrist": "RightHand",
 }
 
+
+def _mixamo_hand_suffix(joint: str) -> str:
+    side, finger_joint = joint.split("_", maxsplit=1)
+    return f"{side.title()}Hand{finger_joint[:-1].title()}{finger_joint[-1]}"
+
+
+_MIXAMO_HAND_SUFFIXES: dict[str, str] = {
+    joint: _mixamo_hand_suffix(joint) for joint in LEFT_HAND_JOINT_NAMES + RIGHT_HAND_JOINT_NAMES
+}
+
 _MIXAMO_PREFIX_PATTERN = re.compile(r"^(mixamorig\d*[:_])Hips$")
 
 # Arm chains re-rested to a T-pose: (bone, reference child whose HEAD gives
@@ -141,7 +153,7 @@ def mixamo_mapping(prefix: str) -> dict[str, str]:
     return {joint: prefix + suffix for joint, suffix in _MIXAMO_SUFFIXES.items()}
 
 
-def mixamo_preset(prefix: str) -> SkeletonPreset:
+def mixamo_preset(prefix: str, *, include_hands: bool = False) -> SkeletonPreset:
     # Mixamo characters download in T-pose; the UE-style A-pose re-rest
     # would corrupt an already correct rest pose.
     chains: ArmChains = {
@@ -156,10 +168,13 @@ def mixamo_preset(prefix: str) -> SkeletonPreset:
             (prefix + "RightHand", prefix + "RightHandMiddle1"),
         ),
     }
+    mapping = mixamo_mapping(prefix)
+    if include_hands:
+        mapping.update(_mixamo_hand_mapping(prefix))
     return SkeletonPreset(
         name="mixamo",
         label="Mixamo",
-        mapping=mixamo_mapping(prefix),
+        mapping=mapping,
         arm_chains=chains,
         already_t_pose=True,
     )
@@ -173,10 +188,19 @@ def detect_skeleton_preset(bone_names: set[str] | frozenset[str]) -> SkeletonPre
     for name in names:
         match = _MIXAMO_PREFIX_PATTERN.match(name)
         if match and match.group(1) + "LeftUpLeg" in names:
-            return mixamo_preset(match.group(1))
+            prefix = match.group(1)
+            return mixamo_preset(prefix, include_hands=_has_complete_mixamo_hands(prefix, names))
     if {"Hips", "LeftUpLeg", "LeftForeArm"} <= names:
-        return mixamo_preset("")
+        return mixamo_preset("", include_hands=_has_complete_mixamo_hands("", names))
     return None
+
+
+def _mixamo_hand_mapping(prefix: str) -> dict[str, str]:
+    return {joint: prefix + suffix for joint, suffix in _MIXAMO_HAND_SUFFIXES.items()}
+
+
+def _has_complete_mixamo_hands(prefix: str, bone_names: set[str]) -> bool:
+    return set(_mixamo_hand_mapping(prefix).values()).issubset(bone_names)
 
 
 def validate_mapping(mapping: dict[str, str]) -> list[str]:

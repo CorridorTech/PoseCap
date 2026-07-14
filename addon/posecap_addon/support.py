@@ -15,6 +15,7 @@ from typing import Any
 _INSTALLER_SUBPATH = ("PoseCap",)
 _ENGINE_SUBPATH = ("runtime", "venv", "Scripts", "posecap-engine.exe")
 _PEAR_SUBPATH = ("pear",)
+_BACKEND_REGISTRY_SUBPATH = ("backends",)
 
 
 @dataclass(frozen=True)
@@ -24,6 +25,7 @@ class InstallationPaths:
     root: Path
     pear_root: Path
     engine_executable: Path
+    backend_registry: Path
     logs: Path
 
 
@@ -63,6 +65,7 @@ def default_installation_paths(env: dict[str, str]) -> InstallationPaths | None:
         root=root,
         pear_root=root.joinpath(*_PEAR_SUBPATH),
         engine_executable=root.joinpath(*_ENGINE_SUBPATH),
+        backend_registry=root.joinpath(*_BACKEND_REGISTRY_SUBPATH),
         logs=root / "logs",
     )
 

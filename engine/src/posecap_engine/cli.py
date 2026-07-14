@@ -13,8 +13,9 @@ from .config import DEFAULT_HOST, DEFAULT_PORT
 from .doctor import encode_doctor_report, run_doctor
 from .errors import EngineError
 from .frame_sources import FixtureFrameSource
+from .live_source import CameraSource, LiveSource, VideoFileSource
 from .logging_config import configure_logging
-from .pear_adapter import CameraSource, LiveSource, PearFrameSource, VideoFileSource
+from .pear_adapter import PearFrameSource
 from .preview import PreviewWindow
 from .stream_server import serve_once
 from .watchdog import ParentWatchdog
@@ -102,21 +103,28 @@ def _run_devices(args: argparse.Namespace, stdout: TextIO) -> int:
 
 def _run_live(args: argparse.Namespace, stdout: TextIO) -> int:
     logger = configure_logging(args.log_file)
-    source = _frame_source(args)
+    try:
+        source = _frame_source(args)
 
-    def ready(address: tuple[str, int]) -> None:
-        message = {"event": "listening", "host": address[0], "port": address[1]}
-        print(json.dumps(message), file=stdout)
-        stdout.flush()
+        def ready(address: tuple[str, int]) -> None:
+            message = {"event": "listening", "host": address[0], "port": address[1]}
+            print(json.dumps(message), file=stdout)
+            stdout.flush()
 
-    serve_once(
-        source.frames(),
-        host=args.host,
-        port=args.port,
-        watchdog=ParentWatchdog(args.parent_pid),
-        logger=logger,
-        ready=ready,
-    )
+        serve_once(
+            source.frames(),
+            host=args.host,
+            port=args.port,
+            watchdog=ParentWatchdog(args.parent_pid),
+            logger=logger,
+            ready=ready,
+        )
+    except EngineError:
+        logger.exception("live capture failed")
+        raise
+    except Exception as error:
+        logger.exception("live capture failed")
+        raise EngineError(f"live capture failed: {error}") from error
     return 0
 
 

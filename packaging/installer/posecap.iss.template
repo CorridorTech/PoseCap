@@ -1,13 +1,8 @@
-; PoseCap -- Windows installer template (task 0006; mirrors the CK2P pattern).
+; PoseCap -- Windows suite installer template.
 ;
-; Light flavor by design (Ale, 2026-07-09): the setup exe bundles only what has
-; no canonical hosted source -- the PoseCap wheels, the repacked PyTorch3D wheel,
-; the Blender extension zip, uv.exe, and the bootstrap script. Everything heavy
-; (CPython, torch cu124, PyPI deps, PEAR code, model weights) is downloaded by
-; the bootstrap step from pinned canonical sources (python-build-standalone,
-; download.pytorch.org, PyPI, GitHub, Hugging Face) with exact pins baked into
-; installer_manifest.json. After Finish, everything needed is on disk; the only
-; prerequisites are an NVIDIA driver and Blender.
+; The setup exe contains Base only. Each selected Pose Backend downloads its own
+; immutable bootstrap under an isolated backend directory. MediaPipe Lite is the
+; account-free CPU recommendation; PEAR remains an optional NVIDIA CUDA backend.
 ;
 ; SMPL-X body models are licensed (MPI/Meshcapade) and are neither bundled nor
 ; downloaded -- ADR-0006.
@@ -32,42 +27,68 @@ PrivilegesRequired=lowest
 OutputBaseFilename=@@OUTPUT_BASENAME@@
 Compression=lzma2/max
 SolidCompression=yes
+ArchiveExtraction=full
 SetupLogging=yes
 WizardStyle=modern
 LicenseFile=@@STAGING@@\LICENSE
+AlwaysShowComponentsList=yes
+UsePreviousSetupType=no
+
+[Types]
+Name: "recommended"; Description: "Recommended"
+Name: "custom"; Description: "Custom"; Flags: iscustom
+
+[Components]
+Name: "base"; Description: "PoseCap Base"; Types: recommended custom; Flags: fixed
+Name: "mediapipe"; Description: "MediaPipe Lite (CPU, no account)"; Types: recommended custom
+Name: "pear"; Description: "PEAR (NVIDIA CUDA, licensed models)"; Types: custom
 
 [InstallDelete]
 Type: files; Name: "{app}\wheels\*.whl"
 Type: files; Name: "{app}\extension\*.zip"
 
 [Files]
-Source: "@@STAGING@@\bin\*"; DestDir: "{app}\bin"; Flags: ignoreversion recursesubdirs
-Source: "@@STAGING@@\wheels\*"; DestDir: "{app}\wheels"; Flags: ignoreversion
 Source: "@@STAGING@@\extension\*"; DestDir: "{app}\extension"; Flags: ignoreversion
 Source: "@@STAGING@@\bootstrap\*"; DestDir: "{app}\bootstrap"; Flags: ignoreversion
-Source: "@@STAGING@@\requirements-torch.lock"; DestDir: "{app}"; Flags: ignoreversion
-Source: "@@STAGING@@\requirements-pypi.lock"; DestDir: "{app}"; Flags: ignoreversion
 Source: "@@STAGING@@\installer_manifest.json"; DestDir: "{app}"; Flags: ignoreversion
+Source: "@@STAGING@@\pear_payload_manifest.json"; DestDir: "{app}"; Flags: ignoreversion
+Source: "@@STAGING@@\mediapipe_payload_manifest.json"; DestDir: "{app}"; Flags: ignoreversion
 Source: "@@STAGING@@\LICENSE"; DestDir: "{app}"; Flags: ignoreversion
 Source: "@@STAGING@@\THIRD_PARTY_NOTICES.md"; DestDir: "{app}"; Flags: ignoreversion
+Source: "@@PEAR_PAYLOAD_URL@@"; DestDir: "{app}"; DestName: "@@PEAR_PAYLOAD_FILENAME@@"; Components: pear; Hash: "@@PEAR_PAYLOAD_SHA256@@"; Flags: external download extractarchive recursesubdirs createallsubdirs ignoreversion; ExternalSize: @@PEAR_PAYLOAD_INSTALLED_SIZE@@
+Source: "@@PEAR_SOURCE_URL@@"; DestDir: "{app}\payloads\pear"; DestName: "@@PEAR_SOURCE_FILENAME@@"; Components: pear; Hash: "@@PEAR_SOURCE_SHA256@@"; Flags: external download ignoreversion; ExternalSize: @@PEAR_SOURCE_SIZE@@
+Source: "@@MEDIAPIPE_PAYLOAD_URL@@"; DestDir: "{app}\payloads\mediapipe"; DestName: "@@MEDIAPIPE_PAYLOAD_FILENAME@@"; Components: mediapipe; Hash: "@@MEDIAPIPE_PAYLOAD_SHA256@@"; Flags: external download extractarchive recursesubdirs createallsubdirs ignoreversion; ExternalSize: @@MEDIAPIPE_PAYLOAD_INSTALLED_SIZE@@
+Source: "@@MEDIAPIPE_MODEL_URL@@"; DestDir: "{app}\backends\mediapipe\models"; DestName: "holistic_landmarker.task"; Components: mediapipe; Hash: "@@MEDIAPIPE_MODEL_SHA256@@"; Flags: external download ignoreversion; ExternalSize: @@MEDIAPIPE_MODEL_SIZE@@
 
 [Icons]
 Name: "{userprograms}\PoseCap\PoseCap Setup (repair)"; Filename: "powershell.exe"; Parameters: "-ExecutionPolicy Bypass -File ""{app}\bootstrap\bootstrap_install.ps1"""; WorkingDir: "{app}"
-Name: "{userprograms}\PoseCap\PoseCap Doctor"; Filename: "powershell.exe"; Parameters: "-ExecutionPolicy Bypass -NoExit -Command ""& '{app}\runtime\venv\Scripts\python.exe' -m posecap_engine.cli doctor --pear-root '{app}\pear'"""; WorkingDir: "{app}"
+Name: "{userprograms}\PoseCap\PoseCap Doctor (PEAR)"; Filename: "powershell.exe"; Parameters: "-ExecutionPolicy Bypass -NoExit -Command ""& '{app}\runtime\venv\Scripts\python.exe' -m posecap_engine.cli doctor --pear-root '{app}\pear'"""; WorkingDir: "{app}"; Components: pear
+Name: "{userprograms}\PoseCap\PoseCap Doctor (MediaPipe)"; Filename: "powershell.exe"; Parameters: "-ExecutionPolicy Bypass -NoExit -Command ""& '{app}\backends\mediapipe\runtime\Scripts\posecap-mediapipe.exe' doctor --model-path '{app}\backends\mediapipe\models\holistic_landmarker.task'"""; WorkingDir: "{app}"; Components: mediapipe
 
 [Code]
 procedure CurStepChanged(CurStep: TSetupStep);
 var
   ResultCode: Integer;
+  SelectedComponents: String;
 begin
   if CurStep <> ssPostInstall then
     Exit;
 
-  WizardForm.StatusLabel.Caption :=
-    'Preparing PoseCap (this downloads the GPU runtime and can take several minutes)...';
+  SelectedComponents := 'base';
+  if WizardIsComponentSelected('mediapipe') then
+    SelectedComponents := SelectedComponents + ',mediapipe';
+  if WizardIsComponentSelected('pear') then
+  begin
+    SelectedComponents := SelectedComponents + ',pear';
+    WizardForm.StatusLabel.Caption := 'Preparing selected PoseCap backends...';
+  end
+  else if WizardIsComponentSelected('mediapipe') then
+    WizardForm.StatusLabel.Caption := 'Preparing MediaPipe Lite (CPU)...'
+  else
+    WizardForm.StatusLabel.Caption := 'Preparing PoseCap Base...';
   if not Exec(
     ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
-    ExpandConstant('-NoProfile -ExecutionPolicy Bypass -File "{app}\bootstrap\bootstrap_install.ps1"'),
+    ExpandConstant('-NoProfile -ExecutionPolicy Bypass -File "{app}\bootstrap\bootstrap_install.ps1" -Components ' + SelectedComponents),
     ExpandConstant('{app}'),
     SW_SHOWNORMAL,
     ewWaitUntilTerminated,
@@ -91,8 +112,37 @@ begin
   end;
 end;
 
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+var
+  ResultCode: Integer;
+begin
+  if CurUninstallStep <> usUninstall then
+    Exit;
+
+  if not Exec(
+    ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
+    ExpandConstant('-NoProfile -ExecutionPolicy Bypass -File "{app}\bootstrap\uninstall_base.ps1"'),
+    ExpandConstant('{app}'),
+    SW_HIDE,
+    ewWaitUntilTerminated,
+    ResultCode
+  ) then
+  begin
+    MsgBox('PoseCap could not start Blender extension cleanup.', mbError, MB_OK);
+    Exit;
+  end;
+
+  if ResultCode <> 0 then
+    MsgBox(
+      'PoseCap was removed, but Blender extension cleanup failed. Remove PoseCap from Blender Preferences > Get Extensions.',
+      mbError,
+      MB_OK
+    );
+end;
+
 [UninstallDelete]
+Type: files; Name: "{app}\installed_components.json"
 Type: filesandordirs; Name: "{app}\python"
 Type: filesandordirs; Name: "{app}\runtime"
-Type: filesandordirs; Name: "{app}\pear"
+Type: filesandordirs; Name: "{app}\backends"
 Type: filesandordirs; Name: "{app}\logs"

@@ -170,6 +170,77 @@ def test_doctor_verifies_pinned_pear_revision(monkeypatch, tmp_path: Path) -> No
     assert "first" in message.lower() and "2.6 GB" in message
 
 
+def test_doctor_accepts_pinned_archive_revision_inside_parent_checkout(
+    monkeypatch, tmp_path: Path
+) -> None:
+    pear_root = _pear_checkout(tmp_path)
+    (pear_root / ".posecap-source-revision").write_text(PEAR_REVISION, encoding="utf-8")
+    monkeypatch.setattr(doctor.importlib.util, "find_spec", lambda _module_name: SimpleNamespace())
+    monkeypatch.setattr(
+        doctor.importlib,
+        "import_module",
+        lambda module_name: _fake_import_module(module_name),
+    )
+
+    report = run_doctor(
+        pear_root=pear_root,
+        command_runner=lambda command: _fake_command(command, pear_revision="0" * 40),
+    )
+
+    check = _checks_by_name(report)["pear_checkout"]
+    assert check["status"] == "ok"
+    assert cast(dict[str, object], check["details"])["revision_source"] == "archive"
+
+
+def test_doctor_does_not_treat_parent_checkout_as_pear_checkout(
+    monkeypatch, tmp_path: Path
+) -> None:
+    pear_root = _pear_checkout(tmp_path)
+    monkeypatch.setattr(doctor.importlib.util, "find_spec", lambda _module_name: SimpleNamespace())
+    monkeypatch.setattr(
+        doctor.importlib,
+        "import_module",
+        lambda module_name: _fake_import_module(module_name),
+    )
+
+    def parent_checkout_command(command: list[str]) -> subprocess.CompletedProcess[str]:
+        if command[0] == "nvidia-smi":
+            return _completed(stdout="RTX 3080, 610.62, 10240 MiB\n")
+        if command[-1] == "--show-toplevel":
+            return _completed(stdout=f"{tmp_path}\n")
+        if command[-1] == "HEAD":
+            return _completed(stdout=f"{PEAR_REVISION}\n")
+        return _completed(returncode=1, stderr="unexpected command")
+
+    report = run_doctor(pear_root=pear_root, command_runner=parent_checkout_command)
+
+    check = _checks_by_name(report)["pear_checkout"]
+    assert check["status"] == "warn"
+    assert "own Git checkout" in str(check["message"])
+
+
+def test_doctor_rejects_archive_revision_marker_mismatch(monkeypatch, tmp_path: Path) -> None:
+    pear_root = _pear_checkout(tmp_path)
+    (pear_root / ".posecap-source-revision").write_text("0" * 40, encoding="utf-8")
+    monkeypatch.setattr(doctor.importlib.util, "find_spec", lambda _module_name: SimpleNamespace())
+    monkeypatch.setattr(
+        doctor.importlib,
+        "import_module",
+        lambda module_name: _fake_import_module(module_name),
+    )
+
+    report = run_doctor(
+        pear_root=pear_root,
+        command_runner=lambda command: _fake_command(command, pear_revision=PEAR_REVISION),
+    )
+
+    check = _checks_by_name(report)["pear_checkout"]
+    assert check["status"] == "error"
+    details = cast(dict[str, object], check["details"])
+    assert details["actual_revision"] == "0" * 40
+    assert details["revision_source"] == "archive"
+
+
 def test_doctor_reports_hf_weights_ok_when_already_cached(monkeypatch, tmp_path: Path) -> None:
     # After the installer's `doctor --download-weights`, the weights sit in the
     # HuggingFace cache. A normal doctor run must probe the cache and report OK,
@@ -328,6 +399,93 @@ def test_doctor_reports_exact_runtime_versions(monkeypatch, tmp_path: Path) -> N
     assert cast(dict[str, object], details["pytorch3d"])["version"] == "0.7.9"
 
 
+def test_doctor_rejects_gpu_architecture_missing_from_torch_build(
+    monkeypatch, tmp_path: Path
+) -> None:
+    pear_root = _pear_checkout(tmp_path)
+    torch = _fake_torch()
+    torch.cuda.get_arch_list = lambda: [
+        "sm_50",
+        "sm_60",
+        "sm_61",
+        "sm_70",
+        "sm_75",
+        "sm_80",
+        "sm_86",
+        "sm_90",
+    ]
+    torch.cuda.get_device_capability = lambda _index: (12, 0)
+    torch.cuda.get_device_name = lambda _index: "NVIDIA GeForce RTX 5090"
+    modules = {
+        "torch": torch,
+        "huggingface_hub": _fake_hf(),
+    }
+    monkeypatch.setattr(doctor.importlib.util, "find_spec", lambda _module_name: SimpleNamespace())
+    monkeypatch.setattr(
+        doctor.importlib,
+        "import_module",
+        lambda module_name: modules.get(module_name, SimpleNamespace()),
+    )
+
+    report = run_doctor(
+        pear_root=pear_root,
+        command_runner=lambda command: _fake_command(command, pear_revision=PEAR_REVISION),
+    )
+
+    check = _checks_by_name(report)["torch_cuda"]
+    assert check["status"] == "error"
+    assert check["message"] == (
+        "PyTorch can see CUDA, but this build has no compatible kernels for one or more GPUs."
+    )
+    details = cast(dict[str, object], check["details"])
+    assert details["supported_architectures"] == [
+        "sm_50",
+        "sm_60",
+        "sm_61",
+        "sm_70",
+        "sm_75",
+        "sm_80",
+        "sm_86",
+        "sm_90",
+    ]
+    assert details["unsupported_devices"] == [
+        {
+            "index": 0,
+            "name": "NVIDIA GeForce RTX 5090",
+            "capability": "sm_120",
+        }
+    ]
+
+
+def test_doctor_warns_when_torch_does_not_report_compiled_architectures(
+    monkeypatch, tmp_path: Path
+) -> None:
+    pear_root = _pear_checkout(tmp_path)
+    torch = _fake_torch()
+    torch.cuda.get_arch_list = lambda: []
+    modules = {
+        "torch": torch,
+        "huggingface_hub": _fake_hf(),
+    }
+    monkeypatch.setattr(doctor.importlib.util, "find_spec", lambda _module_name: SimpleNamespace())
+    monkeypatch.setattr(
+        doctor.importlib,
+        "import_module",
+        lambda module_name: modules.get(module_name, SimpleNamespace()),
+    )
+
+    report = run_doctor(
+        pear_root=pear_root,
+        command_runner=lambda command: _fake_command(command, pear_revision=PEAR_REVISION),
+    )
+
+    check = _checks_by_name(report)["torch_cuda"]
+    assert check["status"] == "warn"
+    assert check["message"] == (
+        "PyTorch reports CUDA available, but its compiled GPU architectures could not be checked."
+    )
+
+
 def _pear_checkout(tmp_path: Path) -> Path:
     pear_root = tmp_path / "pear"
     (pear_root / "models").mkdir(parents=True)
@@ -357,6 +515,8 @@ def _fake_command(command: list[str], *, pear_revision: str) -> subprocess.Compl
     if command[0] == "nvidia-smi":
         return _completed(stdout="RTX 3080, 610.62, 10240 MiB\n")
     if command[0] == "git":
+        if command[-1] == "--show-toplevel":
+            return _completed(stdout=f"{command[2]}\n")
         return _completed(stdout=f"{pear_revision}\n")
     return _completed(returncode=1, stderr="unexpected command")
 
@@ -369,7 +529,13 @@ def _fake_torch(
     return SimpleNamespace(
         __version__=torch_version,
         version=SimpleNamespace(cuda=cuda_version),
-        cuda=SimpleNamespace(is_available=lambda: True, device_count=lambda: 1),
+        cuda=SimpleNamespace(
+            is_available=lambda: True,
+            device_count=lambda: 1,
+            get_arch_list=lambda: ["sm_86"],
+            get_device_capability=lambda _index: (8, 6),
+            get_device_name=lambda _index: "NVIDIA GeForce RTX 3080",
+        ),
     )
 
 

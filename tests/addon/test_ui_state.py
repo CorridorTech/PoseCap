@@ -29,6 +29,8 @@ from posecap_contracts import (
     NUM_EXPRESSION,
     NUM_HAND_JOINTS,
     SCHEMA_VERSION,
+    BackendCompatibility,
+    PoseBackendManifest,
     PoseFrame,
     PosePayload,
 )
@@ -135,6 +137,14 @@ def test_live_stream_panel_exposes_pose_smoothing_toggle() -> None:
     draw_live_stream_panel(layout, _Settings(lifecycle_state="STOPPED"))
 
     assert layout.has_property("pose_smoothing")
+
+
+def test_live_stream_panel_exposes_persisted_pose_backend_selector() -> None:
+    layout = _FakeLayout()
+
+    draw_live_stream_panel(layout, _Settings(lifecycle_state="STOPPED"))
+
+    assert layout.has_property("pose_backend_id")
 
 
 def test_advanced_section_collapsed_hides_tuning_and_expanded_shows_it() -> None:
@@ -289,6 +299,101 @@ def test_start_stream_rejects_an_out_of_order_start_before_model_setup(monkeypat
         )
     finally:
         unregister_blender_ui(bpy)
+
+
+def test_license_free_backend_does_not_require_pear_body_models(monkeypatch) -> None:
+    settings = _Settings(lifecycle_state="STOPPED")
+    _mark_character_ready(settings)
+    monkeypatch.setattr(posecap_addon.panels, "models_missing", lambda _root: True)
+    manifest = PoseBackendManifest(
+        schema_version=1,
+        id="mediapipe",
+        display_name="MediaPipe Lite (CPU)",
+        command=("C:/PoseCap/backends/mediapipe/posecap-mediapipe.exe", "live"),
+        protocol_versions=(1,),
+        capabilities=("body",),
+        compatibility=BackendCompatibility(
+            operating_systems=("windows", "linux"),
+            accelerators=("cpu",),
+            account="No account required",
+            license="Apache-2.0",
+        ),
+        requires_body_models=False,
+        apply_orientation_fix=False,
+    )
+
+    issue = posecap_addon.panels._capture_setup_issue(_FakeContext(settings), settings, manifest)
+
+    assert issue is None
+
+
+def test_license_free_backend_launches_without_pear_and_declares_body_only(monkeypatch) -> None:
+    captured: list[dict[str, object]] = []
+    selected_backend_ids: list[str | None] = []
+
+    class _RecordingTimer:
+        def __init__(self, stream, writer, **kwargs) -> None:
+            captured.append(kwargs)
+            self._stream = stream
+
+        def tick(self) -> float:
+            return 1.0 / 60.0
+
+        def stop(self) -> None:
+            self._stream.close()
+
+    manifest = PoseBackendManifest(
+        schema_version=1,
+        id="mediapipe",
+        display_name="MediaPipe Lite (CPU)",
+        command=(
+            "C:/PoseCap/backends/mediapipe/runtime/Scripts/posecap-mediapipe.exe",
+            "live",
+            "--model-path",
+            "C:/PoseCap/backends/mediapipe/models/holistic_landmarker.task",
+        ),
+        protocol_versions=(1,),
+        capabilities=("body",),
+        compatibility=BackendCompatibility(
+            operating_systems=("windows", "linux"),
+            accelerators=("cpu",),
+            account="No account required",
+            license="Apache-2.0",
+        ),
+        requires_body_models=False,
+        apply_orientation_fix=False,
+    )
+    bpy = _FakeBpy()
+    register_blender_ui(bpy)
+    settings = _Settings(lifecycle_state="STOPPED")
+    _mark_character_ready(settings)
+    settings.pose_backend_id = "mediapipe"
+    context = _FakeContext(settings)
+    monkeypatch.setattr(posecap_addon.panels, "models_missing", lambda _root: True)
+
+    def resolve_backend(_env: dict[str, str], *, selected_id: str | None = None):
+        selected_backend_ids.append(selected_id)
+        return manifest
+
+    monkeypatch.setattr(posecap_addon.panels, "resolve_installed_pose_backend", resolve_backend)
+    monkeypatch.setattr(posecap_addon.panels, "start_engine_stream", lambda _command: _FakeEngine())
+    monkeypatch.setattr(
+        posecap_addon.panels,
+        "TcpPoseStreamClient",
+        lambda host, port, **_kwargs: _FakeClient(host, port),
+    )
+    monkeypatch.setattr(posecap_addon.panels, "PoseApplyTimer", _RecordingTimer)
+
+    try:
+        start_cls = bpy.utils.registered_class("POSECAP_OT_StartStream")
+        assert start_cls.poll(context)
+        assert start_cls().execute(context) == {"FINISHED"}
+    finally:
+        unregister_blender_ui(bpy)
+
+    assert captured[0]["supported_capabilities"] == ("body",)
+    assert captured[0]["apply_orientation_fix"] is False
+    assert set(selected_backend_ids) == {"mediapipe"}
 
 
 def test_start_stream_builds_the_limb_filter_from_the_apply_checkboxes(monkeypatch) -> None:
@@ -592,6 +697,21 @@ def test_blender_ui_registration_adds_scene_state_and_unregisters_cleanly() -> N
     ]
 
 
+def test_dynamic_pose_backend_enum_uses_its_automatic_first_item_without_a_string_default() -> None:
+    bpy = _FakeBpy()
+
+    register_blender_ui(bpy)
+    try:
+        settings_cls = bpy.utils.registered_class("POSECAP_PG_LiveStreamSettings")
+        property_kind, options = settings_cls.__annotations__["pose_backend_id"]
+
+        assert property_kind == "EnumProperty"
+        assert callable(options["items"])
+        assert "default" not in options
+    finally:
+        unregister_blender_ui(bpy)
+
+
 def test_panel_draw_failure_shows_recovery_actions_and_logs_the_error(monkeypatch) -> None:
     bpy = _FakeBpy()
     register_blender_ui(bpy)
@@ -883,6 +1003,54 @@ def test_engine_command_resolves_installer_paths_for_a_fresh_install() -> None:
 
     assert command[command.index("--pear-root") + 1] == str(installer_pear)
     assert command[0] == str(installer_exe)
+
+
+@pytest.mark.parametrize(
+    ("source_kind", "video_source"),
+    [("CAMERA", ""), ("VIDEO", "C:/clips/dance.mp4")],
+)
+def test_registered_pear_backend_preserves_existing_live_command(
+    source_kind: str, video_source: str
+) -> None:
+    settings = _Settings(lifecycle_state="STOPPED")
+    settings.pear_root = "C:/PoseCap/pear"
+    settings.source_kind = source_kind
+    settings.video_source = video_source
+    preferences = _FakeAddonPreferences(
+        pear_root="", engine_executable="C:/PoseCap/runtime/posecap-engine.exe"
+    )
+    manifest = PoseBackendManifest(
+        schema_version=1,
+        id="pear",
+        display_name="PEAR",
+        command=(
+            "C:/PoseCap/runtime/posecap-engine.exe",
+            "live",
+            "--pear-root",
+            "C:/PoseCap/pear",
+        ),
+        protocol_versions=(1,),
+        capabilities=("body", "hands", "face"),
+        compatibility=BackendCompatibility(
+            operating_systems=("windows",),
+            accelerators=("nvidia-cuda",),
+            account="MPI account required",
+            license="MPI model terms apply",
+        ),
+    )
+
+    existing_command = posecap_addon.panels._engine_command(
+        settings, preferences, environ={}, path_exists=lambda _path: True
+    )
+    registered_command = posecap_addon.panels._engine_command(
+        settings,
+        preferences,
+        backend_manifest=manifest,
+        environ={},
+        path_exists=lambda _path: True,
+    )
+
+    assert registered_command == existing_command
 
 
 def test_panel_resolves_installer_pear_root_on_a_fresh_install() -> None:
@@ -1684,7 +1852,7 @@ def test_streaming_engine_death_stops_with_reported_reason(monkeypatch) -> None:
         assert bpy.app.timers.registered[0]() is None
 
         assert settings.lifecycle_state == "STOPPED"
-        assert settings.status_message == "Engine process exited"
+        assert settings.status_message == "Engine process exited (see posecap-engine.log)"
         assert clients[0].closed
         assert engine.stopped
     finally:
@@ -1823,6 +1991,7 @@ class _Settings:
         self.apply_torso = True
         self.character_preset = "AUTO"
         self.character_mapping_json = ""
+        self.pose_backend_id = "__automatic__"
         self.source_kind = "CAMERA"
         self.video_source = ""
         self.preview_enabled = False

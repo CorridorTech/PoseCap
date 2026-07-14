@@ -13,9 +13,15 @@ from contextlib import suppress
 from pathlib import Path
 from typing import Any, Protocol
 
+from posecap_contracts import PoseBackendManifest
 from posecap_core import LimbFilter, PoseSmoother
 
 from .apply_timer import BpyArmaturePoseWriter, PoseApplyTimer, tag_view3d_redraw
+from .backend_registry import (
+    BackendSelectionError,
+    discover_installed_pose_backends,
+    resolve_installed_pose_backend,
+)
 from .character_setup_panel import (
     CHARACTER_PRESET_ITEMS,
     build_character_setup_classes,
@@ -53,6 +59,7 @@ from .ui_state import LIFECYCLE_STATE_ITEMS, LifecycleState, lifecycle_controls
 SCENE_PROPERTY_NAME = "posecap"
 WM_MODEL_SETUP_PROPERTY_NAME = "posecap_model_setup"
 _MANIFEST_ADDON_ID = "posecap"
+_AUTOMATIC_BACKEND_ID = "__automatic__"
 ADDON_ID = (
     __package__.removesuffix(".posecap_addon")
     if __package__ and __package__ != "posecap_addon"
@@ -105,6 +112,7 @@ class _LiveStreamSettings(Protocol):
     apply_torso: bool
     character_preset: str
     character_mapping_json: str
+    pose_backend_id: str
     source_kind: str
     video_source: str
     preview_enabled: bool
@@ -148,6 +156,7 @@ def draw_live_stream_panel(
 
     column = layout.column()
     column.prop(settings, "target_armature")
+    _draw_pose_backend_selector(column, settings)
     _draw_source(column, settings)
     column.prop(settings, "apply_orientation_fix")
     column.prop(settings, "world_position_experimental")
@@ -219,6 +228,35 @@ def _draw_source(column: Any, settings: _LiveStreamSettings) -> None:
     else:
         column.prop(settings, "camera_index", text="Camera")
     column.prop(settings, "preview_enabled")
+
+
+def _draw_pose_backend_selector(column: Any, settings: _LiveStreamSettings) -> None:
+    """Keep the backend choice in the normal capture panel, not a terminal workflow."""
+    column.prop(settings, "pose_backend_id", text="Pose Backend")
+    catalog = discover_installed_pose_backends(dict(os.environ))
+    if len(catalog.ready) > 1 and _selected_backend_id(settings) is None:
+        column.label(text="Choose a Pose Backend before starting capture.", icon="INFO")
+    for issue in catalog.issues:
+        column.label(text=f"Unavailable Pose Backend: {issue.reason}", icon="ERROR")
+
+
+def _pose_backend_items(_self: Any, _context: Any) -> list[tuple[str, str, str]]:
+    """Provide a stable automatic option plus every currently ready backend."""
+    catalog = discover_installed_pose_backends(dict(os.environ))
+    items = [
+        (
+            _AUTOMATIC_BACKEND_ID,
+            "Automatic",
+            "Use the sole ready installed backend, or the legacy development setup",
+        )
+    ]
+    for backend in catalog.ready:
+        compatibility = backend.manifest.compatibility
+        details = "; ".join(
+            (*compatibility.accelerators, compatibility.account, compatibility.license)
+        )
+        items.append((backend.manifest.id, backend.manifest.display_name, details))
+    return items
 
 
 def draw_addon_preferences(layout: Any, preferences: _AddonPreferences) -> None:
@@ -317,6 +355,11 @@ def _build_blender_classes(bpy_module: Any) -> tuple[type[Any], ...]:
             description="SMPL-X armature that receives live poses",
             type=bpy_module.types.Object,
             poll=_is_armature_object,
+        ),
+        "pose_backend_id": bpy_module.props.EnumProperty(
+            name="Pose Backend",
+            description="Installed capture backend; choose explicitly when several are ready",
+            items=_pose_backend_items,
         ),
         "camera_index": bpy_module.props.IntProperty(
             name="Camera",
@@ -513,11 +556,7 @@ def _build_blender_classes(bpy_module: Any) -> tuple[type[Any], ...]:
 
         @classmethod
         def poll(cls, context: Any) -> bool:
-            settings = _settings_from_context(context)
-            return (
-                settings.lifecycle_state == "STOPPED"
-                and _capture_setup_issue(context, settings) is None
-            )
+            return _can_start_stream(context)
 
         def execute(self, context: Any) -> set[str]:
             return _start_live_stream(context, bpy_module)
@@ -705,7 +744,7 @@ def _draw_main_panel(layout: Any, context: Any) -> None:
         context,
         settings,
         preferences,
-        models_ready=not models_missing(_panel_pear_root(context)),
+        models_ready=_body_models_ready_for_selected_backend(context),
     )
 
 
@@ -713,7 +752,7 @@ def _getting_started_steps(context: Any, settings: Any) -> Any:
     """The onboarding steps for the current scene, from live readiness checks."""
     # Resolve with the SAME fallback the engine uses (explicit -> env ->
     # installer default), or a fresh install reads as "no models" incorrectly.
-    models_ready = not models_missing(_panel_pear_root(context))
+    models_ready = _body_models_ready_for_selected_backend(context)
     return onboarding_steps(
         models_ready=models_ready,
         character_ready=_character_ready(settings),
@@ -927,6 +966,20 @@ def _panel_pear_root(
     return resolve_pear_root(settings, preferences, env, exists)
 
 
+def _body_models_ready_for_selected_backend(context: Any) -> bool:
+    """A backend that does not use SMPL-X assets must not inherit PEAR setup."""
+    try:
+        backend = _resolve_selected_backend(_settings_from_context(context))
+    except BackendSelectionError:
+        catalog = discover_installed_pose_backends(dict(os.environ))
+        if any(not item.manifest.requires_body_models for item in catalog.ready):
+            return True
+        return not models_missing(_panel_pear_root(context))
+    if backend is not None and not backend.requires_body_models:
+        return True
+    return not models_missing(_panel_pear_root(context))
+
+
 def _is_armature_object(_settings: Any, candidate: Any) -> bool:
     return getattr(candidate, "type", None) == "ARMATURE"
 
@@ -934,7 +987,13 @@ def _is_armature_object(_settings: Any, candidate: Any) -> bool:
 def _start_live_stream(context: Any, bpy_module: Any) -> set[str]:
     global _ACTIVE_SESSION
     settings = _settings_from_context(context)
-    setup_issue = _capture_setup_issue(context, settings)
+    try:
+        backend_manifest = _resolve_selected_backend(settings)
+    except BackendSelectionError as error:
+        settings.lifecycle_state = "STOPPED"
+        settings.status_message = str(error)
+        return {"CANCELLED"}
+    setup_issue = _capture_setup_issue(context, settings, backend_manifest)
     if setup_issue is not None:
         settings.lifecycle_state = "STOPPED"
         settings.status_message = setup_issue
@@ -951,7 +1010,9 @@ def _start_live_stream(context: Any, bpy_module: Any) -> set[str]:
     try:
         logger = configure_addon_logging(_addon_log_path(context, bpy_module))
         preferences = _addon_preferences(context)
-        engine = start_engine_stream(_engine_command(settings, preferences))
+        engine = start_engine_stream(
+            _engine_command(settings, preferences, backend_manifest=backend_manifest)
+        )
         client = TcpPoseStreamClient(
             engine.endpoint.host,
             engine.endpoint.port,
@@ -978,7 +1039,8 @@ def _start_live_stream(context: Any, bpy_module: Any) -> set[str]:
                 if bool(settings.pose_smoothing)
                 else None
             ),
-            apply_orientation_fix=bool(settings.apply_orientation_fix),
+            apply_orientation_fix=bool(settings.apply_orientation_fix)
+            and (backend_manifest is None or backend_manifest.apply_orientation_fix),
             camera_pitch_radians=math.radians(float(settings.camera_pitch)),
             apply_world_position=bool(settings.world_position_experimental),
             # Live-read: Record is toggled during an active stream, so the timer
@@ -987,6 +1049,9 @@ def _start_live_stream(context: Any, bpy_module: Any) -> set[str]:
             on_warning=lambda message: _handle_apply_warning(settings, message),
             on_recovery=lambda: _handle_apply_recovery(settings),
             instrumentation=ApplyTimeInstrumentation(logger=logger),
+            supported_capabilities=(
+                None if backend_manifest is None else backend_manifest.capabilities
+            ),
         )
         session = _LiveStreamSession(bpy_module, settings, engine, client, timer)
         bpy_module.app.timers.register(session.timer_callback, first_interval=0.0)
@@ -1002,12 +1067,44 @@ def _start_live_stream(context: Any, bpy_module: Any) -> set[str]:
     return {"FINISHED"}
 
 
-def _capture_setup_issue(context: Any, settings: Any) -> str | None:
+def _resolve_selected_backend(settings: _LiveStreamSettings) -> PoseBackendManifest | None:
+    return resolve_installed_pose_backend(
+        dict(os.environ),
+        selected_id=_selected_backend_id(settings),
+    )
+
+
+def _selected_backend_id(settings: _LiveStreamSettings) -> str | None:
+    selected_id = str(getattr(settings, "pose_backend_id", _AUTOMATIC_BACKEND_ID)).strip()
+    if selected_id in ("", _AUTOMATIC_BACKEND_ID):
+        return None
+    return selected_id
+
+
+def _capture_setup_issue(
+    context: Any,
+    settings: Any,
+    backend_manifest: PoseBackendManifest | None = None,
+) -> str | None:
     if not _character_ready(settings):
         return "Import and convert a character before starting capture."
-    if models_missing(_panel_pear_root(context)):
+    if (backend_manifest is None or backend_manifest.requires_body_models) and models_missing(
+        _panel_pear_root(context)
+    ):
         return "Set up the PoseCap body models before starting capture."
     return None
+
+
+def _can_start_stream(context: Any) -> bool:
+    """Keep Blender's enablement rule aligned with the selected backend's setup needs."""
+    settings = _settings_from_context(context)
+    if settings.lifecycle_state != "STOPPED":
+        return False
+    try:
+        backend_manifest = _resolve_selected_backend(settings)
+    except BackendSelectionError:
+        return False
+    return _capture_setup_issue(context, settings, backend_manifest) is None
 
 
 def _stop_live_stream(context: Any, bpy_module: Any) -> set[str]:
@@ -1035,22 +1132,24 @@ def _engine_command(
     settings: _LiveStreamSettings,
     preferences: _AddonPreferences | None = None,
     *,
+    backend_manifest: PoseBackendManifest | None = None,
     environ: dict[str, str] | None = None,
     path_exists: PathExists | None = None,
 ) -> tuple[str, ...]:
     env = environ if environ is not None else dict(os.environ)
     exists = path_exists if path_exists is not None else (lambda path: path.exists())
-    pear_root = resolve_pear_root(settings, preferences, env, exists)
-    if pear_root == "":
-        raise ValueError(
-            "PEAR Root is required — set PEAR Root in the PoseCap panel or the addon preferences."
-        )
-    engine_executable = _resolve_engine_executable(preferences, env, exists)
-    command = [
-        engine_executable,
-        "live",
-        "--pear-root",
-        pear_root,
+    if backend_manifest is None:
+        pear_root = resolve_pear_root(settings, preferences, env, exists)
+        if pear_root == "":
+            raise ValueError(
+                "PEAR Root is required — set PEAR Root in the PoseCap panel or the addon "
+                "preferences."
+            )
+        engine_executable = _resolve_engine_executable(preferences, env, exists)
+        command = [engine_executable, "live", "--pear-root", pear_root]
+    else:
+        command = list(backend_manifest.command)
+    command += [
         "--camera-index",
         str(int(settings.camera_index)),
         "--parent-pid",
@@ -1240,7 +1339,7 @@ class _LiveStreamSession:
         if not bool(getattr(self._engine, "running", True)):
             self.stop(unregister_timer=False, bpy_module=self._bpy_module)
             self._settings.lifecycle_state = "STOPPED"
-            self._settings.status_message = "Engine process exited"
+            self._settings.status_message = "Engine process exited (see posecap-engine.log)"
             return None
         if (
             getattr(self._client, "connection_state", None) == "RECONNECTING"

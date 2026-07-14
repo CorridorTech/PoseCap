@@ -155,20 +155,25 @@ stateDiagram-v2
 
 ## Installation
 
-The project tradeoff statement applies here hardest: a working install on the first try beats everything. The POC's documented install path was never actually proven (Dean ran a conda env); this flow ships tested on a clean machine. No source compiles unless no wheel exists — and then gated with explicit progress and actionable failure messages.
+The project tradeoff statement applies here hardest: a working install on the first
+try beats everything. The POC's documented install path was never actually proven
+(Dean ran a conda env); this flow ships tested on a clean machine. PoseCap Base is
+fixed and independent of backend prerequisites. Each selected Pose Backend owns its
+runtime checks, installation, doctor, and registry manifest.
 
 ```mermaid
 flowchart TD
-    START(["Run installer"]) --> CHK{"Blender >= 4.2?<br/>NVIDIA driver present?"}
-    CHK -- no --> MSG["Actionable message:<br/>what to install, where"] --> FAIL(["Stop"])
-    CHK -- yes --> UV["Bootstrap uv,<br/>uv sync (pinned lockfile,<br/>prebuilt wheels)"]
-    UV --> WHEEL{"All deps as wheels?"}
-    WHEEL -- "no (e.g. PyTorch3D)" --> GATED["Gated source build:<br/>progress shown,<br/>clear failure text"]
-    WHEEL -- yes --> EXT
-    GATED --> EXT["Install extension zip via<br/>Blender extension system<br/>(no directory junctions)"]
-    EXT --> MODELS["Point user at official<br/>SMPL-X download<br/>(licensed, never bundled)"]
-    MODELS --> VERIFY["Doctor check:<br/>GPU visible, models found,<br/>engine starts, port free"]
-    VERIFY --> DONE(["Ready"])
+    START(["Run one PoseCap installer"]) --> SELECT{"Recommended or Custom?"}
+    SELECT --> BASE["Install fixed PoseCap Base:<br/>Blender extension + registry support"]
+    BASE --> PEAR{"PEAR selected?"}
+    PEAR -- no --> READYBASE["Publish ready Base-only inventory"] --> DONE(["Ready"])
+    PEAR -- yes --> NVIDIA{"NVIDIA driver healthy?"}
+    NVIDIA -- no --> MSG["PEAR-scoped actionable message"] --> FAIL(["Stop; inventory remains installing"])
+    NVIDIA -- yes --> RUNTIME["Install pinned Python, CUDA wheels,<br/>PEAR code and public weights"]
+    RUNTIME --> VERIFY["PEAR doctor"]
+    VERIFY --> MANIFEST["Atomically register PEAR manifest"]
+    MANIFEST --> MODELS["Guide separately licensed<br/>body-model setup"]
+    MODELS --> INVENTORY["Publish ready Base + PEAR inventory"] --> DONE
 ```
 
 ## Reading guide

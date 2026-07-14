@@ -137,7 +137,12 @@ _BLENDER_SMOKE_SCRIPT = textwrap.dedent(
         PosePayload,
         encode_pose_frame,
     )
-    from posecap_core import BODY_JOINT_NAMES, mixamo_preset
+    from posecap_core import (
+        BODY_JOINT_NAMES,
+        LEFT_HAND_JOINT_NAMES,
+        RIGHT_HAND_JOINT_NAMES,
+        mixamo_preset,
+    )
 
     extension_spec = importlib.util.spec_from_file_location(
         "posecap_extension_smoke",
@@ -219,14 +224,31 @@ _BLENDER_SMOKE_SCRIPT = textwrap.dedent(
         def scene(self):
             raise RuntimeError("synthetic panel failure")
 
-    def payload(*, left_elbow_angle: float = 0.0) -> PosePayload:
+    def payload(
+        *,
+        left_elbow_angle: float = 0.0,
+        left_index_angle: float = 0.0,
+        right_thumb_angle: float = 0.0,
+    ) -> PosePayload:
         body_pose = [[0.0, 0.0, 0.0] for _ in range(NUM_BODY_JOINTS)]
         body_pose[BODY_JOINT_NAMES.index("left_elbow")] = [0.0, 0.0, left_elbow_angle]
+        left_hand_pose = [[0.0, 0.0, 0.0] for _ in range(NUM_HAND_JOINTS)]
+        left_hand_pose[LEFT_HAND_JOINT_NAMES.index("left_index1")] = [
+            0.0,
+            0.0,
+            left_index_angle,
+        ]
+        right_hand_pose = [[0.0, 0.0, 0.0] for _ in range(NUM_HAND_JOINTS)]
+        right_hand_pose[RIGHT_HAND_JOINT_NAMES.index("right_thumb3")] = [
+            right_thumb_angle,
+            0.0,
+            0.0,
+        ]
         return PosePayload(
             global_orient=[0.0, 0.0, 0.0],
             body_pose=body_pose,
-            left_hand_pose=[[0.0, 0.0, 0.0] for _ in range(NUM_HAND_JOINTS)],
-            right_hand_pose=[[0.0, 0.0, 0.0] for _ in range(NUM_HAND_JOINTS)],
+            left_hand_pose=left_hand_pose,
+            right_hand_pose=right_hand_pose,
             jaw_pose=[0.0, 0.0, 0.0],
             betas=[0.0 for _ in range(NUM_BETAS)],
             expression=[0.0 for _ in range(NUM_EXPRESSION)],
@@ -234,7 +256,7 @@ _BLENDER_SMOKE_SCRIPT = textwrap.dedent(
         )
 
     def synthetic_mixamo_armature():
-        preset = mixamo_preset("mixamorig:")
+        preset = mixamo_preset("mixamorig:", include_hands=True)
         armature_data = bpy.data.armatures.new("SyntheticMixamo")
         armature = bpy.data.objects.new("SyntheticMixamo", armature_data)
         bpy.context.collection.objects.link(armature)
@@ -262,6 +284,13 @@ _BLENDER_SMOKE_SCRIPT = textwrap.dedent(
             ("mixamorig:RightHand", "mixamorig:RightForeArm"),
         ):
             bones[child].parent = bones[parent]
+        for side in ("Left", "Right"):
+            for finger in ("Index", "Middle", "Pinky", "Ring", "Thumb"):
+                parent = f"mixamorig:{side}Hand"
+                for joint in range(1, 4):
+                    child = f"mixamorig:{side}Hand{finger}{joint}"
+                    bones[child].parent = bones[parent]
+                    parent = child
         bpy.ops.object.mode_set(mode="OBJECT")
 
         mesh_data = bpy.data.meshes.new("SyntheticMixamoMesh")
@@ -389,6 +418,8 @@ _BLENDER_SMOKE_SCRIPT = textwrap.dedent(
         assert bpy.ops.posecap.convert_character() == {"FINISHED"}
         assert not bpy.ops.posecap.start_stream.poll()
         converted_elbow = synthetic.pose.bones["left_elbow"]
+        converted_index = synthetic.pose.bones["left_index1"]
+        converted_thumb = synthetic.pose.bones["right_thumb3"]
         converted_elbow.rotation_mode = "XYZ"
         listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -400,7 +431,11 @@ _BLENDER_SMOKE_SCRIPT = textwrap.dedent(
             2,
             101.0,
             "ok",
-            payload(left_elbow_angle=0.5),
+            payload(
+                left_elbow_angle=0.5,
+                left_index_angle=0.25,
+                right_thumb_angle=0.75,
+            ),
         )
 
         def serve_one_frame() -> None:
@@ -420,12 +455,20 @@ _BLENDER_SMOKE_SCRIPT = textwrap.dedent(
         deadline = time.monotonic() + 5.0
         while time.monotonic() < deadline:
             session.timer_callback()
-            if abs(converted_elbow.rotation_quaternion.z - math.sin(0.25)) < 1e-6:
+            if (
+                abs(converted_elbow.rotation_quaternion.z - math.sin(0.25)) < 1e-6
+                and abs(converted_index.rotation_quaternion.z - math.sin(0.125)) < 1e-6
+                and abs(converted_thumb.rotation_quaternion.x - math.sin(0.375)) < 1e-6
+            ):
                 break
             time.sleep(0.01)
         assert converted_elbow.rotation_mode == "QUATERNION"
         assert abs(converted_elbow.rotation_quaternion.w - math.cos(0.25)) < 1e-6
         assert abs(converted_elbow.rotation_quaternion.z - math.sin(0.25)) < 1e-6
+        assert abs(converted_index.rotation_quaternion.w - math.cos(0.125)) < 1e-6
+        assert abs(converted_index.rotation_quaternion.z - math.sin(0.125)) < 1e-6
+        assert abs(converted_thumb.rotation_quaternion.w - math.cos(0.375)) < 1e-6
+        assert abs(converted_thumb.rotation_quaternion.x - math.sin(0.375)) < 1e-6
         assert settings.lifecycle_state == "STREAMING"
         assert bpy.ops.posecap.stop_stream() == {"FINISHED"}
         assert settings.lifecycle_state == "STOPPED"

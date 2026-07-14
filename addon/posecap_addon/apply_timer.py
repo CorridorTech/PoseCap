@@ -8,7 +8,11 @@ from typing import Any, Protocol
 import numpy as np
 from posecap_contracts import PoseFrame
 from posecap_core import (
+    BODY_JOINT_NAMES,
     KEYFRAME_DATA_PATH,
+    LEFT_HAND_JOINT_NAMES,
+    PELVIS,
+    RIGHT_HAND_JOINT_NAMES,
     LimbFilter,
     PoseApplication,
     PoseSmoother,
@@ -50,6 +54,7 @@ class PoseApplyTimer:
         on_warning: WarningCallback | None = None,
         on_recovery: RecoveryCallback | None = None,
         instrumentation: ApplyTimeInstrumentation | None = None,
+        supported_capabilities: tuple[str, ...] | None = None,
     ) -> None:
         if interval_seconds <= 0:
             raise ValueError("interval_seconds must be positive")
@@ -70,6 +75,7 @@ class PoseApplyTimer:
         self._on_warning = on_warning
         self._on_recovery = on_recovery
         self._instrumentation = instrumentation
+        self._supported_bones = _bones_for_capabilities(supported_capabilities)
         self._previous_quaternions: dict[str, np.ndarray] = {}
         self._reported_invalid_target = False
         self._running = True
@@ -116,6 +122,7 @@ class PoseApplyTimer:
             smoother=self._smoother,
             captured_at=frame.captured_at,
             camera_pitch_radians=self._camera_pitch_radians,
+            supported_bones=self._supported_bones,
         )
         self._writer.apply(plan, insert_keyframes=self._should_insert_keyframes())
         self._writer.tag_redraw()
@@ -179,6 +186,20 @@ class BpyArmaturePoseWriter:
 
 
 _IDENTITY_QUATERNION = np.asarray([1.0, 0.0, 0.0, 0.0])
+
+
+def _bones_for_capabilities(capabilities: tuple[str, ...] | None) -> frozenset[str] | None:
+    if capabilities is None:
+        return None
+    supported: set[str] = set()
+    if "body" in capabilities:
+        supported.add(PELVIS)
+        supported.update(BODY_JOINT_NAMES)
+    if "hands" in capabilities:
+        supported.update(("left_wrist", "right_wrist"))
+        supported.update(LEFT_HAND_JOINT_NAMES)
+        supported.update(RIGHT_HAND_JOINT_NAMES)
+    return frozenset(supported)
 
 
 def _bone_by_name(bones: Any, name: str) -> Any | None:
