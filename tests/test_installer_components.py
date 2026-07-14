@@ -26,6 +26,8 @@ def _run_lifecycle(
     action: str,
     components: str = "base",
 ) -> subprocess.CompletedProcess[str]:
+    if sys.platform != "win32":
+        pytest.skip("Windows PowerShell installer contract")
     payload_manifest = install_dir / "pear_payload_manifest.json"
     if "pear" in components and action == "Begin" and not payload_manifest.exists():
         install_dir.mkdir(parents=True, exist_ok=True)
@@ -105,6 +107,8 @@ def _prepare_bootstrap_fixture(install_dir: Path) -> None:
 
 
 def _run_bootstrap(install_dir: Path, components: str) -> subprocess.CompletedProcess[str]:
+    if sys.platform != "win32":
+        pytest.skip("Windows PowerShell installer contract")
     return subprocess.run(
         [
             "powershell.exe",
