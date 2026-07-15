@@ -315,6 +315,43 @@ installation. Managed Windows environments may still reject unsigned executables
 policy. Release publication remains blocked by the task's real GUI/backend
 qualification and explicit maintainer gate, not by certificate procurement.
 
+### 2026-07-15 — public-installer gate caught a uv global-shim collision
+
+Signed tag `v1.0.6-win.1` passed the protected Release workflow in run
+[29385860063](https://github.com/CorridorTech/PoseCap/actions/runs/29385860063).
+The draft contained all 12 expected assets; an independent download verified all
+six SHA-256 sidecars, both backend manifests, and all 12 GitHub attestations. The
+installer SHA-256 was
+`f877abc9ad57a9e27cbe3e8ee3d66062bb5da2f675131d41fe973f1866b9711c`.
+
+The draft was then exposed briefly as a prerelease so its unauthenticated GitHub
+asset URLs could be exercised. The public installer and sidecar downloaded and
+verified, but the real Base + MediaPipe + PEAR upgrade stopped at
+`uv python install 3.11`. Bundled uv `0.11.28` had installed the app-local Python,
+then tried to create a global `~/.local/bin/python3.11.exe` shim and rejected an
+existing executable that it did not manage. The release was returned to draft and
+was never promoted to a stable release.
+
+This behavior became the default in uv `0.8`; its CLI provides `--no-bin` and
+`--no-registry` for embedded/app-local runtimes. The upstream integration test also
+demonstrates that an unmanaged executable conflicts with the default while
+`--no-bin` succeeds: [uv CLI reference](https://docs.astral.sh/uv/reference/cli/#uv-python-install)
+and [upstream python-install test](https://github.com/astral-sh/uv/blob/bfec9dc0dd6f570f506ccaddaafad19cc3ab0e95/crates/uv/tests/python/python_install.rs).
+Both PoseCap backend handlers now request those two isolation flags and deliberately
+do not use `--force`, which could overwrite a user's global Python command. The new
+public installer regression failed for both handlers before the correction, passed
+for both afterward, and the full installer suite passed with 42 tests. A fresh
+signed `v1.0.6-win.2` build and public-install validation remain required.
+
+The interrupted real install also exposed unit-test state leakage: 15 UI tests read
+the user's in-progress `%LOCALAPPDATA%\PoseCap` inventory and failed with no ready
+backend. The UI test module now receives an isolated application-data root by
+default; the previously failing UI suite and installer suite pass together with 110
+tests while cases that explicitly override or remove `LOCALAPPDATA` retain control
+of their own scenario. The complete local gate then passed Ruff lint and formatting,
+Pyright for Windows and Linux with zero errors, both import contracts, and pytest
+with 501 passed, 3 skipped, and 10 deselected by policy.
+
 ## Definition of Done
 
 All Acceptance Criteria checked, plus:
