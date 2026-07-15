@@ -24,7 +24,7 @@ Hexagonal, per [`ARCHITECTURE.md`](ARCHITECTURE.md). Operational consequences:
 | Blender operator `bl_idname` | `posecap.<verb>_<noun>` |
 | test files | `test_<module>.py`, mirroring the source tree |
 
-* No abbreviations: `connection` not `conn`, `multiplexer` not `mux` (except established domain acronyms: `smplx`, `fps`, `tcp`, `json`).
+* No abbreviations: `connection` not `conn`, `multiplexer` not `mux` (except established domain acronyms — `smplx`, `fps`, `tcp`, `json` — and the Python idioms `obj` for a duck-typed object, `env` for a process environment mapping, `seq` for a generic sequence; per ADR-0012's audit resolution).
 * The driven skeleton is "armature" or "body model" in code and UI copy — never "rig" (reserved word from the dropped hardware era; avoid it entirely).
 
 ### 2.2 Error handling
@@ -68,7 +68,7 @@ Exemption is structural, not discretionary: rules 8/9 do not apply where `bpy` A
 Budget (binding, from [PRD](doc/product/PRD.md)): 30 FPS pose application, <100 ms capture-to-viewport latency, RTX-class GPU.
 
 * Hot paths: engine inference loop, addon timer callback, TCP frame decode.
-* No per-frame allocations on hot paths — preallocate and reuse numpy buffers; no string formatting, no disk I/O, no logging above DEBUG inside the per-frame path.
+* No avoidable per-frame work on hot paths — no disk I/O, no logging above DEBUG, no string formatting beyond what the wire format requires. Frame payloads are deliberately immutable (frozen dataclasses, read-only arrays), so fresh per-frame arrays are the accepted cost of aliasing safety; buffer preallocation applies only where immutability is not part of the contract ([ADR-0012](doc/adr/0012-immutable-frames-over-buffer-reuse.md)).
 * Frame-time instrumentation is mandatory: engine logs inference FPS at INFO on an interval; addon logs apply-time the same way. The latency metric is measured from these stamps, not estimated.
 * Regression rule: a change that increases steady-state frame time by more than 10% needs a recorded justification before merge.
 
@@ -134,7 +134,7 @@ Wired via pre-commit (`.pre-commit-config.yaml`; install once with `uv run pre-c
 | `doc/adr/` | one decision per ADR | `/ad-adr` |
 | `doc/reference/` | third-party papers and upstream docs | manual |
 
-Discipline: no emoji, no dates in narrative prose, no speculation, definitions and decisions only. Duplication between AGENTS.md and this file is drift — `/ad-audit` flags it.
+Discipline: no emoji, no dates in narrative prose, no speculation, definitions and decisions only. Duplication between AGENTS.md and this file is drift — `/ad-audit` flags it. Sanctioned exception: `doc/benchmarks.md` is a dated measurement ledger — a performance number without its date, hardware, and conditions is noise, so its entries carry all three.
 
 ## 12. Security
 

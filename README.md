@@ -76,11 +76,7 @@ Two separate licenses apply — the plugin's and the body models':
 
 ## Roadmap
 
-- **MVP** — live webcam streaming with device selection, recording live mocap to keyframes, timed capture, batch image processing, SMPL-X model management, Windows installers.
-- **Next** — [Fast SAM 3D Body](https://github.com/yangtiming/Fast-SAM-3D-Body) engine adapter with MHR-to-SMPL conversion, AMASS animation import, FBX/Alembic export, Linux engine bridge.
-- **Later** — world position via camera tracking, pose-accuracy eval harness, multi-camera estimation, retargeting to custom rigs, face/expression capture.
-
-Full detail in the [PRD](doc/product/PRD.md).
+The product roadmap lives in the [PRD](doc/product/PRD.md), the single owner of scope and sequence.
 
 ## Project documentation
 
