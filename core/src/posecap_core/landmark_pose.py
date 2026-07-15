@@ -50,6 +50,7 @@ class LandmarkPoseConverter:
     """
 
     def convert(self, landmarks: LandmarkMap) -> PosePayload:
+        """Convert one landmark map to a pelvis-locked SMPL-X pose payload (axis-angle, radians)."""
         points = {name: _point(landmarks, name) for name in _required_landmarks()}
         global_frames = _global_frames(points)
         body_pose = [

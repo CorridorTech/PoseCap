@@ -49,6 +49,7 @@ class LimbFilter:
     apply_nothing: bool = False
 
     def is_active(self) -> bool:
+        """True when any limb group is whitelisted or the filter applies nothing."""
         return self.apply_nothing or any(
             (
                 self.arms_left,

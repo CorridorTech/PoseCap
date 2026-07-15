@@ -25,6 +25,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from threading import Thread
+from typing import Any
 
 from posecap_contracts import (
     MPI_DOWNLOAD_URL,
@@ -362,8 +363,8 @@ def verify_models_with_doctor(
     return str(asset_check.get("message", "Doctor reported a model problem."))
 
 
-def _run_doctor_process(command: list[str], **kwargs: object) -> object:
-    return subprocess.run(command, **kwargs)  # type: ignore[call-overload]  # kwargs forwarded verbatim
+def _run_doctor_process(command: list[str], **kwargs: Any) -> object:
+    return subprocess.run(command, **kwargs)
 
 
 SessionState = str  # "IDLE" | "RUNNING" | "WATCHING" | "DONE" | "FAILED"
