@@ -388,6 +388,39 @@ documents both error 448 and the directive. A public `v1.0.6-win.3` installer mu
 still pass the complete installation and functional backend gates before promotion.
 `v1.0.6-win.2` was returned to draft and was never promoted to stable.
 
+### 2026-07-15 — v1.0.6-win.3 public installer and installed-backend qualification
+
+PR [#58](https://github.com/CorridorTech/PoseCap/pull/58) added the smallest
+regression-tested installer correction: `RedirectionGuard=no` beside the existing
+non-elevated per-user install policy. Its public packaging test failed before the
+directive was present and passed afterward; the complete local quality gate,
+pre-commit, pre-push, PR CI, and `CI required` were observed green before squash
+commit `3046a2966e9416b16abcfb21d38680c716009324` landed on `main`.
+
+Signed tag `v1.0.6-win.3` completed the protected Release workflow in run
+[29388916869](https://github.com/CorridorTech/PoseCap/actions/runs/29388916869).
+The release contained the expected 12 artifacts. An independent download verified
+all six SHA-256 sidecars, both backend manifests, all 12 GitHub artifact
+attestations, and the absence of licensed SMPL, SMPL-X, FLAME, or MANO assets from
+the release archives. The public Windows installer SHA-256 is
+`cc1fa9c1e4fb405f9453cd0e64ec28427d2b3cacf274a36ecaa0039543b5fc8f`.
+
+The installer was downloaded unauthenticated from GitHub Releases and executed with
+Base, MediaPipe Lite, and PEAR selected. It returned exit code 0. Its post-install
+inventory recorded all three components as `ready`, the Blender 5.0 extension was
+listed as installed, the installed MediaPipe integration test passed (`1 passed`),
+and the installed PEAR doctor reported its runtime, CUDA GPU, pinned checkout,
+weights, and user-owned local assets ready. The installed PEAR source-to-TCP
+inference acceptance then passed on the RTX 3080 workstation (`1 passed, 6
+deselected`, 20.37 seconds) with the `ale_t_pose` fixture.
+
+The release was promoted from prerelease to stable only after those observations and
+is public at [v1.0.6-win.3](https://github.com/CorridorTech/PoseCap/releases/tag/v1.0.6-win.3).
+This qualifies the public installer and both installed backend runtimes; it does not
+close this task's remaining GUI-visible PEAR/finger journey, does not demonstrate a
+physical Steam-installed Blender, and does not establish RTX 50-series PEAR
+compatibility.
+
 ## Definition of Done
 
 All Acceptance Criteria checked, plus:
