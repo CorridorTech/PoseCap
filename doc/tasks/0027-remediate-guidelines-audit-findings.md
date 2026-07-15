@@ -34,7 +34,7 @@ Verifiable conditions. Each as a checkbox so progress is point-editable.
       `posecap_engine`, no `torch`) exist and run in CI, and the `contracts/`
       contract rejects any non-stdlib third-party import rather than a fixed
       forbidden list.
-- [ ] Domain exception hierarchy is consistent per §2.2: `core` raises
+- [x] Domain exception hierarchy is consistent per §2.2: `core` raises
       `PoseCapError` subclasses (not bare `ValueError`) in `landmark_pose.py`, engine
       adapters raise `EngineError` subclasses for constructor validation, and
       `mediapipe_cli.py` no longer needs to catch stdlib `ValueError` from domain
@@ -68,7 +68,7 @@ Verifiable conditions. Each as a checkbox so progress is point-editable.
 
 - [x] Slice 1 — mechanical, no behavior change: import-linter contracts, golden
       job-status fixtures, docstrings, type-ignore fixes, test renames.
-- [ ] Slice 2 — exception hierarchy (`core` first, then engine adapters), with the
+- [x] Slice 2 — exception hierarchy (`core` first, then engine adapters), with the
       `mediapipe_cli.py` catch narrowed as the observable proof.
 - [ ] Slice 3 — `panels.py` decomposition (largest risk; fresh-context review
       required per WORKFLOW §10 before merge).
@@ -77,6 +77,18 @@ Verifiable conditions. Each as a checkbox so progress is point-editable.
       exemption, README roadmap, git-history record.
 
 ## Notes
+
+### 2026-07-15 — slice 2 landed (domain exception hierarchy)
+
+TDD red-to-green: five new tests pinned the domain contract first (missing,
+non-finite, and degenerate landmarks raise `PoseCapError`; both frame-source
+constructors reject a non-positive read-failure budget with `EngineError`), then
+`landmark_pose.py` switched its three `ValueError` raises to `PoseCapError`, the
+MediaPipe and PEAR adapters switched constructor/invariant raises to
+`EngineError`, and `mediapipe_cli.py` narrowed its edge catch from
+`(EngineError, ValueError)` to `(EngineError, PoseCapError)` — the observable
+proof that domain code no longer leaks stdlib exceptions. Full core+engine
+suites green (139 passed).
 
 ### 2026-07-15 — slice 1 landed (mechanical enforcement and hygiene)
 

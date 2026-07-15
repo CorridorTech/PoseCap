@@ -26,7 +26,7 @@ from posecap_contracts import (
 )
 
 from .config import PEAR_MODELS_REVISION
-from .errors import CaptureUnavailableError
+from .errors import CaptureUnavailableError, EngineError
 from .live_source import CameraSource, LiveSource, VideoFileSource
 
 
@@ -101,7 +101,7 @@ class PearFrameSource:
         preview_writer: Any = None,
     ) -> None:
         if max_camera_read_failures <= 0:
-            raise ValueError("max_camera_read_failures must be positive")
+            raise EngineError("max_camera_read_failures must be positive")
         self._config = PearLiveConfig(
             pear_root=pear_root,
             source=source,
@@ -172,7 +172,7 @@ class _PearModules:
 class _OpenCvLiveCapture:
     def __init__(self, config: PearLiveConfig, cv2: Any) -> None:
         if not isinstance(config.source, CameraSource):
-            raise ValueError("_OpenCvLiveCapture requires a CameraSource")
+            raise EngineError("_OpenCvLiveCapture requires a CameraSource")
         self._cv2 = cv2
         self.exhausted = False
         self._capture = cv2.VideoCapture(config.source.index)
@@ -198,7 +198,7 @@ class _VideoFileCapture:
 
     def __init__(self, config: PearLiveConfig, cv2: Any) -> None:
         if not isinstance(config.source, VideoFileSource):
-            raise ValueError("_VideoFileCapture requires a VideoFileSource")
+            raise EngineError("_VideoFileCapture requires a VideoFileSource")
         self._cv2 = cv2
         self._loop = config.source_loop
         self.exhausted = False
