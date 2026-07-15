@@ -1,6 +1,6 @@
 # Spec `0002`: Select any installed Pose Backend
 
-**Status:** draft
+**Status:** shipped
 **Created:** 2026-07-14
 **Owner:** alexandremendoncaalvaro
 
@@ -127,5 +127,6 @@ PRD; the scientific integration of MediaPipe and MHR remains separate follow-up 
   [ADR-0002](../adr/0002-tcp-json-stream-live-pose.md),
   [ADR-0003](../adr/0003-json-wire-format-ban-pickle.md),
   [ADR-0010](../adr/0010-discover-isolated-pose-backends.md)
-- Tasks: [Task 0020 — Register PEAR as a Pose Backend](../tasks/0020-register-pear-pose-backend.md)
+- Tasks: [Task 0020 — Register PEAR as a Pose Backend](../tasks/0020-register-pear-pose-backend.md),
+  [Task 0021 — Reconcile optional backend architecture](../tasks/0021-reconcile-optional-backend-architecture.md)
 - Depends on: [Spec 0001](0001-live-webcam-pose-streaming.md)

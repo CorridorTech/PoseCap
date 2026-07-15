@@ -4,8 +4,8 @@
 
 PoseCap (clean rewrite of Corridor Digital's "Human Input Device" proof of concept): a Blender plugin that drives SMPL-X body models from live webcam pose estimation (PEAR engine), pelvis-locked — world position is a deferred software problem, and the POC's Arduino rig is dropped from scope. The POC at `C:\Dev\CorridorRig-Original` is read-only reference; this repo replaces it with a tested, layered implementation (addon, engine bridge, installers). Hard constraint: SMPL-X model assets carry the MPI research (non-commercial) license — never commit or redistribute them; the repo is private now but goes public later, so git history must stay license-clean from the first commit (no licensed binary ever committed, even briefly). Commercial production use of the models requires a Meshcapade license, independent of the plugin's own license.
 
-**Stack:** Python >=3.11 (addon runs in Blender's bundled interpreter; engine bridge in a uv-managed venv), Blender >= 4.2 LTS and 5.x (bpy, extension platform), PyTorch + PEAR pose-estimation engine (CUDA required at runtime).
-**Entry points:** uv workspace packages `contracts/`, `core/`, `engine/` (src layout, `posecap_*` import names). Engine CLI lands with task 0003; the Blender extension lands with task 0004.
+**Stack:** Python >=3.11 (addon runs in Blender's bundled interpreter; engine bridge in a uv-managed venv), Blender >= 4.2 LTS and 5.x (bpy, extension platform), and isolated Pose Backends per ADR-0010/ADR-0011: PEAR (PyTorch, CUDA required, optional installer module) and MediaPipe Lite (CPU, account-free). torch is not a workspace dependency; it ships only inside the PEAR backend payload.
+**Entry points:** uv workspace packages `contracts/`, `core/`, `engine/` (src layout, `posecap_*` import names). Engine CLIs: `posecap-engine` (PEAR) and `posecap-mediapipe` (`engine/pyproject.toml [project.scripts]`). The Blender extension lives in `addon/` (`blender_manifest.toml`).
 
 ## Setup, Build, Test
 
@@ -50,16 +50,19 @@ See [`GUIDELINES.md`](GUIDELINES.md) §2–§4 for the full reference. Non-negot
 
 ## Architectural Principles
 
-Binding decisions live in [`doc/adr/`](doc/adr/). Do not reinvent. Six accepted: hexagonal layers + dependency rule (0001), TCP JSON IPC (0002), JSON wire format / pickle ban (0003), uv workspace vendoring (0004), PEAR external + pinned (0005), license split (0006).
+Binding decisions live in [`doc/adr/`](doc/adr/). Do not reinvent, and do not rely on any digest of that directory: read the ADRs relevant to the layer you are touching (each file carries its own Status).
 
 ## Repository Layout
 
-Planned tree (POC paths in parentheses are reference only):
-
-* `addon/` — Blender extension (POC: `addon/Human_Input_Device/`)
-* `engine/` — PEAR bridge: folder watcher, live stream, single inference (POC: `PEAR/{folder_watcher,live_webcam,inference_single}.py`)
+* `contracts/` — wire formats, backend manifests, model-asset checks (stdlib only)
+* `core/` — pose math, retarget domain, ports (stdlib + numpy + contracts)
+* `engine/` — backend adapters (PEAR, MediaPipe), TCP stream server, CLIs
+* `addon/` — Blender extension (bpy boundary; engine launched via subprocess)
+* `tests/` — mirrors the source tree per layer; `tools/` — gate and build scripts
+* `packaging/` — Windows suite installer and backend payload builds (ADR-0011)
+* `assets/` — local test media; licensed model assets are never committed
 * `doc/product/`, `doc/specs/`, `doc/tasks/`, `doc/adr/` — product scope, feature specs, task files, decision records
-* `doc/workflows.md` — product flow diagrams; agent workflow rules live in `AGENTS.md` and `GUIDELINES.md`
+* `doc/guides/`, `doc/reference/`, `doc/workflows.md` — user guides, external reference notes, product flow diagrams; agent workflow rules live in `AGENTS.md` and `GUIDELINES.md`
 * `.agents/skills/`, `.claude/` — agentic-docs skill installs for Codex and Claude Code
 * Upstream PEAR research code stays out of this repo — the bridge imports it from a pinned external location (ADR-0005); shared-package vendoring strategy in ADR-0004.
 

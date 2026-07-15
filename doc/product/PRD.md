@@ -108,7 +108,7 @@ Later:
 * AGENTS.md — operational guide; stack and licensing posture.
 * ARCHITECTURE.md — binding layer structure the roadmap items implement.
 * doc/reference/README.md — PEAR and Fast-SAM-3D-Body papers, upstream addon lineage.
-* ADRs: six accepted in [doc/adr/](../adr/) — hexagonal layers, TCP IPC, JSON wire format, uv vendoring, PEAR pinning, license split.
+* ADRs: binding decisions live in [doc/adr/](../adr/); each file carries its own Status.
 
 ## Amendment — Optional Pose Backends
 
@@ -187,7 +187,7 @@ Later:
 
 ### Related amendment decisions
 
-* [ADR-0008](../adr/0008-offer-mediapipe-lite-backend.md) — proposed MediaPipe
+* [ADR-0008](../adr/0008-offer-mediapipe-lite-backend.md) — MediaPipe Lite
   backend and measured account-free CPU path.
-* [ADR-0009](../adr/0009-offer-fast-sam-mhr-backend.md) — proposed MHR Experimental
+* [ADR-0009](../adr/0009-offer-fast-sam-mhr-backend.md) — MHR Experimental
   backend and measured low-rate stop-motion value.

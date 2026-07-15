@@ -1,6 +1,6 @@
 # Task 0004: Addon — extension skeleton and live stream client
 
-**Status:** in progress
+**Status:** done
 **Created:** 2026-06-11
 **Owner:** alexandremendoncaalvaro
 **Execution:** HITL
@@ -34,8 +34,8 @@ Concrete sequential steps. Each as a checkbox. Reference file paths where applic
 - [x] `addon/.../engine_process.py` — spawn/terminate by handle (platform adapter, no shell=True).
 - [x] `addon/.../panels.py` + state property — lifecycle UI per workflows.md state machine.
 - [x] Extension build script vendoring wheels (`tools/build_extension.py`).
-- [ ] Headless e2e smoke + manual verification matrix (4.2/5.x) recorded in Notes.
-- [ ] Full gate + /ad-commit.
+- [x] Headless e2e smoke + manual verification matrix (4.2/5.x) recorded in Notes.
+- [x] Full gate + /ad-commit.
 
 ## Notes
 
@@ -271,11 +271,22 @@ load the engine consumed the file source at ~21.1 FPS (loop-wrap timing over
 three 10s loops), vs 22.6-23.4 FPS headless on the same RTX 3080. Sustained-30
 measurements must account for viewport load.
 
+### 2026-07-15 — task closed by drift reconciliation
+
+All eight Acceptance Criteria were already checked and the work has been shipping
+since v0.1.1, through the current v1.0.6-win.4 release; only the status token and the
+Definition of Done checklist had drifted. Evidence for the closure: the 4.2/5.x
+verification matrix entry of 2026-07-09 and the release entry of 2026-07-10 above,
+the full local gate running in CI on every merge since, fresh-context reviews
+recorded in this Notes log, and the 2026-07-15 repository audit (GUIDELINES
+item-by-item, agent-verified) reporting zero orphan `TODO`/`FIXME` anywhere in the
+source tree. Status normalized to `done` (was the non-standard token `in progress`).
+
 ## Definition of Done
 
 All Acceptance Criteria checked, plus:
 
-- [ ] Local tests pass (or N/A documented in Notes)
-- [ ] Code review completed (human or fresh-context reviewer per WORKFLOW §10)
-- [ ] No orphan `TODO`/`FIXME` introduced
-- [ ] Status updated to `done` and Notes log closes the task
+- [x] Local tests pass (or N/A documented in Notes)
+- [x] Code review completed (human or fresh-context reviewer per WORKFLOW §10)
+- [x] No orphan `TODO`/`FIXME` introduced
+- [x] Status updated to `done` and Notes log closes the task
