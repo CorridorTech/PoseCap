@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 from posecap_contracts import (
     JobStatus,
@@ -5,6 +7,24 @@ from posecap_contracts import (
     decode_job_status,
     encode_job_status,
 )
+
+FIXTURES = Path(__file__).parent / "fixtures"
+
+
+def test_golden_fixture_running_pins_wire_format() -> None:
+    fixture = (FIXTURES / "job_status_running.json").read_text(encoding="utf-8").strip()
+    status = decode_job_status(fixture)
+    assert status == JobStatus(state="running", progress=0.5, message="PEAR inference running")
+    assert encode_job_status(status) == fixture
+
+
+def test_golden_fixture_failed_pins_wire_format() -> None:
+    fixture = (FIXTURES / "job_status_failed.json").read_text(encoding="utf-8").strip()
+    status = decode_job_status(fixture)
+    assert status == JobStatus(
+        state="failed", progress=0.25, message="CUDA device rejected the kernel"
+    )
+    assert encode_job_status(status) == fixture
 
 
 def test_round_trip() -> None:

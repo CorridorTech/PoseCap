@@ -1,5 +1,6 @@
 """Behavior tests for the guided SMPL-X body-model setup (task 0010)."""
 
+import email.message
 import hashlib
 import io
 import json
@@ -40,7 +41,9 @@ def test_forbidden_download_explains_the_ambiguous_refusal_and_safe_recovery(
 
         def open(self, request, timeout=0.0):  # noqa: A003 - mirrors urllib API
             self.calls += 1
-            raise urllib.error.HTTPError(request.full_url, 403, "Forbidden", {}, None)  # type: ignore[arg-type]
+            raise urllib.error.HTTPError(
+                request.full_url, 403, "Forbidden", email.message.Message(), io.BytesIO(b"")
+            )
 
     opener = _ForbiddenOpener()
     monkeypatch.setattr(urllib.request, "build_opener", lambda *a, **k: opener)
@@ -70,7 +73,9 @@ def test_unauthorized_download_points_to_account_verification(monkeypatch, tmp_p
 
     class _UnauthorizedOpener:
         def open(self, request, timeout=0.0):  # noqa: A003 - mirrors urllib API
-            raise urllib.error.HTTPError(request.full_url, 401, "Unauthorized", {}, None)  # type: ignore[arg-type]
+            raise urllib.error.HTTPError(
+                request.full_url, 401, "Unauthorized", email.message.Message(), io.BytesIO(b"")
+            )
 
     monkeypatch.setattr(urllib.request, "build_opener", lambda *a, **k: _UnauthorizedOpener())
 
