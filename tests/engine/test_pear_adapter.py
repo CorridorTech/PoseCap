@@ -12,7 +12,7 @@ from posecap_contracts import (
 )
 from posecap_engine import pear_adapter
 from posecap_engine.config import PEAR_MODELS_REVISION
-from posecap_engine.errors import CaptureUnavailableError
+from posecap_engine.errors import CaptureUnavailableError, EngineError
 from posecap_engine.pear_adapter import (
     CameraSource,
     PearFrameSource,
@@ -654,3 +654,14 @@ class _FakeClock:
         value = self._values[self._index]
         self._index += 1
         return value
+
+
+def test_invalid_read_failure_budget_raises_engine_error(tmp_path: Path) -> None:
+    with pytest.raises(EngineError, match="max_camera_read_failures must be positive"):
+        PearFrameSource(
+            _pear_checkout(tmp_path),
+            source=CameraSource(0),
+            runtime_factory=lambda _config: _FakeRuntime([_payload()]),
+            capture_factory=lambda _config: _FakeCapture([]),
+            max_camera_read_failures=0,
+        )

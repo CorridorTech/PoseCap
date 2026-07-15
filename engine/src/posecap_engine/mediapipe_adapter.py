@@ -75,7 +75,7 @@ class MediaPipeFrameSource:
         preview_writer: _PreviewWriter | None = None,
     ) -> None:
         if max_camera_read_failures <= 0:
-            raise ValueError("max_camera_read_failures must be positive")
+            raise EngineError("max_camera_read_failures must be positive")
         self._config = MediaPipeLiveConfig(
             model_path=model_path,
             source=source,
