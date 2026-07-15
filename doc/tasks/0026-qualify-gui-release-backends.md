@@ -359,6 +359,35 @@ The follow-up records an individual DCO remediation commit for that exact SHA in
 of rewriting published `main` history, following the
 [DCO app remediation contract](https://github.com/dcoapp/app#individual-remediation-commit-support).
 
+### 2026-07-15 — Inno RedirectionGuard blocked the embedded uv runtime
+
+PR [#57](https://github.com/CorridorTech/PoseCap/pull/57) preserved the individual
+DCO remediation in squash `2fc3926`. Signed tag `v1.0.6-win.2` then passed the
+protected Release workflow in run
+[29387383637](https://github.com/CorridorTech/PoseCap/actions/runs/29387383637).
+The draft again contained the 12 expected assets; an independent download verified
+all six SHA-256 sidecars, both backend manifests, all 12 GitHub attestations, and no
+licensed model asset in the archives. The installer SHA-256 was
+`ae26810bb5c48aa5b7db695b2dfde27ee8c40e7a3effaeef7921f54ef7c5316a`.
+
+The public Base + MediaPipe + PEAR installer still returned uv exit code 2 when Inno
+Setup launched the bootstrap. Running the same bootstrap directly completed both
+backends, including the MediaPipe doctor and the PEAR CUDA doctor on the local RTX
+3080. A minimal Inno 6.7.2 harness then reproduced the difference and captured the
+previously hidden native error: Windows error 448, "The path cannot be traversed
+because it contains an untrusted mount point", while uv created its managed-Python
+minor-version link directory. The harness returned exit 2 with Inno's default
+`RedirectionGuard=yes` and exit 0 with `RedirectionGuard=no`.
+
+PoseCap is a non-elevated, fixed per-user installer (`PrivilegesRequired=lowest`) that
+writes its runtime under `%LOCALAPPDATA%`; it has no administrator boundary for this
+mitigation to protect. The installer template therefore disables RedirectionGuard so
+the embedded uv runtime can traverse the user's own managed-Python paths. Inno's
+[RedirectionGuard reference](https://jrsoftware.org/ishelp/topic_setup_redirectionguard.htm)
+documents both error 448 and the directive. A public `v1.0.6-win.3` installer must
+still pass the complete installation and functional backend gates before promotion.
+`v1.0.6-win.2` was returned to draft and was never promoted to stable.
+
 ## Definition of Done
 
 All Acceptance Criteria checked, plus:

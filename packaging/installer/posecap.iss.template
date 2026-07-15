@@ -24,6 +24,7 @@ DisableProgramGroupPage=yes
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 PrivilegesRequired=lowest
+RedirectionGuard=no
 OutputBaseFilename=@@OUTPUT_BASENAME@@
 Compression=lzma2/max
 SolidCompression=yes
