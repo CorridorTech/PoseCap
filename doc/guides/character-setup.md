@@ -71,7 +71,8 @@ dropdown when you want to be explicit or bring your own:
 |---|---|---|
 | "Could not recognize this skeleton" | Auto-Detect did not match a known family | Pick **Unreal Engine**, **Mixamo**, or **Custom Mapping** in the Skeleton dropdown |
 | "the armature has a mirrored (negative) scale" | A negative-scaled import can't be reoriented | Select the armature, **Object → Apply → Rotation & Scale**, then convert again |
-| "no mesh is bound to this armature" | The armature came in without its character mesh | Re-import so the mesh and its armature come together |
+| "does not deform a character mesh" | A different armature deforms the imported character | Choose the armature named in the error as **Target Armature**, then convert again |
+| "has no deforming character mesh" | The armature came in without a skinned character mesh | Re-import the character with its mesh; the mesh needs an Armature modifier pointing to this armature |
 | "the armature is missing expected bones" | The skeleton isn't complete for the chosen preset | Check you picked the right preset, or use a Custom Mapping file |
 
 ---
