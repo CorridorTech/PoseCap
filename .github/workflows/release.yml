@@ -68,7 +68,7 @@ jobs:
           $revision = uv run python -c "from posecap_engine.config import PEAR_REVISION; print(PEAR_REVISION)"
           git clone https://github.com/Pixel-Talk/PEAR.git $pearRoot
           git -C $pearRoot checkout $revision
-          & tools\install\setup_pear_runtime.ps1 -PearRoot $pearRoot -VenvPath .venv-pear
+          pwsh -NoProfile -File tools\install\setup_pear_runtime.ps1 -PearRoot $pearRoot -VenvPath .venv-pear
           if ($LASTEXITCODE -ne 0) { throw "PEAR runtime preparation failed." }
       - name: Build installer and extension
         shell: pwsh
