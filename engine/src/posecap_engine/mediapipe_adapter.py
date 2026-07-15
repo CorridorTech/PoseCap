@@ -114,16 +114,10 @@ class MediaPipeFrameSource:
                     self._preview_writer.offer(rgb_image)
                 captured_at = self._clock()
                 landmarks = runtime.infer(rgb_image)
-                if landmarks is None:
-                    yield PoseFrame(SCHEMA_VERSION, seq, captured_at, "no_person", None)
-                else:
-                    yield PoseFrame(
-                        SCHEMA_VERSION,
-                        seq,
-                        captured_at,
-                        "ok",
-                        converter.convert(landmarks),
-                    )
+                status, payload = "no_person", None
+                if landmarks is not None:
+                    status, payload = "ok", converter.convert(landmarks)
+                yield PoseFrame(SCHEMA_VERSION, seq, captured_at, status, payload)
                 seq += 1
         finally:
             capture.release()
@@ -206,16 +200,18 @@ def _load_runtime(config: MediaPipeLiveConfig) -> _MediaPipeRuntime:
     return _MediaPipeTaskRuntime(config, mediapipe)
 
 
+def _capture_target(source: LiveSource) -> int | str:
+    if isinstance(source, CameraSource):
+        return source.index
+    return source.path
+
+
 class _OpenCvCapture:
     def __init__(self, config: MediaPipeLiveConfig, cv2: Any) -> None:
         self._cv2 = cv2
         self._loop = config.source_loop
-        if isinstance(config.source, CameraSource):
-            self._camera = True
-            source: int | str = config.source.index
-        else:
-            self._camera = False
-            source = config.source.path
+        self._camera = isinstance(config.source, CameraSource)
+        source = _capture_target(config.source)
         self._capture = cv2.VideoCapture(source)
         self.exhausted = False
         if not bool(self._capture.isOpened()):

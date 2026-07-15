@@ -86,17 +86,18 @@ def _run_live(args: argparse.Namespace, stdout: TextIO) -> int:
     return 0
 
 
+def _doctor_checks(model_path: Path) -> list[dict[str, str]]:
+    if not model_path.is_file():
+        return [{"name": "model", "status": "error", "detail": str(model_path)}]
+    checks = [{"name": "model", "status": "ok", "detail": str(model_path)}]
+    runtime = _load_runtime(MediaPipeLiveConfig(model_path=model_path, source=CameraSource(0)))
+    runtime.close()
+    checks.append({"name": "runtime", "status": "ok", "detail": "CPU landmarker loaded"})
+    return checks
+
+
 def _run_doctor(args: argparse.Namespace, stdout: TextIO) -> int:
-    checks: list[dict[str, str]] = []
-    if not args.model_path.is_file():
-        checks.append({"name": "model", "status": "error", "detail": str(args.model_path)})
-    else:
-        checks.append({"name": "model", "status": "ok", "detail": str(args.model_path)})
-        runtime = _load_runtime(
-            MediaPipeLiveConfig(model_path=args.model_path, source=CameraSource(0))
-        )
-        runtime.close()
-        checks.append({"name": "runtime", "status": "ok", "detail": "CPU landmarker loaded"})
+    checks = _doctor_checks(args.model_path)
     ok = all(check["status"] == "ok" for check in checks)
     report = {"ok": ok, "backend": "mediapipe", "checks": checks}
     print(json.dumps(report, sort_keys=True), file=stdout)

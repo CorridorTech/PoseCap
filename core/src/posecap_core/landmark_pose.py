@@ -183,24 +183,32 @@ def _unit(vector: np.ndarray) -> np.ndarray:
 def _matrix_to_axis_angle(matrix: np.ndarray) -> np.ndarray:
     m = np.asarray(matrix, dtype=np.float64)
     trace = float(np.trace(m))
+    quaternion = _quaternion_from_dominant_diagonal(m)
     if trace > 0.0:
-        scale = 2.0 * np.sqrt(trace + 1.0)
-        quaternion = np.array(
-            [
-                0.25 * scale,
-                (m[2, 1] - m[1, 2]) / scale,
-                (m[0, 2] - m[2, 0]) / scale,
-                (m[1, 0] - m[0, 1]) / scale,
-            ]
-        )
-    else:
-        index = int(np.argmax(np.diag(m)))
-        j = (index + 1) % 3
-        k = (index + 2) % 3
-        scale = 2.0 * np.sqrt(max(_EPSILON, 1.0 + m[index, index] - m[j, j] - m[k, k]))
-        quaternion = np.zeros(4)
-        quaternion[index + 1] = 0.25 * scale
-        quaternion[0] = (m[k, j] - m[j, k]) / scale
-        quaternion[j + 1] = (m[j, index] + m[index, j]) / scale
-        quaternion[k + 1] = (m[k, index] + m[index, k]) / scale
+        quaternion = _quaternion_from_positive_trace(m, trace)
     return quaternion_to_axis_angle(quaternion)
+
+
+def _quaternion_from_positive_trace(m: np.ndarray, trace: float) -> np.ndarray:
+    scale = 2.0 * np.sqrt(trace + 1.0)
+    return np.array(
+        [
+            0.25 * scale,
+            (m[2, 1] - m[1, 2]) / scale,
+            (m[0, 2] - m[2, 0]) / scale,
+            (m[1, 0] - m[0, 1]) / scale,
+        ]
+    )
+
+
+def _quaternion_from_dominant_diagonal(m: np.ndarray) -> np.ndarray:
+    index = int(np.argmax(np.diag(m)))
+    j = (index + 1) % 3
+    k = (index + 2) % 3
+    scale = 2.0 * np.sqrt(max(_EPSILON, 1.0 + m[index, index] - m[j, j] - m[k, k]))
+    quaternion = np.zeros(4)
+    quaternion[index + 1] = 0.25 * scale
+    quaternion[0] = (m[k, j] - m[j, k]) / scale
+    quaternion[j + 1] = (m[j, index] + m[index, j]) / scale
+    quaternion[k + 1] = (m[k, index] + m[index, k]) / scale
+    return quaternion

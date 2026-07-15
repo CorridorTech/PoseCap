@@ -46,7 +46,7 @@ Verifiable conditions. Each as a checkbox so progress is point-editable.
       accesses in `tests/addon/test_ui_state.py`, `tests/addon/test_model_setup.py`
       and `tests/engine/test_pear_adapter.py` are migrated to public seams, or the
       seams are promoted and documented.
-- [ ] Low-severity sweep: abbreviations `obj`/`env`/`seq` renamed (or the §2.1
+- [x] Low-severity sweep: abbreviations `obj`/`env`/`seq` renamed (or the §2.1
       exemption list amended by decision), `else`/`elif` occurrences reduced per
       Calisthenics item 2, missing docstrings added on the five exported public
       functions, the three `# type: ignore` comments outside the bpy boundary fixed
@@ -77,6 +77,28 @@ Verifiable conditions. Each as a checkbox so progress is point-editable.
       exemption, README roadmap, git-history record.
 
 ## Notes
+
+### 2026-07-15 — else-reduction landed, section 9 scoped
+
+The eight `else`/`elif` sites outside `panels.py` were refactored to guard
+clauses and extracted helpers with behavior preserved (quaternion branch
+helpers in `landmark_pose.py`; `continue` guards in `model_assets.py` and
+`repack_wheel.py`; status-first yields in both frame sources; `_capture_target`
+helper; `_doctor_checks` early-return in `mediapipe_cli.py` — the sequential-if
+rewrite of the aspect-ratio clamp is semantics-preserving because the first
+branch establishes the equality that makes the second a no-op). Affected suites:
+212 passed. The four remaining `else` sites live in `panels.py` and fold into
+slice 3's decomposition rather than being touched twice. This completes the
+low-severity sweep AC: abbreviations were resolved by the slice-5 exemption,
+docstrings, type-ignores, and test renames landed with slice 1.
+
+Section 9 (private-state tests) scoping: the `test_ui_state.py` accesses
+(`_draw_main_panel`, `_ACTIVE_SESSION`, `_panel_wrap_chars`) target exactly the
+seams slice 3 will redraw — migrating them now would be double work, so they
+move with slice 3. The `test_model_setup.py` `_urllib_fetch` access rides
+slice 4 (that function is its worst indentation offender). The remaining
+`test_pear_adapter.py` monkeypatch of `_load_pear_modules` needs a deliberate
+injection-seam decision and stays open under this AC.
 
 ### 2026-07-15 — slice 5 decided and landed
 
