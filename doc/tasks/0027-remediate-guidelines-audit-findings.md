@@ -52,15 +52,15 @@ Verifiable conditions. Each as a checkbox so progress is point-editable.
       functions, the three `# type: ignore` comments outside the bpy boundary fixed
       or justified, and the two test files renamed/moved to mirror their source
       modules.
-- [ ] §5 is amended by a short ADR resolving the conflict between "no per-frame
+- [x] §5 is amended by a short ADR resolving the conflict between "no per-frame
       allocations / preallocate numpy buffers" and the deliberate immutable-frame
       design (frozen dataclasses, `setflags(write=False)`); either the guideline
       gains the immutability exemption or a buffer-reuse design is decided.
-- [ ] The git-history debt is recorded, not rewritten: the 51 `Co-Authored-By`
+- [x] The git-history debt is recorded, not rewritten: the 51 `Co-Authored-By`
       commits (merge of PR #35) and the two unsigned web-UI commits are documented
       as known exceptions in this task's Notes with the decision on whether a DCO
       remediation commit (precedent: PR #57) is warranted.
-- [ ] `doc/benchmarks.md` dated-ledger format is either sanctioned by a one-line
+- [x] `doc/benchmarks.md` dated-ledger format is either sanctioned by a one-line
       exemption in a binding document or reformatted; the README Roadmap digest is
       either shrunk to a PRD link or accepted as-is by decision.
 
@@ -73,10 +73,28 @@ Verifiable conditions. Each as a checkbox so progress is point-editable.
 - [ ] Slice 3 — `panels.py` decomposition (largest risk; fresh-context review
       required per WORKFLOW §10 before merge).
 - [ ] Slice 4 — indentation flattening across the eight flagged functions.
-- [ ] Slice 5 — decisions: §5 amendment ADR, abbreviation exemptions, benchmarks
+- [x] Slice 5 — decisions: §5 amendment ADR, abbreviation exemptions, benchmarks
       exemption, README roadmap, git-history record.
 
 ## Notes
+
+### 2026-07-15 — slice 5 decided and landed
+
+All five open decisions were made by the maintainer: (1) ADR-0012 (accepted)
+amends GUIDELINES section 5 — frame immutability wins over buffer preallocation;
+"no avoidable per-frame work" replaces the preallocation mandate, and any future
+buffer-reuse proposal must arrive with frame-time measurements. (2) Section 2.1
+exempts the Python idioms `obj`, `env`, and `seq`, closing the two abbreviation
+findings without a noisy rename (the `else`-reduction part of the low sweep
+remains open with slice 4). (3) Section 11 sanctions `doc/benchmarks.md` as a
+dated measurement ledger. (4) The README Roadmap digest shrank to a PRD pointer,
+removing the already-diverged duplicate. (5) Git-history debt: the 51
+`Co-Authored-By` commits that entered `main` through the PR #35 merge predate
+the squash-only rule (verified by the audit's refuted-claims check) and are
+recorded here as a historical exception — `main` is never rewritten; the two
+unsigned GitHub web-UI commits (`7d88040`, `9bf6ba9`, 2026-07-12 README edits)
+were remediated by an empty signed commit on this branch, following the PR #57
+precedent.
 
 ### 2026-07-15 — slice 2 landed (domain exception hierarchy)
 
