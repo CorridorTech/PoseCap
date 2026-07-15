@@ -179,3 +179,13 @@ def test_release_workflow_manual_qualification_cannot_publish() -> None:
         step for step in release["steps"] if step.get("name") == "Verify signed tag belongs to main"
     )
     assert signed_tag_step["if"] == "github.event_name == 'push'"
+
+
+def test_release_workflow_isolates_pear_setup_exit_code() -> None:
+    workflow = _yaml(REPO_ROOT / ".github" / "workflows" / "release.yml")
+    release = workflow["jobs"]["release"]
+    prepare = next(
+        step for step in release["steps"] if step.get("name") == "Prepare pinned PEAR runtime"
+    )
+
+    assert "pwsh -NoProfile -File tools\\install\\setup_pear_runtime.ps1" in prepare["run"]
