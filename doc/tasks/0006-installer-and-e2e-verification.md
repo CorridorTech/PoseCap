@@ -1,6 +1,6 @@
 # Task 0006: Installer and end-to-end success-criteria verification
 
-**Status:** proposed
+**Status:** in-progress
 **Created:** 2026-06-11
 **Owner:** alexandremendoncaalvaro
 **Execution:** HITL
@@ -225,6 +225,14 @@ not portable. The failing Ubuntu assertion was treated as the RED evidence.
 Each operator-path scenario was updated separately to assert the log filename and
 its `PoseCap/logs` hierarchy through `pathlib`, then observed GREEN locally.
 The shared assertion was extracted only after both scenarios passed.
+
+### 2026-07-15 — status normalized to in-progress
+
+The Notes above document substantial merged execution (installer builds exercised
+through 1.0.x, video-to-armature E2E with `POSECAP_E2E_OK`, fresh-context reviews),
+so `proposed` no longer described reality. The clean-machine install and the
+sustained 10-minute session criteria remain legitimately open, so the task is
+`in-progress`, not `done`. Recorded by the 2026-07-15 repository drift audit.
 
 ## Definition of Done
 
