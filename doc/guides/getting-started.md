@@ -8,17 +8,17 @@ This is the **complete, do-it-once path**. Follow it top to bottom; every step i
 here, so you never have to leave and come back. (Want depth on one feature later?
 Each step links a focused guide at the end.)
 
-> **One thing to know up front.** PoseCap drives the **SMPL-X body model**, which
-> is free for research but **licensed by the Max Planck Institute** — so it can't
-> be shipped inside PoseCap. You register free on three official sites (about five
-> minutes) and PoseCap downloads and installs everything else for you. **That
-> sign-up is the only part you do by hand** — and it is the one step below that is
-> worth reading slowly.
+> **One thing to know up front.** PoseCap offers two capture backends. **MediaPipe
+> Lite** is the recommended first run: it needs no NVIDIA GPU, provider account, or
+> licensed body-model download. **PEAR** is the higher-fidelity NVIDIA path and uses
+> SMPL-family models licensed separately by the Max Planck Institute. Only PEAR
+> users need the optional account and body-model step below.
 
 ```mermaid
 flowchart LR
-    A["1 · Install<br/>run one installer"] --> B["2 · Body models<br/>3 free accounts + license"]
-    B --> C["3 · Character<br/>one click"]
+    A["1 · Install<br/>Base + MediaPipe Lite"] --> C["3 · Character<br/>one click"]
+    A -. "PEAR only" .-> B["2 · Body models<br/>3 free accounts + license"]
+    B --> C
     C --> D["4 · Capture live<br/>your webcam drives it"]
     classDef manual fill:#fde68a,stroke:#d97706,color:#111,stroke-width:2px;
     classDef auto fill:#e0f2fe,stroke:#0284c7,color:#111;
@@ -26,8 +26,8 @@ flowchart LR
     class A,C,D auto
 ```
 
-<sub>Only **step 2** needs you to do anything by hand — a one-time, free licensing
-sign-up. Everything else is one click or fully automatic.</sub>
+<sub>The MediaPipe Lite path skips step 2 entirely. PEAR users complete its one-time,
+free licensing sign-up; everything else is one click or fully automatic.</sub>
 
 ## What you need
 
@@ -70,9 +70,11 @@ applications entirely; in that case, follow your organization's security policy.
 The installer needs **no administrator rights** and installs into your user folder.
 
 Click through the wizard: **Accept** the license → keep the default **destination**
-→ **Install**. The long part is the **~5 GB** it downloads — the GPU runtime
-(PyTorch, the PEAR engine) **and the AI pose model** — so leave it running, then
-click **Finish**.
+→ choose **Base + MediaPipe Lite** for the recommended account-free path →
+**Install**. Select PEAR as well only when you want its NVIDIA workflow and accept
+the separate model-license setup in step 2. PEAR adds the long **~5 GB** GPU-runtime
+download; MediaPipe Lite is the smaller CPU path. When setup completes, click
+**Finish**.
 
 ![The PoseCap installer wizard, from license to finish](images/install-walkthrough.gif)
 
@@ -82,9 +84,12 @@ no files to place, no paths to set.
 > Nothing licensed is downloaded here. The body models are the next step, done
 > with your own account.
 
-## 2. Get the body models — the one part that needs you
+## 2. Optional: get the PEAR body models
 
-This is the step to slow down for. It is a **one-time, free** setup of the SMPL-X
+**If you selected MediaPipe Lite, skip to step 3.** Nothing in this section is
+required for the account-free backend.
+
+PEAR users should slow down here. This is a **one-time, free** setup of the SMPL-X
 research body models. Because they are licensed (see the note at the top), you
 create the accounts; PoseCap does the downloading, unzipping, and installing — no
 files to find or move.
@@ -206,5 +211,5 @@ now have a character you can drive from any webcam.
 - [Set up a character](character-setup.md) — Mixamo, Unreal, and custom-skeleton mapping.
 - [Live capture](live-capture.md) — source options, recording, smoothing, and camera tilt.
 
-Any time you want to confirm your setup is healthy, run **PoseCap Doctor**
-(Start Menu → PoseCap → PoseCap Doctor) — every check should be green.
+Any time you want to confirm your setup is healthy, run the Doctor for your selected
+backend from **Start Menu → PoseCap**. Every check for that backend should be green.

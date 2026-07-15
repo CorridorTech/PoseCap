@@ -184,6 +184,8 @@ def test_public_docs_state_backend_specific_gpu_compatibility() -> None:
     assert "RTX 30 / 40 / 50 series" not in getting_started
     assert "MediaPipe Lite" in readme and "No GPU required" in readme
     assert "RTX 3080" in readme and "RTX 50-series is not supported" in readme
+    assert "Base + MediaPipe Lite" in getting_started
+    assert "If you selected MediaPipe Lite, skip to step 3" in getting_started
 
 
 def test_release_workflow_manual_qualification_cannot_publish() -> None:
