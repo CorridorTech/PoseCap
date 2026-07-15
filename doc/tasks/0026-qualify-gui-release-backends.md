@@ -352,6 +352,13 @@ of their own scenario. The complete local gate then passed Ruff lint and formatt
 Pyright for Windows and Linux with zero errors, both import contracts, and pytest
 with 501 passed, 3 skipped, and 10 deselected by policy.
 
+PR [#56](https://github.com/CorridorTech/PoseCap/pull/56) merged the correction as
+squash `eaea403`, but the maintainer-supplied squash body accidentally omitted the
+DCO trailer even though all three source commits and the PR DCO check were valid.
+The follow-up records an individual DCO remediation commit for that exact SHA instead
+of rewriting published `main` history, following the
+[DCO app remediation contract](https://github.com/dcoapp/app#individual-remediation-commit-support).
+
 ## Definition of Done
 
 All Acceptance Criteria checked, plus:
