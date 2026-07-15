@@ -3,6 +3,12 @@ name: Release
 on:
   push:
     tags: ["v*-win.*"]
+  workflow_dispatch:
+    inputs:
+      build_number:
+        description: "Build number used for a non-publishing qualification run"
+        required: true
+        type: number
 
 permissions:
   contents: read
@@ -37,6 +43,7 @@ jobs:
         with:
           enable-cache: false
       - name: Verify signed tag belongs to main
+        if: github.event_name == 'push'
         env:
           GH_TOKEN: ${{ github.token }}
         shell: pwsh
@@ -65,13 +72,22 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "PEAR runtime preparation failed." }
       - name: Build installer and extension
         shell: pwsh
+        env:
+          QUALIFICATION_BUILD_NUMBER: ${{ inputs.build_number }}
         run: |
-          if ($env:GITHUB_REF_NAME -notmatch '-win\.(\d+)$') { throw "Tag must end in -win.<build number>." }
-          $buildNumber = [int]$Matches[1]
           $baseVersion = uv run python -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])"
-          $expectedTag = "v$baseVersion-win.$buildNumber"
-          if ($env:GITHUB_REF_NAME -cne $expectedTag) { throw "Release tag $env:GITHUB_REF_NAME does not match project version $expectedTag." }
-          $releaseBaseUrl = "https://github.com/$env:GITHUB_REPOSITORY/releases/download/$env:GITHUB_REF_NAME"
+          if ($env:GITHUB_EVENT_NAME -eq "workflow_dispatch") {
+            $buildNumber = [int]$env:QUALIFICATION_BUILD_NUMBER
+            if ($buildNumber -lt 1) { throw "Qualification build number must be positive." }
+            $artifactTag = "v$baseVersion-win.$buildNumber"
+          } else {
+            if ($env:GITHUB_REF_NAME -notmatch '-win\.(\d+)$') { throw "Tag must end in -win.<build number>." }
+            $buildNumber = [int]$Matches[1]
+            $expectedTag = "v$baseVersion-win.$buildNumber"
+            if ($env:GITHUB_REF_NAME -cne $expectedTag) { throw "Release tag $env:GITHUB_REF_NAME does not match project version $expectedTag." }
+            $artifactTag = $env:GITHUB_REF_NAME
+          }
+          $releaseBaseUrl = "https://github.com/$env:GITHUB_REPOSITORY/releases/download/$artifactTag"
           $versionedLabel = "$baseVersion-win.$buildNumber"
           $pearPayloadManifest = "packaging\dist\posecap-pear-bootstrap-$versionedLabel.json"
           $mediaPipePayloadManifest = "packaging\dist\posecap-mediapipe-bootstrap-$versionedLabel.json"
@@ -130,6 +146,7 @@ jobs:
           if-no-files-found: error
           retention-days: 30
       - name: Create draft GitHub release
+        if: github.event_name == 'push'
         env:
           GH_TOKEN: ${{ github.token }}
         shell: pwsh
@@ -137,6 +154,7 @@ jobs:
           $assets = @(Get-ChildItem packaging\dist\*.exe, packaging\dist\*.zip, packaging\dist\*.json, packaging\dist\*.sha256 | ForEach-Object FullName)
           gh release create $env:GITHUB_REF_NAME @assets --verify-tag --generate-notes --draft --title $env:GITHUB_REF_NAME
       - name: Verify draft release asset inventory
+        if: github.event_name == 'push'
         env:
           GH_TOKEN: ${{ github.token }}
         shell: pwsh
@@ -150,6 +168,7 @@ jobs:
             }
           }
       - name: Publish verified GitHub release
+        if: github.event_name == 'push'
         env:
           GH_TOKEN: ${{ github.token }}
         shell: pwsh

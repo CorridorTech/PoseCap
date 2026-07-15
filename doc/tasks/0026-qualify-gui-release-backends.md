@@ -216,6 +216,37 @@ contracts; and the default pytest selection with 492 passed, 3 skipped, and 10
 deselected. This is source-level evidence only and does not change the open PEAR
 asset/Blackwell qualification or protected-release workflow gates above.
 
+### 2026-07-14 — real PEAR pipeline and release-qualification follow-up
+
+The installed PEAR runtime was exercised against the pinned external checkout and
+the license holder's official local assets on the RTX 3080 workstation. `doctor`
+reported every required runtime, checkout, model, and weight check ready. A complete
+three-frame video run then exited normally with three contiguous `ok` frames, zero
+`no_person` frames, contract-correct finite arrays, and distinct non-zero left and
+right hand poses. The minimized input was 40,991 bytes with SHA-256
+`F02B894B7AE65950AC3987C05C8F7351D1ED3BCDB5136C3F0345B0A80AED95D2`; the engine
+process returned exit code 0. This proves the source-to-TCP PEAR happy path on the
+qualified RTX 30-series matrix. It does not prove the remaining GUI-visible finger
+journey or Blackwell support.
+
+Running the Blender 5.0.1 background smoke on that same installed workstation exposed
+test-state leakage: backend discovery read the user's real `%LOCALAPPDATA%`, so a
+ready installed backend invalidated the smoke's clean-install assertion. The public
+E2E failed at that assertion before the harness isolated `LOCALAPPDATA`, then passed
+after the subprocess received a dedicated temporary application-data root. Product
+backend discovery was unchanged.
+
+The release workflow now has a manual qualification entry point with an explicit
+build number. Manual runs execute the same quality, PEAR preparation, packaging,
+Authenticode, checksum, attestation, and artifact-retention steps, while signed-tag
+verification and every `gh release` command remain restricted to the tag-push event.
+The repository-governance regression failed before this entry point existed and now
+passes. This follows GitHub's documented manual-workflow inputs and the GitHub CLI's
+public dry-run deployment pattern: [manual workflows](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/manually-run-a-workflow)
+and [GitHub CLI deployment](https://github.com/cli/cli/blob/trunk/.github/workflows/deployment.yml).
+The remote runner, protected-environment configuration, certificate variable, and a
+successful manual workflow run remain to be observed before this gate can be closed.
+
 ## Definition of Done
 
 All Acceptance Criteria checked, plus:

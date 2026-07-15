@@ -69,6 +69,11 @@ def _run_blender_script(
     smoke_script = tmp_path / script_name
     smoke_script.write_text(script_source, encoding="utf-8")
 
+    local_app_data = tmp_path / "local-app-data"
+    local_app_data.mkdir()
+    environment = os.environ.copy()
+    environment["LOCALAPPDATA"] = str(local_app_data)
+
     return subprocess.run(
         [
             str(blender),
@@ -81,6 +86,7 @@ def _run_blender_script(
         ],
         check=False,
         capture_output=True,
+        env=environment,
         text=True,
         timeout=120,
     )
