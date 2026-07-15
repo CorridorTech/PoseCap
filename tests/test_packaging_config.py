@@ -73,6 +73,13 @@ def test_installer_uses_one_fixed_per_user_location() -> None:
     assert "DisableDirPage=yes" in template
 
 
+def test_per_user_installer_allows_uv_to_traverse_user_owned_paths() -> None:
+    template = _read("installer/posecap.iss.template")
+
+    assert "PrivilegesRequired=lowest" in template
+    assert "RedirectionGuard=no" in template
+
+
 def test_installer_removes_versioned_payload_from_previous_releases() -> None:
     template = _read("installer/posecap.iss.template")
 
