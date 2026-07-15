@@ -1,6 +1,6 @@
 # Task 0027: Remediate the GUIDELINES audit findings
 
-**Status:** proposed
+**Status:** in-progress
 **Created:** 2026-07-15
 **Owner:** alexandremendoncaalvaro
 **Execution:** AFK
@@ -29,7 +29,7 @@ Verifiable conditions. Each as a checkbox so progress is point-editable.
 - [ ] The eight functions exceeding indentation depth 3 (worst: `_urllib_fetch` in
       `addon/posecap_addon/model_setup.py:547`, depth 5) are flattened with guard
       clauses or extracted helpers.
-- [ ] import-linter enforcement matches the §1 promise: contracts for
+- [x] import-linter enforcement matches the §1 promise: contracts for
       `posecap_engine` (inward-only imports) and the addon layer (no
       `posecap_engine`, no `torch`) exist and run in CI, and the `contracts/`
       contract rejects any non-stdlib third-party import rather than a fixed
@@ -39,7 +39,7 @@ Verifiable conditions. Each as a checkbox so progress is point-editable.
       adapters raise `EngineError` subclasses for constructor validation, and
       `mediapipe_cli.py` no longer needs to catch stdlib `ValueError` from domain
       code.
-- [ ] The job-status wire format is pinned by golden JSON fixtures under
+- [x] The job-status wire format is pinned by golden JSON fixtures under
       `tests/contracts/fixtures/`, mirroring the pose-frame fixtures, so a
       coordinated encode/decode change cannot slip through round-trip tests.
 - [ ] Tests reach behavior through public interfaces per §9: the private-state
@@ -66,7 +66,7 @@ Verifiable conditions. Each as a checkbox so progress is point-editable.
 
 ## Plan
 
-- [ ] Slice 1 — mechanical, no behavior change: import-linter contracts, golden
+- [x] Slice 1 — mechanical, no behavior change: import-linter contracts, golden
       job-status fixtures, docstrings, type-ignore fixes, test renames.
 - [ ] Slice 2 — exception hierarchy (`core` first, then engine adapters), with the
       `mediapipe_cli.py` catch narrowed as the observable proof.
@@ -77,6 +77,23 @@ Verifiable conditions. Each as a checkbox so progress is point-editable.
       exemption, README roadmap, git-history record.
 
 ## Notes
+
+### 2026-07-15 — slice 1 landed (mechanical enforcement and hygiene)
+
+import-linter gains the `engine imports inward only` contract (3 contracts kept,
+0 broken). The addon layer and the contracts stdlib-allowlist could not become
+import-linter contracts — the addon package is not installed in the workspace
+venv, so grimp cannot import it, and a forbidden-list cannot prove "stdlib
+only" — so both are enforced by `tests/test_import_boundaries.py`, a
+deterministic AST scan running in the same CI gate. This is a recorded deviation
+from the AC's letter that satisfies its intent (every layer machine-enforced,
+none by review memory). Job-status golden fixtures pin the wire format
+(`tests/contracts/fixtures/job_status_{running,failed}.json`). Docstrings added
+on `ue_preset`, `mixamo_preset`, `LimbFilter.is_active`,
+`LandmarkPoseConverter.convert`. All three out-of-boundary `# type: ignore`
+comments were removed by real typing fixes (`**kwargs: Any`; `HTTPError` built
+with `email.message.Message()` and `BytesIO`). The two test files were
+renamed/moved to mirror their source modules.
 
 ### 2026-07-15 — audit provenance
 
