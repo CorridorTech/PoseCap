@@ -16,7 +16,7 @@ Point the engine at a video and it streams live SMPL-X poses. Here it drives the
 
 ## Get started
 
-1. **Download** the Windows installer from the [latest release](https://github.com/CorridorTech/PoseCap/releases/latest) and run it — no administrator rights needed.
+1. **Download** the Windows installer from the [latest release](https://github.com/CorridorTech/PoseCap/releases/latest) and run it — no administrator rights needed. The open-source installer is intentionally unsigned; read the [SmartScreen and download-verification steps](doc/guides/getting-started.md#1-install-posecap) before running it.
 2. **Follow the [Getting Started guide](doc/guides/getting-started.md)** — it takes you from a clean machine to a character moving on your webcam, with a screenshot at every step. About 20 minutes, most of it downloads you can leave running.
 
 You are guided inside Blender too: a **Getting Started checklist** sits at the top of the PoseCap panel and keeps the capture buttons disabled until you are ready, so you can't click into an error.

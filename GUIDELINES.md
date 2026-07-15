@@ -143,5 +143,5 @@ Discipline: no emoji, no dates in narrative prose, no speculation, definitions a
 * `subprocess` calls never use `shell=True`; process teardown by handle/PID, never by window title.
 * No secrets exist in this project by design; if one ever appears (API token, license key) it lives in an env var or OS keychain, gitignored, never committed — history is permanent and the repo goes public. GitHub secret scanning and push protection enforce the remote boundary.
 * Licensed model assets never enter the repo (gitignore + pre-commit and CI scans). `C:\Dev\CorridorRig-Original` is read-only reference.
-* Supply-chain controls: full-SHA GitHub Actions, locked `pip-audit`, Dependabot, CodeQL default setup, Scorecard, build smoke tests, signed release tags and Windows artifacts, checksums, and artifact attestations.
+* Supply-chain controls: full-SHA GitHub Actions, locked `pip-audit`, Dependabot, CodeQL default setup, Scorecard, build smoke tests, signed release tags, intentionally unsigned Windows artifacts with prominent SmartScreen disclosure, SHA-256 checksums, and artifact attestations.
 * Vulnerabilities are reported privately under [SECURITY.md](SECURITY.md), never through a public issue.

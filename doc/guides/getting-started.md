@@ -41,8 +41,32 @@ sign-up. Everything else is one click or fully automatic.</sub>
 ## 1. Install PoseCap
 
 Download the latest `PoseCap_..._Windows_Setup.exe` from the
-[releases page](https://github.com/CorridorTech/PoseCap/releases/latest) and run
-it. It needs **no administrator rights** — it installs into your user folder.
+[releases page](https://github.com/CorridorTech/PoseCap/releases/latest). PoseCap
+does not buy an Authenticode certificate for its open-source installer, so
+Microsoft Defender SmartScreen may show **Windows protected your PC**. This is an
+expected warning for the unsigned installer, not a reason to disable Windows
+security.
+
+Before running it, download the matching `.sha256` file from the same release and
+compare the published value in PowerShell:
+
+```powershell
+$installer = Get-Item .\PoseCap_*_Windows_Setup.exe
+Get-FileHash -Algorithm SHA256 -LiteralPath $installer.FullName
+Get-Content -LiteralPath "$($installer.FullName).sha256"
+```
+
+The two hashes must match. If you use the GitHub CLI, you can also verify that the
+installer was built by this repository's protected release workflow:
+
+```powershell
+gh attestation verify $installer.FullName --repo CorridorTech/PoseCap
+```
+
+Only after the download verifies, open it. If SmartScreen appears, select **More
+info** and then **Run anyway**. Managed company computers may prohibit unsigned
+applications entirely; in that case, follow your organization's security policy.
+The installer needs **no administrator rights** and installs into your user folder.
 
 Click through the wizard: **Accept** the license → keep the default **destination**
 → **Install**. The long part is the **~5 GB** it downloads — the GPU runtime

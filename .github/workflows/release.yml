@@ -19,7 +19,7 @@ concurrency:
 
 jobs:
   release:
-    name: signed Windows release
+    name: Windows release
     if: github.repository == 'CorridorTech/PoseCap'
     runs-on: [self-hosted, Windows, X64, posecap-release]
     environment: release
@@ -106,19 +106,6 @@ jobs:
             -MediaPipePayloadManifest $mediaPipePayloadManifest
           if ($LASTEXITCODE -ne 0) { throw "Installer build failed." }
           uv run python tools/build_extension.py --output-dir packaging/dist --staging-dir packaging/work/release-extension --release
-      - name: Sign and verify Windows installer
-        shell: pwsh
-        env:
-          CERTIFICATE_THUMBPRINT: ${{ vars.WINDOWS_SIGNING_CERTIFICATE_THUMBPRINT }}
-        run: |
-          if ([string]::IsNullOrWhiteSpace($env:CERTIFICATE_THUMBPRINT)) { throw "Release environment is missing WINDOWS_SIGNING_CERTIFICATE_THUMBPRINT." }
-          $certificate = Get-Item -LiteralPath "Cert:\CurrentUser\My\$env:CERTIFICATE_THUMBPRINT"
-          $setup = @(Get-ChildItem packaging\dist\*_Windows_Setup.exe)
-          if ($setup.Count -ne 1) { throw "Expected exactly one Windows installer." }
-          $signature = Set-AuthenticodeSignature -FilePath $setup[0].FullName -Certificate $certificate -TimestampServer "http://timestamp.digicert.com" -HashAlgorithm SHA256
-          if ($signature.Status -ne "Valid") { throw "Authenticode signing failed: $($signature.StatusMessage)" }
-          $verified = Get-AuthenticodeSignature -FilePath $setup[0].FullName
-          if ($verified.Status -ne "Valid") { throw "Authenticode verification failed: $($verified.StatusMessage)" }
       - name: Write SHA-256 checksums
         shell: pwsh
         run: |
@@ -152,7 +139,22 @@ jobs:
         shell: pwsh
         run: |
           $assets = @(Get-ChildItem packaging\dist\*.exe, packaging\dist\*.zip, packaging\dist\*.json, packaging\dist\*.sha256 | ForEach-Object FullName)
-          gh release create $env:GITHUB_REF_NAME @assets --verify-tag --generate-notes --draft --title $env:GITHUB_REF_NAME
+          $setup = @(Get-ChildItem packaging\dist\*_Windows_Setup.exe)
+          if ($setup.Count -ne 1) { throw "Expected exactly one Windows installer." }
+          $setupName = $setup[0].Name
+          $releaseNotice = @"
+          > [!WARNING]
+          > The Windows installer is not Authenticode-signed. Microsoft Defender SmartScreen may show "Windows protected your PC." Download only from this GitHub release, compare the published SHA-256 file, then choose More info > Run anyway if you trust the verified download.
+
+          Verify the checksum and build provenance with:
+
+          ``````powershell
+          Get-FileHash -Algorithm SHA256 -LiteralPath .\$setupName
+          Get-Content -LiteralPath .\$setupName.sha256
+          gh attestation verify .\$setupName --repo CorridorTech/PoseCap
+          ``````
+          "@
+          gh release create $env:GITHUB_REF_NAME @assets --verify-tag --generate-notes --notes $releaseNotice --draft --title $env:GITHUB_REF_NAME
       - name: Verify draft release asset inventory
         if: github.event_name == 'push'
         env:
