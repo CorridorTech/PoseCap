@@ -247,6 +247,55 @@ and [GitHub CLI deployment](https://github.com/cli/cli/blob/trunk/.github/workfl
 The remote runner, protected-environment configuration, certificate variable, and a
 successful manual workflow run remain to be observed before this gate can be closed.
 
+### 2026-07-14 — protected runner qualification evidence
+
+The `release` environment was configured for `main` and `v*-win.*`, and an ephemeral
+Windows x64 runner exercised the manual qualification entry point without publishing.
+The runner used the official Actions runner `2.335.1`, portable PowerShell `7.6.3`,
+the Visual Studio 2022 developer environment, CUDA, and the ADR-0007 short build root
+`C:\a`. Each ephemeral registration removed itself after one job.
+
+Run [29378197025](https://github.com/CorridorTech/PoseCap/actions/runs/29378197025)
+made the runner prerequisites observable: PowerShell and `cl.exe` had to be present in
+the runner process environment, PyTorch3D could not compile from the longer temporary
+root, and the official setup-python tool cache had to be available under the short
+root. After those runner corrections, PyTorch3D `v0.7.9` compiled successfully and the
+doctor reported every clean-runtime check ready except the deliberately external
+licensed SMPL/SMPL-X/FLAME assets. The setup script warned and completed, but the
+workflow misread the doctor's residual native exit code as setup failure. The public
+governance regression failed before PR
+[#53](https://github.com/CorridorTech/PoseCap/pull/53), then passed after the workflow
+ran the setup through a `pwsh -File` process boundary. The complete local gate, the PR
+Windows/Linux CI matrix, and `CI required` passed before squash commit `226286e` landed
+on `main`.
+
+The first post-merge run
+[29379824038](https://github.com/CorridorTech/PoseCap/actions/runs/29379824038)
+found that the recreated runner wrapper had not persisted the portable PowerShell
+directory in `PATH`; it stopped at the quality step before touching PEAR. The wrapper
+was corrected locally and PowerShell `7.6.3` was observed through that exact process
+environment before the next ephemeral runner was registered.
+
+Post-merge run
+[29379886011](https://github.com/CorridorTech/PoseCap/actions/runs/29379886011)
+then passed the repository quality gate, completed the pinned PEAR preparation in
+12 minutes 12 seconds, and built the versioned installer and extension. This proves
+the protected short-path runner can build the clean PEAR runtime without shipping
+licensed assets and confirms the PR #53 process-boundary correction in the real
+workflow. Signed-tag verification and all GitHub Release steps were skipped as
+required for `workflow_dispatch`.
+
+Authenticode remains the next protected-release blocker. The configured e-CNPJ A1
+certificate is valid and has a private key, but its enhanced key usages are only
+Client Authentication and Secure Email; it does not contain the Code Signing EKU
+`1.3.6.1.5.5.7.3.3`. PowerShell therefore rejected it as unsuitable for code signing.
+No suitable code-signing certificate with a private key was present in the runner
+user store. Checksums, attestation, and artifact retention did not run; the workflow
+artifact inventory remained empty and the GitHub release list remained unchanged at
+`v1.0.5-win.1`. A trusted code-signing certificate must be installed and selected
+before the remaining qualification steps can be rerun. The signature gate must not be
+relaxed and a self-signed certificate would not prove production release readiness.
+
 ## Definition of Done
 
 All Acceptance Criteria checked, plus:
