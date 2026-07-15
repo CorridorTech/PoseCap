@@ -169,9 +169,3 @@ jobs:
               throw "Draft release is missing expected asset: $expectedAsset"
             }
           }
-      - name: Publish verified GitHub release
-        if: github.event_name == 'push'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        shell: pwsh
-        run: gh release edit $env:GITHUB_REF_NAME --draft=false

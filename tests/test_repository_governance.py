@@ -153,7 +153,7 @@ def test_release_workflow_discloses_unsigned_installer_and_attests_artifacts() -
         "--notes $releaseNotice --draft" in commands
     )
     assert "gh release view $env:GITHUB_REF_NAME --json assets" in commands
-    assert "gh release edit $env:GITHUB_REF_NAME --draft=false" in commands
+    assert "gh release edit $env:GITHUB_REF_NAME --draft=false" not in commands
     assert "packaging/dist/*.json" in workflow_text
     references = {
         str(step["uses"]) for step in release["steps"] if isinstance(step, dict) and "uses" in step
