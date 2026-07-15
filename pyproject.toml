@@ -96,3 +96,14 @@ forbidden_modules = [
   "serial",
   "socket",
 ]
+
+[[tool.importlinter.contracts]]
+name = "engine imports inward only"
+type = "forbidden"
+source_modules = ["posecap_engine"]
+forbidden_modules = [
+  "posecap_addon",
+  "bpy",
+  "mathutils",
+  "serial",
+]

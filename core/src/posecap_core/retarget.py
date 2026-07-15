@@ -139,6 +139,7 @@ class SkeletonPreset:
 
 
 def ue_preset() -> SkeletonPreset:
+    """The Unreal Engine / Fortnite skeleton preset; A-pose rest, so re-rest applies."""
     return SkeletonPreset(
         name="ue",
         label="Unreal Engine / Fortnite",
@@ -154,6 +155,7 @@ def mixamo_mapping(prefix: str) -> dict[str, str]:
 
 
 def mixamo_preset(prefix: str, *, include_hands: bool = False) -> SkeletonPreset:
+    """The Mixamo skeleton preset for one export prefix ('' when stripped)."""
     # Mixamo characters download in T-pose; the UE-style A-pose re-rest
     # would corrupt an already correct rest pose.
     chains: ArmChains = {
