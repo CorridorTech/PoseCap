@@ -36,6 +36,11 @@ from posecap_contracts import (
 )
 
 
+@pytest.fixture(autouse=True)
+def _isolate_installed_backend_state(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "local-app-data"))
+
+
 def test_lifecycle_controls_match_stream_state_machine() -> None:
     assert lifecycle_controls("STOPPED").can_start
     assert not lifecycle_controls("STOPPED").can_stop
