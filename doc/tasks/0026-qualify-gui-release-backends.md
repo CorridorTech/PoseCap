@@ -296,6 +296,25 @@ artifact inventory remained empty and the GitHub release list remained unchanged
 before the remaining qualification steps can be rerun. The signature gate must not be
 relaxed and a self-signed certificate would not prove production release readiness.
 
+### 2026-07-14 — unsigned Windows distribution decision
+
+The project owner decided that PoseCap will not purchase an Authenticode certificate
+for its open-source Windows installer. This supersedes the preceding note's
+certificate requirement: Authenticode is no longer a release gate, and the installer
+is intentionally distributed unsigned. Microsoft documents that unsigned downloads
+receive a stronger SmartScreen warning and that even newly signed files can still
+warn while file reputation develops. PoseCap therefore discloses the unsigned status
+before execution and tells users to proceed only after verifying the release source.
+
+The protected release workflow retains signed annotated tags, the complete quality
+gate, SHA-256 sidecars, GitHub artifact attestations, draft inventory verification,
+and the protected environment. Every GitHub release prepends the SmartScreen warning,
+the expected **More info > Run anyway** path, and `gh attestation verify` guidance;
+the README and Getting Started guide surface the same decision before download and
+installation. Managed Windows environments may still reject unsigned executables by
+policy. Release publication remains blocked by the task's real GUI/backend
+qualification and explicit maintainer gate, not by certificate procurement.
+
 ## Definition of Done
 
 All Acceptance Criteria checked, plus:

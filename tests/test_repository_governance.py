@@ -111,7 +111,7 @@ def test_scorecard_publishes_signed_results_to_code_scanning() -> None:
     )
 
 
-def test_release_workflow_uses_protected_runner_signing_and_attestation() -> None:
+def test_release_workflow_discloses_unsigned_installer_and_attests_artifacts() -> None:
     path = REPO_ROOT / ".github" / "workflows" / "release.yml"
     workflow = _yaml(path)
     workflow_text = path.read_text(encoding="utf-8")
@@ -121,6 +121,7 @@ def test_release_workflow_uses_protected_runner_signing_and_attestation() -> Non
     assert 'tags: ["v*-win.*"]' in workflow_text
     assert "posecap-release" in actionlint["self-hosted-runner"]["labels"]
     assert release["runs-on"] == ["self-hosted", "Windows", "X64", "posecap-release"]
+    assert release["name"] == "Windows release"
     assert release["environment"] == "release"
     assert release["permissions"] == {
         "contents": "write",
@@ -133,8 +134,12 @@ def test_release_workflow_uses_protected_runner_signing_and_attestation() -> Non
     assert "verification.verified" in commands
     assert 'expectedTag = "v$baseVersion-win.$buildNumber"' in commands
     assert "GITHUB_REF_NAME -cne $expectedTag" in commands
-    assert "Set-AuthenticodeSignature" in commands
-    assert "Get-AuthenticodeSignature" in commands
+    assert "Set-AuthenticodeSignature" not in commands
+    assert "Get-AuthenticodeSignature" not in commands
+    assert "WINDOWS_SIGNING_CERTIFICATE_THUMBPRINT" not in workflow_text
+    assert "not Authenticode-signed" in commands
+    assert "Microsoft Defender SmartScreen" in commands
+    assert "gh attestation verify .\\$setupName --repo CorridorTech/PoseCap" in commands
     assert "Get-FileHash -Algorithm SHA256" in commands
     assert "gh release create" in commands
     assert "https://github.com/$env:GITHUB_REPOSITORY/releases/download/$artifactTag" in commands
@@ -144,17 +149,43 @@ def test_release_workflow_uses_protected_runner_signing_and_attestation() -> Non
     assert "-PearPayloadManifest $pearPayloadManifest" in commands
     assert "-MediaPipePayloadManifest $mediaPipePayloadManifest" in commands
     assert (
-        "gh release create $env:GITHUB_REF_NAME @assets --verify-tag --generate-notes --draft"
-        in commands
+        "gh release create $env:GITHUB_REF_NAME @assets --verify-tag --generate-notes "
+        "--notes $releaseNotice --draft" in commands
     )
     assert "gh release view $env:GITHUB_REF_NAME --json assets" in commands
-    assert "gh release edit $env:GITHUB_REF_NAME --draft=false" in commands
+    assert "gh release edit $env:GITHUB_REF_NAME --draft=false" not in commands
     assert "packaging/dist/*.json" in workflow_text
     references = {
         str(step["uses"]) for step in release["steps"] if isinstance(step, dict) and "uses" in step
     }
     assert any(reference.startswith("actions/attest@") for reference in references)
     assert all(len(reference.rsplit("@", 1)[-1]) == 40 for reference in references)
+
+
+def test_installation_docs_disclose_unsigned_windows_installer() -> None:
+    readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+    getting_started = (REPO_ROOT / "doc" / "guides" / "getting-started.md").read_text(
+        encoding="utf-8"
+    )
+
+    assert "intentionally unsigned" in readme
+    assert "Microsoft Defender SmartScreen" in getting_started
+    assert "Get-FileHash" in getting_started
+    assert "gh attestation verify" in getting_started
+
+
+def test_public_docs_state_backend_specific_gpu_compatibility() -> None:
+    readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+    getting_started = (REPO_ROOT / "doc" / "guides" / "getting-started.md").read_text(
+        encoding="utf-8"
+    )
+
+    assert "RTX 30 / 40 / 50 series" not in readme
+    assert "RTX 30 / 40 / 50 series" not in getting_started
+    assert "MediaPipe Lite" in readme and "No GPU required" in readme
+    assert "RTX 3080" in readme and "RTX 50-series is not supported" in readme
+    assert "Base + MediaPipe Lite" in getting_started
+    assert "If you selected MediaPipe Lite, skip to step 3" in getting_started
 
 
 def test_release_workflow_manual_qualification_cannot_publish() -> None:
