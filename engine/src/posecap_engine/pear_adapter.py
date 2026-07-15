@@ -144,10 +144,10 @@ class PearFrameSource:
                     self._preview_writer.offer(rgb_image)
                 captured_at = self._clock()
                 pose = runtime.infer(rgb_image)
-                if pose is None:
-                    yield PoseFrame(SCHEMA_VERSION, seq, captured_at, "no_person", None)
-                else:
-                    yield PoseFrame(SCHEMA_VERSION, seq, captured_at, "ok", pose)
+                status = "no_person"
+                if pose is not None:
+                    status = "ok"
+                yield PoseFrame(SCHEMA_VERSION, seq, captured_at, status, pose)
                 seq += 1
         finally:
             capture.release()
@@ -415,7 +415,7 @@ def _process_bbox(
     aspect_ratio = input_img_shape[1] / input_img_shape[0]
     if width > aspect_ratio * height:
         height = width / aspect_ratio
-    elif width < aspect_ratio * height:
+    if width < aspect_ratio * height:
         width = height * aspect_ratio
 
     width *= ratio

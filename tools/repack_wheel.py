@@ -38,10 +38,10 @@ def repack_installed_wheel(
         package_dir = site_packages / name
         if package_dir.is_dir():
             members.extend(_iter_files(package_dir))
-        else:
-            module_file = site_packages / f"{name}.py"
-            if module_file.is_file():
-                members.append(module_file)
+            continue
+        module_file = site_packages / f"{name}.py"
+        if module_file.is_file():
+            members.append(module_file)
     members.extend(path for path in _iter_files(dist_info) if path.name != "RECORD")
     if not members:
         raise FileNotFoundError(f"no files found for distribution {distribution}")

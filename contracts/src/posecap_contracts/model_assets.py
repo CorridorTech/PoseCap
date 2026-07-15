@@ -183,7 +183,8 @@ def archive_member_matches(member_name: str, tokens: tuple[str, ...]) -> bool:
         if lowered.startswith("."):
             if not basename.endswith(lowered):
                 return False
-        elif lowered not in basename:
+            continue
+        if lowered not in basename:
             return False
     return True
 
