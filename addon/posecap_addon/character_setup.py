@@ -100,18 +100,46 @@ def convert_armature(
 def _resolve_meshes(bpy, arm_obj, mapping):  # pragma: no cover - Blender only
     if arm_obj is None or getattr(arm_obj, "type", None) != "ARMATURE":
         raise ConversionError("pick an armature object first")
-    mesh_objs = [
-        o
-        for o in bpy.data.objects
-        if o.type == "MESH"
-        and any(m.type == "ARMATURE" and m.object is arm_obj for m in o.modifiers)
-    ]
+    mesh_objs = [o for o in bpy.data.objects if o.type == "MESH" and _is_deformed_by(o, arm_obj)]
     if not mesh_objs:
-        raise ConversionError("no mesh is bound to this armature")
+        candidates = _deforming_armatures(bpy.data.objects)
+        if candidates:
+            names = ", ".join(sorted(candidate.name for candidate in candidates))
+            raise ConversionError(
+                f"{arm_obj.name} does not deform a character mesh. Choose {names} as Target "
+                "Armature, then convert again"
+            )
+        raise ConversionError(
+            f"{arm_obj.name} has no deforming character mesh. Import a skinned FBX: the mesh "
+            "needs an Armature modifier that points to this armature"
+        )
     absent = [bone for bone in mapping.values() if bone not in arm_obj.pose.bones]
     if absent:
         raise ConversionError(f"the armature is missing expected bones: {', '.join(absent)}")
     return mesh_objs
+
+
+def _is_deformed_by(mesh_obj, arm_obj):
+    return any(
+        modifier.type == "ARMATURE" and modifier.object is arm_obj
+        for modifier in mesh_obj.modifiers
+    )
+
+
+def _deforming_armatures(objects):
+    armatures = []
+    for obj in objects:
+        if getattr(obj, "type", None) != "MESH":
+            continue
+        for modifier in obj.modifiers:
+            armature = getattr(modifier, "object", None)
+            if (
+                getattr(modifier, "type", None) == "ARMATURE"
+                and getattr(armature, "type", None) == "ARMATURE"
+                and all(armature is not candidate for candidate in armatures)
+            ):
+                armatures.append(armature)
+    return armatures
 
 
 def _re_rest_tpose(bpy, arm_obj, mesh_objs, arm_chains):  # pragma: no cover - Blender only
