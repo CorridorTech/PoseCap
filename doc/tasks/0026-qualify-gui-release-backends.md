@@ -421,6 +421,49 @@ close this task's remaining GUI-visible PEAR/finger journey, does not demonstrat
 physical Steam-installed Blender, and does not establish RTX 50-series PEAR
 compatibility.
 
+### 2026-07-15 — v1.0.6-win.4 release and ephemeral-runner launch gate
+
+PR [#60](https://github.com/CorridorTech/PoseCap/pull/60) (character mesh binding
+guidance) landed on `main` as `7f7f32e` with green required CI. Signed tag
+`v1.0.6-win.4` completed the protected Release workflow in run
+[29434488085](https://github.com/CorridorTech/PoseCap/actions/runs/29434488085)
+with all 12 artifacts, checksums, and attestations; the draft was reviewed and
+published as the Latest release at
+[v1.0.6-win.4](https://github.com/CorridorTech/PoseCap/releases/tag/v1.0.6-win.4).
+The generated release notes were rewritten before wide announcement to the
+structure proven by `v1.0.5-win.1` (Fixes, usability, regression coverage,
+installation, verification), plus a "What to download" header naming the single
+user-facing asset — the workflow publishes only an auto-changelog, so rewriting the
+body is a required release step until automated.
+
+The run exposed two launch-environment failures of the ephemeral release runner,
+both caught in the cloud and both preventable locally:
+
+1. The runner was launched without `RUNNER_TOOL_CACHE=C:\a\_tool`, so
+   `actions/setup-python` fell back to an empty per-workdir cache and attempted a
+   machine install that failed on registry permissions.
+2. The corrected relaunch built its environment in a single `cmd` line where
+   `set PATH=C:\a\pwsh;%PATH%` expanded `%PATH%` at parse time — before
+   `vcvars64.bat` executed — silently discarding the Visual Studio environment;
+   the job then failed at PEAR preparation with `cl.exe was not found`.
+
+Both are now closed by a preflight-gated launcher on the release workstation
+(`C:\a\launch-posecap-runner.ps1`): it imports the VS 2022 environment in
+PowerShell (runtime expansion), sets the tool cache and portable-pwsh PATH, and
+hard-fails before registering a runner unless `cl.exe`, portable `pwsh`, a complete
+Python 3.11 tool cache, CUDA (`nvcc`), `git`, and disk headroom all resolve in the
+exact process environment the runner will inherit. Every release requires a fresh
+ephemeral registration through that script; no runner stays registered between
+releases.
+
+The local `PoseCap-release-validation` evidence folder was retired after this
+release: its per-run download verifications are re-derivable from the published
+releases and their attestations, its conclusions live in this Notes log and PRs
+#56/#57/#58, and its irreplaceable artifacts (the character-binding diagnosis
+scene behind PR #60, the Inno RedirectionGuard reproduction scripts and logs, and
+the tag `allowed_signers` file) were preserved in the repository workspace under
+`.agentic/archive/release-validation-salvage/`.
+
 ## Definition of Done
 
 All Acceptance Criteria checked, plus:
