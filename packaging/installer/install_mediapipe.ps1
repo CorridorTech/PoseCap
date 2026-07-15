@@ -76,7 +76,7 @@ Invoke-MediaPipeStep -Label "Verify the MediaPipe component payload" `
 
 Invoke-MediaPipeStep -Label "Install Python 3.11 runtime (app-local, via uv)" `
     -Fix "Check your internet connection and run PoseCap Setup (repair)." `
-    -Action { Invoke-Uv @("python", "install", "3.11") }
+    -Action { Invoke-Uv @("python", "install", "--no-bin", "--no-registry", "3.11") }
 
 Invoke-MediaPipeStep -Label "Create the isolated MediaPipe environment" `
     -Fix "Close Blender, then run PoseCap Setup (repair)." `

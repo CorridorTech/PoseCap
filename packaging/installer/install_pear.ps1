@@ -95,7 +95,7 @@ Invoke-PearStep -Label "Check NVIDIA driver (nvidia-smi)" `
 
 Invoke-PearStep -Label "Install Python 3.11 runtime (app-local, via uv)" `
     -Fix "Check your internet connection and re-run setup. Corporate proxies: set HTTPS_PROXY first." `
-    -Action { Invoke-Uv @("python", "install", "3.11") }
+    -Action { Invoke-Uv @("python", "install", "--no-bin", "--no-registry", "3.11") }
 
 Invoke-PearStep -Label "Create engine virtual environment" `
     -Fix "Delete '$VenvDir' and re-run setup." `

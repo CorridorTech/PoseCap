@@ -669,6 +669,16 @@ def test_bootstrap_coordinates_independent_component_handlers() -> None:
     assert "register mediapipe lite pose backend" in mediapipe
 
 
+@pytest.mark.parametrize("handler", ["install_mediapipe.ps1", "install_pear.ps1"])
+def test_app_local_python_install_does_not_touch_global_python_registration(
+    handler: str,
+) -> None:
+    script = _read(handler)
+
+    assert 'Invoke-Uv @("python", "install", "--no-bin", "--no-registry", "3.11")' in script
+    assert '"--force"' not in script
+
+
 def test_build_stages_every_modular_handler() -> None:
     build = (_INSTALLER.parent / "build_installer.ps1").read_text(encoding="utf-8")
 
