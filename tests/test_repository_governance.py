@@ -137,10 +137,7 @@ def test_release_workflow_uses_protected_runner_signing_and_attestation() -> Non
     assert "Get-AuthenticodeSignature" in commands
     assert "Get-FileHash -Algorithm SHA256" in commands
     assert "gh release create" in commands
-    assert (
-        "https://github.com/$env:GITHUB_REPOSITORY/releases/download/$env:GITHUB_REF_NAME"
-        in commands
-    )
+    assert "https://github.com/$env:GITHUB_REPOSITORY/releases/download/$artifactTag" in commands
     assert "packaging\\build_pear_payload.ps1" in commands
     assert "packaging\\build_mediapipe_payload.ps1" in commands
     assert "-Pytorch3dSitePackages .venv-pear\\Lib\\site-packages" in commands
@@ -158,3 +155,27 @@ def test_release_workflow_uses_protected_runner_signing_and_attestation() -> Non
     }
     assert any(reference.startswith("actions/attest@") for reference in references)
     assert all(len(reference.rsplit("@", 1)[-1]) == 40 for reference in references)
+
+
+def test_release_workflow_manual_qualification_cannot_publish() -> None:
+    path = REPO_ROOT / ".github" / "workflows" / "release.yml"
+    workflow = _yaml(path)
+    workflow_text = path.read_text(encoding="utf-8")
+    release = workflow["jobs"]["release"]
+
+    assert "workflow_dispatch:" in workflow_text
+    assert "build_number:" in workflow_text
+    assert 'GITHUB_EVENT_NAME -eq "workflow_dispatch"' in workflow_text
+
+    release_steps = [
+        step
+        for step in release["steps"]
+        if isinstance(step, dict) and "gh release" in str(step.get("run", ""))
+    ]
+    assert release_steps
+    assert all(step.get("if") == "github.event_name == 'push'" for step in release_steps)
+
+    signed_tag_step = next(
+        step for step in release["steps"] if step.get("name") == "Verify signed tag belongs to main"
+    )
+    assert signed_tag_step["if"] == "github.event_name == 'push'"
