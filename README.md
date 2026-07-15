@@ -41,19 +41,20 @@ Two components, one pipeline:
 
 ## Who it's for
 
-Blender animators who want believable body animation without mocap suits, markers, or external mocap software. Corridor Digital's production artists are the founding users; if you have Blender, a webcam, and an NVIDIA GPU, it's for you too.
+Blender animators who want believable body animation without mocap suits, markers, or external mocap software. Corridor Digital's production artists are the founding users; if you have Blender and a webcam, the MediaPipe Lite backend gives you an account-free CPU path. PEAR remains available for the higher-fidelity NVIDIA workflow.
 
 ## Compatibility (current target)
 
 | Component | Supported now |
 |---|---|
 | OS | Windows 10 / 11 |
-| GPU | NVIDIA RTX 30 / 40 / 50 series (CUDA required — no CPU path) |
+| MediaPipe Lite | CPU-first body capture. No GPU required |
+| PEAR | NVIDIA/CUDA; qualified on an RTX 3080. RTX 50-series is not supported by the current PEAR runtime |
 | Blender | 4.2 LTS minimum, 5.x supported |
 | Python | 3.11 (Blender bundled for the extension; uv-managed venv for the engine bridge) |
 | Camera | Any webcam, including virtual cameras (e.g. Iriun) |
 
-RTX 20 series and older CUDA GPUs are untested and unsupported. Linux support for the engine bridge is on the roadmap; macOS is not currently planned.
+Other PEAR GPU generations remain unqualified unless a release note says otherwise. Linux support for the engine bridge is on the roadmap; macOS is not currently planned.
 
 ## How it works
 

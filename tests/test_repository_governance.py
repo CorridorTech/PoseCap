@@ -174,6 +174,18 @@ def test_installation_docs_disclose_unsigned_windows_installer() -> None:
     assert "gh attestation verify" in getting_started
 
 
+def test_public_docs_state_backend_specific_gpu_compatibility() -> None:
+    readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+    getting_started = (REPO_ROOT / "doc" / "guides" / "getting-started.md").read_text(
+        encoding="utf-8"
+    )
+
+    assert "RTX 30 / 40 / 50 series" not in readme
+    assert "RTX 30 / 40 / 50 series" not in getting_started
+    assert "MediaPipe Lite" in readme and "No GPU required" in readme
+    assert "RTX 3080" in readme and "RTX 50-series is not supported" in readme
+
+
 def test_release_workflow_manual_qualification_cannot_publish() -> None:
     path = REPO_ROOT / ".github" / "workflows" / "release.yml"
     workflow = _yaml(path)

@@ -34,7 +34,8 @@ sign-up. Everything else is one click or fully automatic.</sub>
 | | |
 |---|---|
 | **OS** | Windows 10 or 11 |
-| **GPU** | NVIDIA RTX 30 / 40 / 50 series with an up-to-date driver (CUDA is required — there is no CPU mode) |
+| **MediaPipe Lite** | CPU-first body capture; no GPU or model-provider account required |
+| **PEAR** | NVIDIA/CUDA; qualified on an RTX 3080. The current runtime does not support RTX 50-series GPUs |
 | **Blender** | 4.2 LTS or newer (5.x supported) — install it first from [blender.org](https://www.blender.org/download/) |
 | **Camera** | Any webcam, or a video file to test with |
 
