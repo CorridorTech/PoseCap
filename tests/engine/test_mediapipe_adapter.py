@@ -10,6 +10,7 @@ from pathlib import Path
 import pytest
 from posecap_contracts import decode_pose_frame
 from posecap_core import LandmarkMap
+from posecap_engine.errors import EngineError
 from posecap_engine.mediapipe_adapter import MediaPipeFrameSource
 from posecap_engine.pear_adapter import CameraSource, VideoFileSource
 
@@ -199,3 +200,12 @@ def _neutral_landmarks() -> dict[str, tuple[float, float, float]]:
         "mouth_right": (-0.04, 1.4, 0.0),
         "nose": (0.0, 1.5, 0.0),
     }
+
+
+def test_invalid_read_failure_budget_raises_engine_error() -> None:
+    with pytest.raises(EngineError, match="max_camera_read_failures must be positive"):
+        MediaPipeFrameSource(
+            model_path=Path("model.task"),
+            source=CameraSource(index=0),
+            max_camera_read_failures=0,
+        )

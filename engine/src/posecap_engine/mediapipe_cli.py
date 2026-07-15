@@ -9,6 +9,8 @@ import sys
 from pathlib import Path
 from typing import TextIO
 
+from posecap_core import PoseCapError
+
 from .config import DEFAULT_HOST, DEFAULT_PORT
 from .errors import EngineError
 from .live_source import CameraSource, LiveSource, VideoFileSource
@@ -27,7 +29,7 @@ def run(argv: list[str] | None = None, *, stdout: TextIO, stderr: TextIO) -> int
     args = _build_parser().parse_args(argv)
     try:
         return int(args.func(args, stdout))
-    except (EngineError, ValueError) as error:
+    except (EngineError, PoseCapError) as error:
         print(str(error), file=stderr)
         return 1
 

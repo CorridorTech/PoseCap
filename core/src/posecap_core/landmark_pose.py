@@ -8,6 +8,7 @@ from typing import TypeAlias
 import numpy as np
 from posecap_contracts import NUM_BETAS, NUM_EXPRESSION, NUM_HAND_JOINTS, PosePayload
 
+from .errors import PoseCapError
 from .rotation import quaternion_to_axis_angle
 from .skeleton import BODY_JOINT_NAMES
 
@@ -146,9 +147,9 @@ def _point(landmarks: LandmarkMap, name: str) -> np.ndarray:
     try:
         point = np.asarray(landmarks[name], dtype=np.float64)
     except KeyError as error:
-        raise ValueError(f"missing landmark: {name}") from error
+        raise PoseCapError(f"missing landmark: {name}") from error
     if point.shape != (3,) or not np.all(np.isfinite(point)):
-        raise ValueError(f"landmark {name} must contain three finite numbers")
+        raise PoseCapError(f"landmark {name} must contain three finite numbers")
     return point
 
 
@@ -175,7 +176,7 @@ def _frame_from_xz(x_hint: np.ndarray, z_hint: np.ndarray) -> np.ndarray:
 def _unit(vector: np.ndarray) -> np.ndarray:
     norm = float(np.linalg.norm(vector))
     if norm < _EPSILON:
-        raise ValueError("landmarks do not define a stable anatomical frame")
+        raise PoseCapError("landmarks do not define a stable anatomical frame")
     return vector / norm
 
 

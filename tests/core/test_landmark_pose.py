@@ -1,6 +1,6 @@
 import numpy as np
 import pytest
-from posecap_core import LandmarkPoseConverter
+from posecap_core import LandmarkPoseConverter, PoseCapError
 
 
 def test_neutral_landmarks_convert_to_neutral_body_pose() -> None:
@@ -47,3 +47,26 @@ def _neutral_landmarks() -> dict[str, tuple[float, float, float]]:
         "mouth_right": (-0.04, 1.4, 0.0),
         "nose": (0.0, 1.5, 0.0),
     }
+
+
+def test_missing_landmark_raises_domain_error() -> None:
+    landmarks = _neutral_landmarks()
+    del landmarks["left_wrist"]
+
+    with pytest.raises(PoseCapError, match="missing landmark: left_wrist"):
+        LandmarkPoseConverter().convert(landmarks)
+
+
+def test_non_finite_landmark_raises_domain_error() -> None:
+    landmarks = _neutral_landmarks()
+    landmarks["nose"] = (float("nan"), 1.5, 0.0)
+
+    with pytest.raises(PoseCapError, match="three finite numbers"):
+        LandmarkPoseConverter().convert(landmarks)
+
+
+def test_degenerate_landmarks_raise_domain_error() -> None:
+    landmarks = {name: (0.0, 0.0, 0.0) for name in _neutral_landmarks()}
+
+    with pytest.raises(PoseCapError, match="stable anatomical frame"):
+        LandmarkPoseConverter().convert(landmarks)
