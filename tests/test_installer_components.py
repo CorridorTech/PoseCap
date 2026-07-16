@@ -778,6 +778,25 @@ def test_base_handler_still_fails_on_nonzero_blender_exit_code(tmp_path: Path) -
     assert not (blender_dir / "posecap-installed.txt").exists()
 
 
+def test_pear_registration_precedes_the_doctor_gate() -> None:
+    pear = _read("install_pear.ps1")
+
+    registration = pear.index('Invoke-PearStep -Label "Register PEAR pose backend"')
+    doctor_gate = pear.index('Invoke-PearStep -Label "Verify install (doctor)')
+    assert registration < doctor_gate, (
+        "PEAR backend registration must run before the doctor gate so a machine"
+        " whose runtime fails install-time health checks still registers the"
+        " backend (task 0029, issue #49)"
+    )
+
+
+def test_pear_repair_announces_before_replacing_an_existing_runtime() -> None:
+    pear = _read("install_pear.ps1")
+
+    assert "replacing the existing engine runtime" in pear
+    assert pear.index("replacing the existing engine runtime") < pear.index('"venv", "--clear"')
+
+
 def test_native_stderr_tolerance_is_centralized_in_one_helper() -> None:
     helper = _read("native_command.ps1")
 

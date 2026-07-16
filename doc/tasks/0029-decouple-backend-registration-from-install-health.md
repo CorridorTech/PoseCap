@@ -1,6 +1,6 @@
 # Task 0029: Decouple PEAR backend registration from install-time health
 
-**Status:** proposed
+**Status:** in-progress
 **Created:** 2026-07-16
 **Owner:** alexandremendoncaalvaro
 **Execution:** AFK
@@ -34,18 +34,18 @@ to certify runtime health to keep the UI honest.
 
 Verifiable conditions. Each as a checkbox so progress is point-editable.
 
-- [ ] A machine whose PEAR runtime fails the install-time doctor for a
+- [x] A machine whose PEAR runtime fails the install-time doctor for a
       non-asset reason (e.g. unsupported GPU architecture) still ends the
       install with `backends\pear\backend.json` present, so a later
       user-fixed or PoseCap-updated runtime becomes selectable in Blender
       without reinstalling.
-- [ ] A user starting capture on a still-broken PEAR runtime gets the clear
+- [x] A user starting capture on a still-broken PEAR runtime gets the clear
       doctor-grade diagnostic (not an opaque process exit) — the health gate
       moves to where health is actually consumed, it does not disappear.
-- [ ] Repair keeps preserving a healthy runtime (the existing same-version
+- [x] Repair keeps preserving a healthy runtime (the existing same-version
       short-circuit) and never silently downgrades a user-modified venv
       without saying so.
-- [ ] Regression tests pin the new contract at the level the installer tests
+- [x] Regression tests pin the new contract at the level the installer tests
       already exercise (`tests/test_installer_components.py`).
 - [ ] Issue #49 is updated with the outcome and the interim manual
       registration steps for the reporter.
@@ -81,6 +81,32 @@ at ~226, `$ErrorActionPreference = "Stop"`); a healthy installation carries
 still lists no PEAR backend in Blender; the repair path recreates the venv
 from the pinned locks. Falsification asked of the reporter on the issue:
 confirm `%LOCALAPPDATA%\PoseCap\backends\pear\backend.json` is absent.
+
+### 2026-07-16 — shape A implemented
+
+The "Register PEAR pose backend" step moved from after the doctor gate to
+right after the bundled-wheels install: at that point the engine executable
+and PEAR source exist, so registration ("component installed") no longer
+waits on health ("runtime works here"). A doctor failure still fails the
+setup run, but the manifest survives it, so a user-fixed or updated runtime
+becomes selectable without reinstalling. Criterion 2 needed no new code —
+verified in the addon: `engine_process.py` surfaces the engine's stderr
+("engine exited before announcing stream endpoint: ...") and the engine CLI
+emits the doctor-grade startup diagnostic on a broken runtime. Criterion 3:
+the venv-create step now announces "replacing the existing engine runtime
+with the pinned versions" before `uv venv --clear` when a venv already
+exists; the same-version healthy-repair short-circuit is untouched. Tests:
+static order pin (registration before doctor), replace-announcement pin, and
+the superseded "registers only after doctor" pin updated to the new contract.
+
+```mermaid
+flowchart LR
+    W[Install wheels + PEAR source] --> R[Register backend manifest]
+    R --> D{Doctor gate}
+    D -- healthy --> OK[Setup complete]
+    D -- fails --> F[Setup reports failure]
+    F -.-> S[Manifest kept: backend selectable after user fix]
+```
 
 ## Definition of Done
 
