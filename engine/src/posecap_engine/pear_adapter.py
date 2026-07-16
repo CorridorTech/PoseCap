@@ -129,7 +129,9 @@ class PearFrameSource:
                     return
                 if rgb_image is None:
                     failed_reads = count_failed_read(
-                        self._config.source, failed_reads, self._max_camera_read_failures
+                        self._config.source,
+                        failed_reads=failed_reads,
+                        max_failures=self._max_camera_read_failures,
                     )
                     continue
 

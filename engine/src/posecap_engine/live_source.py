@@ -41,7 +41,7 @@ def describe_source(source: LiveSource) -> str:
     return f"video file {source.path}"
 
 
-def count_failed_read(source: LiveSource, failed_reads: int, max_failures: int) -> int:
+def count_failed_read(source: LiveSource, *, failed_reads: int, max_failures: int) -> int:
     """Count a missed frame, raising once the read-failure budget is spent.
 
     Sleeps ``CAMERA_READ_RETRY_SECONDS`` before returning the updated count so

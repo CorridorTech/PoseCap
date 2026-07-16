@@ -78,6 +78,20 @@ Verifiable conditions. Each as a checkbox so progress is point-editable.
 
 ## Notes
 
+### 2026-07-16 — slice-4 follow-up landed (shared missed-frame policy)
+
+The centralization candidate recorded by the slice-4 review shipped as its own
+change: the missed-frame policy duplicated verbatim across both engine
+adapters (`_count_failed_read`, `_describe_source`, retry/budget constants)
+now lives once in `live_source.py` as public helpers (`count_failed_read`,
+`describe_source`, `CAMERA_READ_RETRY_SECONDS`,
+`DEFAULT_MAX_CAMERA_READ_FAILURES`) — the module both adapters already import
+for the source value objects, per WORKFLOW section 8's two-adapters rule.
+Behavior preserved: error messages byte-identical (pinned by adapter tests),
+same retry timing and constructor defaults, and `pear_adapter`'s
+no-torch/no-cv2 import promise holds transitively. Verified by fresh-context
+review (two axes) and the full pre-push gate.
+
 ### 2026-07-16 — slice 4 landed (indentation flattening)
 
 An AST rescan (nested block depth inside the function > 3) found five
