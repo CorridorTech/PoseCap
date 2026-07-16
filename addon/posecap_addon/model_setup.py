@@ -96,7 +96,7 @@ def install_missing_models(
     Raises ModelSetupError with a user-facing message on any failure, leaving
     no partial files behind.
     """
-    fetch_callable = fetch or _urllib_fetch
+    fetch_callable = fetch or urllib_fetch
     report_status = status or (lambda _message: None)
     report_progress = progress or _noop_progress
     missing = missing_model_assets(pear_root, assets)
@@ -545,12 +545,16 @@ class ModelSetupSession:
         self.status_message = f"{base} — {bytes_done // megabyte} / {bytes_total // megabyte} MB"
 
 
-def _urllib_fetch(
+def urllib_fetch(
     url: str,
     post_data: bytes | None,
     sink_path: Path,
     progress: ProgressCallback,
 ) -> None:
+    """Default ``Fetcher``: request ``url`` and stream the body to ``sink_path``.
+
+    Raises ModelSetupError with a user-facing message on any HTTP or network
+    failure."""
     # download.php authenticates the POST, sets a session cookie, and 302-redirects
     # to the file; the redirect target serves the file only if that cookie rides
     # along. urllib's default opener follows redirects but has no cookie handling,
@@ -563,39 +567,47 @@ def _urllib_fetch(
     request = urllib.request.Request(url, data=post_data)
     try:
         with opener.open(request, timeout=60.0) as response:
-            total = int(response.headers.get("Content-Length") or 0)
-            done = 0
-            with sink_path.open("wb") as sink:
-                while True:
-                    chunk = response.read(_DOWNLOAD_CHUNK_BYTES)
-                    if chunk == b"":
-                        return
-                    sink.write(chunk)
-                    done += len(chunk)
-                    progress(done, total)
+            _stream_to_sink(response, sink_path, progress)
     except urllib.error.HTTPError as exc:
-        # HTTPError is a URLError subclass, so it must be handled first. A 401
-        # identifies authentication; a 403 only proves that the server refused
-        # the request, so guessing its cause or retrying automatically is unsafe.
-        if exc.code == 403:
-            file_name = _requested_file_label(url)
-            raise ModelSetupError(
-                f"The official model server refused {file_name} (HTTP 403). "
-                "PoseCap cannot tell whether the account is not approved or the "
-                "server is temporarily refusing this connection. Stop retrying "
-                "for now. After a browser download succeeds, choose Watch my "
-                "Downloads Folder; already installed models are kept."
-            ) from exc
-        if exc.code == 401:
-            raise ModelSetupError(
-                "The official model server rejected the login (HTTP 401). "
-                "Check the email and password, then confirm the account "
-                "verification email before trying again."
-            ) from exc
-        raise ModelSetupError(
-            f"The download server returned an error (HTTP {exc.code}). Please try again."
-        ) from exc
+        raise _http_fetch_error(exc, url) from exc
     except urllib.error.URLError as exc:
         raise ModelSetupError(
             "Could not reach the download server. Check your internet connection and try again."
         ) from exc
+
+
+def _stream_to_sink(response: Any, sink_path: Path, progress: ProgressCallback) -> None:
+    total = int(response.headers.get("Content-Length") or 0)
+    done = 0
+    with sink_path.open("wb") as sink:
+        while True:
+            chunk = response.read(_DOWNLOAD_CHUNK_BYTES)
+            if chunk == b"":
+                return
+            sink.write(chunk)
+            done += len(chunk)
+            progress(done, total)
+
+
+def _http_fetch_error(exc: urllib.error.HTTPError, url: str) -> ModelSetupError:
+    # HTTPError is a URLError subclass, so it must be handled first. A 401
+    # identifies authentication; a 403 only proves that the server refused
+    # the request, so guessing its cause or retrying automatically is unsafe.
+    if exc.code == 403:
+        file_name = _requested_file_label(url)
+        return ModelSetupError(
+            f"The official model server refused {file_name} (HTTP 403). "
+            "PoseCap cannot tell whether the account is not approved or the "
+            "server is temporarily refusing this connection. Stop retrying "
+            "for now. After a browser download succeeds, choose Watch my "
+            "Downloads Folder; already installed models are kept."
+        )
+    if exc.code == 401:
+        return ModelSetupError(
+            "The official model server rejected the login (HTTP 401). "
+            "Check the email and password, then confirm the account "
+            "verification email before trying again."
+        )
+    return ModelSetupError(
+        f"The download server returned an error (HTTP {exc.code}). Please try again."
+    )

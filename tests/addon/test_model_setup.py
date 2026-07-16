@@ -17,11 +17,11 @@ from posecap_addon.model_setup import (
     ModelSetupError,
     ModelSetupSession,
     MpiCredentials,
-    _urllib_fetch,
     find_downloaded_model_archives,
     install_from_downloaded_archive,
     install_missing_models,
     missing_model_assets,
+    urllib_fetch,
 )
 from posecap_contracts import MPI_DOWNLOAD_URL, REQUIRED_MODEL_ASSETS, PublicDownload
 
@@ -49,7 +49,7 @@ def test_forbidden_download_explains_the_ambiguous_refusal_and_safe_recovery(
     monkeypatch.setattr(urllib.request, "build_opener", lambda *a, **k: opener)
 
     with pytest.raises(ModelSetupError) as raised:
-        _urllib_fetch(
+        urllib_fetch(
             "https://download.example/download.php?domain=smpl&sfile=SMPL_python_v.1.1.0.zip",
             b"user=x",
             tmp_path / "f",
@@ -80,7 +80,7 @@ def test_unauthorized_download_points_to_account_verification(monkeypatch, tmp_p
     monkeypatch.setattr(urllib.request, "build_opener", lambda *a, **k: _UnauthorizedOpener())
 
     with pytest.raises(ModelSetupError) as raised:
-        _urllib_fetch(
+        urllib_fetch(
             "https://download.example/download.php", b"user=x", tmp_path / "f", lambda d, t: None
         )
 
@@ -638,7 +638,7 @@ def test_urllib_fetch_carries_the_session_cookie_across_the_download_redirect(tm
     import http.server
     import threading
 
-    from posecap_addon.model_setup import _urllib_fetch
+    from posecap_addon.model_setup import urllib_fetch
 
     file_bytes = b"PK\x03\x04" + b"BODYMODEL" * 512
     html_login = b"<!DOCTYPE html><html><head><title>Login</title></head></html>"
@@ -672,7 +672,7 @@ def test_urllib_fetch_carries_the_session_cookie_across_the_download_redirect(tm
     thread.start()
     try:
         sink = tmp_path / "out.bin"
-        _urllib_fetch(
+        urllib_fetch(
             f"http://127.0.0.1:{port}/download.php",
             b"username=x&password=y",
             sink,

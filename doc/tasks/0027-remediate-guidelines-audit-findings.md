@@ -26,7 +26,7 @@ Verifiable conditions. Each as a checkbox so progress is point-editable.
       `_build_blender_classes` (378 lines) is decomposed below the 100-line hard cap
       and the file (1406 lines) is split toward the ~200-line target, or any function
       that genuinely cannot shrink carries the §4 one-line justification comment.
-- [ ] The eight functions exceeding indentation depth 3 (worst: `_urllib_fetch` in
+- [x] The eight functions exceeding indentation depth 3 (worst: `_urllib_fetch` in
       `addon/posecap_addon/model_setup.py:547`, depth 5) are flattened with guard
       clauses or extracted helpers.
 - [x] import-linter enforcement matches the §1 promise: contracts for
@@ -72,11 +72,40 @@ Verifiable conditions. Each as a checkbox so progress is point-editable.
       `mediapipe_cli.py` catch narrowed as the observable proof.
 - [x] Slice 3 — `panels.py` decomposition (largest risk; fresh-context review
       required per WORKFLOW §10 before merge).
-- [ ] Slice 4 — indentation flattening across the eight flagged functions.
+- [x] Slice 4 — indentation flattening across the eight flagged functions.
 - [x] Slice 5 — decisions: §5 amendment ADR, abbreviation exemptions, benchmarks
       exemption, README roadmap, git-history record.
 
 ## Notes
+
+### 2026-07-16 — slice 4 landed (indentation flattening)
+
+An AST rescan (nested block depth inside the function > 3) found five
+remaining offenders — three of the audit's eight were already flattened by
+slices 2 and the else-reduction. All five now sit at depth <= 3 with behavior
+preserved: `_urllib_fetch` (depth 5) split into `_stream_to_sink` +
+`_http_fetch_error` and promoted to the public `urllib_fetch` seam it already
+served as the default `Fetcher` — closing the `test_model_setup.py` private
+access from AC section 9; `resolve_installed_pose_backend` extracted
+`_match_requested_backend`; `create_support_bundle` extracted `_archive_logs`;
+both frame-source `frames()` generators extracted `_count_failed_read` with a
+combined exhausted-source guard. Verified: depth scan reports zero functions
+above 3 across all four layers; full pre-push gate green (513 passed). AC
+section 9 remains open on one item only: the `test_pear_adapter.py`
+monkeypatch of `_load_pear_modules` — promoting it to an injection seam is a
+deliberate design decision (the constructor already takes `runtime_factory`;
+whether module loading deserves a second seam needs the maintainer's call)
+and was intentionally not forced here.
+
+Fresh-context review (two axes) ran before the PR. Spec axis: all five
+flattenings verified line-by-line against origin/main with no behavior
+divergence. Standards axis: two blockers, both artifacts of a careless bulk
+rename in `test_model_setup.py` (a clobbered test-function name and four em
+dashes corrupted to mojibake) — fixed by re-applying the rename from the
+pristine git version with explicit UTF-8; one concern — `_count_failed_read`
+duplicated across both engine adapters mirrors the adapters' pre-existing
+duplication (`_describe_source`, retry constant) and is recorded as a
+follow-up centralization candidate rather than forced into this slice.
 
 ### 2026-07-16 — slice 3 landed (panels.py decomposition)
 

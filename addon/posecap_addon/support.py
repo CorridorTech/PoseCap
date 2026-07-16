@@ -131,14 +131,20 @@ def create_support_bundle(
     output = destination_directory / f"PoseCap-Support-{created_at:%Y%m%d-%H%M%S}.zip"
     with zipfile.ZipFile(output, "w", compression=zipfile.ZIP_DEFLATED) as archive:
         archive.writestr("diagnostics.txt", diagnostics)
-        if logs_directory.is_dir():
-            for log_path in sorted(logs_directory.glob("*.log*")):
-                if log_path.is_file():
-                    archive.write(log_path, f"logs/{log_path.name}")
-            setup_marker = logs_directory / "SETUP_OK"
-            if setup_marker.is_file():
-                archive.write(setup_marker, "logs/SETUP_OK")
+        _archive_logs(archive, logs_directory)
     return output
+
+
+def _archive_logs(archive: zipfile.ZipFile, logs_directory: Path) -> None:
+    """Add bounded PoseCap logs and the setup marker to the bundle."""
+    if not logs_directory.is_dir():
+        return
+    for log_path in sorted(logs_directory.glob("*.log*")):
+        if log_path.is_file():
+            archive.write(log_path, f"logs/{log_path.name}")
+    setup_marker = logs_directory / "SETUP_OK"
+    if setup_marker.is_file():
+        archive.write(setup_marker, "logs/SETUP_OK")
 
 
 def _looks_like_installed_engine(path: Path) -> bool:
