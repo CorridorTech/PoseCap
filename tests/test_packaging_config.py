@@ -167,12 +167,13 @@ def test_pear_handler_refreshes_changed_source_without_deleting_retained_data() 
     assert "Remove-Item -Recurse -Force -LiteralPath $PearDir" not in pear
 
 
-def test_pear_handler_registers_backend_only_after_runtime_install() -> None:
+def test_pear_handler_registers_backend_after_install_before_doctor_gate() -> None:
     pear = _read("installer/install_pear.ps1")
 
     doctor_index = pear.index("Verify install (doctor) and fetch pose-model weights")
+    wheels_index = pear.index("Install bundled wheels")
     engine_index = pear.index('$EnginePath = Join-Path $VenvDir "Scripts\\posecap-engine.exe"')
-    assert engine_index > doctor_index
+    assert wheels_index < engine_index < doctor_index
     assert "schema_version = 1" in pear
     assert 'id = "pear"' in pear
     assert 'command = @($EnginePath, "live", "--pear-root", $PearDir)' in pear

@@ -100,7 +100,12 @@ Invoke-PearStep -Label "Install Python 3.11 runtime (app-local, via uv)" `
 
 Invoke-PearStep -Label "Create engine virtual environment" `
     -Fix "Delete '$VenvDir' and re-run setup." `
-    -Action { Invoke-Uv @("venv", "--clear", "--python", "3.11", $VenvDir) }
+    -Action {
+        if (Test-Path -LiteralPath $VenvPython -PathType Leaf) {
+            Write-Host "    replacing the existing engine runtime with the pinned versions"
+        }
+        Invoke-Uv @("venv", "--clear", "--python", "3.11", $VenvDir)
+    }
 
 Invoke-PearStep -Label "Install PyTorch CUDA 12.4 wheels (~2.5 GB download)" `
     -Fix "Check your internet connection and disk space (needs ~8 GB free), then re-run setup." `
@@ -198,6 +203,38 @@ Invoke-PearStep -Label "Fetch YOLO person-detection weights" `
         }
     }
 
+$EnginePath = Join-Path $VenvDir "Scripts\posecap-engine.exe"
+Invoke-PearStep -Label "Register PEAR pose backend" `
+    -Fix "Run PoseCap Setup (repair); the runtime exists but its registration failed." `
+    -Action {
+        # Registration means "component installed", not "runtime healthy" (task
+        # 0029): it runs before the doctor gate so a runtime that fails
+        # install-time health checks (issue #49, unsupported GPU) can still be
+        # fixed or updated later and become selectable in Blender. The addon
+        # registry validates every manifest on read, and the engine start path
+        # surfaces the doctor-grade diagnostic when a broken runtime is used.
+        New-Item -ItemType Directory -Force -Path $PearBackendDir | Out-Null
+        $backendManifest = [ordered]@{
+            schema_version = 1
+            id = "pear"
+            display_name = "PEAR (NVIDIA CUDA)"
+            command = @($EnginePath, "live", "--pear-root", $PearDir)
+            protocol_versions = @(1)
+            capabilities = @("body", "hands", "face")
+            compatibility = [ordered]@{
+                operating_systems = @("windows")
+                accelerators = @("nvidia-cuda")
+                account = "MPI account required for model downloads"
+                license = "MPI model terms apply; commercial use requires a Meshcapade license"
+            }
+        }
+        $backendJson = $backendManifest | ConvertTo-Json -Depth 4
+        $backendManifestTemp = "$PearBackendManifestPath.tmp"
+        $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+        [System.IO.File]::WriteAllText($backendManifestTemp, $backendJson, $utf8NoBom)
+        Move-Item -Force -LiteralPath $backendManifestTemp -Destination $PearBackendManifestPath
+    }
+
 $LicensedModelsPending = $false
 Invoke-PearStep -Label "Verify install (doctor) and fetch pose-model weights (~2.6 GB)" `
     -Fix "Read the doctor output; every failing check names its own fix." `
@@ -221,32 +258,6 @@ Invoke-PearStep -Label "Verify install (doctor) and fetch pose-model weights (~2
             return
         }
         throw "doctor reported failing checks: $($errors -join ', ')"
-    }
-
-$EnginePath = Join-Path $VenvDir "Scripts\posecap-engine.exe"
-Invoke-PearStep -Label "Register PEAR pose backend" `
-    -Fix "Run PoseCap Setup (repair); the runtime exists but its registration failed." `
-    -Action {
-        New-Item -ItemType Directory -Force -Path $PearBackendDir | Out-Null
-        $backendManifest = [ordered]@{
-            schema_version = 1
-            id = "pear"
-            display_name = "PEAR (NVIDIA CUDA)"
-            command = @($EnginePath, "live", "--pear-root", $PearDir)
-            protocol_versions = @(1)
-            capabilities = @("body", "hands", "face")
-            compatibility = [ordered]@{
-                operating_systems = @("windows")
-                accelerators = @("nvidia-cuda")
-                account = "MPI account required for model downloads"
-                license = "MPI model terms apply; commercial use requires a Meshcapade license"
-            }
-        }
-        $backendJson = $backendManifest | ConvertTo-Json -Depth 4
-        $backendManifestTemp = "$PearBackendManifestPath.tmp"
-        $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
-        [System.IO.File]::WriteAllText($backendManifestTemp, $backendJson, $utf8NoBom)
-        Move-Item -Force -LiteralPath $backendManifestTemp -Destination $PearBackendManifestPath
     }
 
 if ($LicensedModelsPending) {
