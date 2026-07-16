@@ -1,6 +1,6 @@
 # Task 0028: Stop Blender stderr noise from terminating the installer
 
-**Status:** in_progress
+**Status:** in-progress
 **Created:** 2026-07-16
 **Owner:** alexandremendoncaalvaro
 **Execution:** AFK
@@ -95,6 +95,14 @@ every output line for the `Blender X.Y` banner because stderr noise can
 precede it. Regression tests: the C# Blender stub emits stderr noise when
 `POSECAP_STUB_STDERR` is set and the base handler must still succeed; a static
 test pins that no handler redirects native stderr outside the helper.
+
+Fresh-context review (two axes) found no blockers; applied fixes: direct
+dot-sourcing of the helper in both base handlers (no transitive dependency on
+`blender_discovery.ps1` loading it) and a failure-path regression test proving
+a non-zero Blender exit code still fails the step through the helper. Logged
+follow-up, deliberately out of this change: behavioral (non-static) stderr
+tests for the uninstall and nvidia-smi paths — today they are covered by the
+shared-helper policy test only.
 
 The flow after the fix:
 
