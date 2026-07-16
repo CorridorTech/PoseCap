@@ -15,10 +15,12 @@ from posecap_contracts import SCHEMA_VERSION, PoseFrame
 from posecap_core import LandmarkMap, LandmarkPoseConverter
 
 from .errors import CaptureUnavailableError, EngineError
-from .live_source import CameraSource, LiveSource
-
-_CAMERA_READ_RETRY_SECONDS = 0.005
-_DEFAULT_MAX_CAMERA_READ_FAILURES = 200
+from .live_source import (
+    DEFAULT_MAX_CAMERA_READ_FAILURES,
+    CameraSource,
+    LiveSource,
+    count_failed_read,
+)
 
 
 @dataclass(frozen=True)
@@ -71,7 +73,7 @@ class MediaPipeFrameSource:
         runtime_factory: RuntimeFactory | None = None,
         capture_factory: CaptureFactory | None = None,
         clock: Clock = time.time,
-        max_camera_read_failures: int = _DEFAULT_MAX_CAMERA_READ_FAILURES,
+        max_camera_read_failures: int = DEFAULT_MAX_CAMERA_READ_FAILURES,
         preview_writer: _PreviewWriter | None = None,
     ) -> None:
         if max_camera_read_failures <= 0:
@@ -101,7 +103,11 @@ class MediaPipeFrameSource:
                 if rgb_image is None and capture.exhausted:
                     return
                 if rgb_image is None:
-                    failed_reads = self._count_failed_read(failed_reads)
+                    failed_reads = count_failed_read(
+                        self._config.source,
+                        failed_reads=failed_reads,
+                        max_failures=self._max_camera_read_failures,
+                    )
                     continue
                 failed_reads = 0
                 if self._preview_writer is not None:
@@ -120,17 +126,6 @@ class MediaPipeFrameSource:
                     self._preview_writer.close()
             with suppress(Exception):
                 runtime.close()
-
-    def _count_failed_read(self, failed_reads: int) -> int:
-        """Count a missed frame, raising once the read-failure budget is spent."""
-        failed_reads += 1
-        if failed_reads >= self._max_camera_read_failures:
-            raise CaptureUnavailableError(
-                f"{_describe_source(self._config.source)} did not return frames "
-                f"after {failed_reads} consecutive reads"
-            )
-        time.sleep(_CAMERA_READ_RETRY_SECONDS)
-        return failed_reads
 
 
 _LANDMARK_INDICES = {
@@ -248,9 +243,3 @@ def _open_capture(config: MediaPipeLiveConfig) -> _LiveCapture:
     except ImportError as error:
         raise EngineError("OpenCV is not installed in this Pose Backend runtime") from error
     return _OpenCvCapture(config, cv2)
-
-
-def _describe_source(source: LiveSource) -> str:
-    if isinstance(source, CameraSource):
-        return f"camera index {source.index}"
-    return f"video file {source.path}"

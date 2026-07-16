@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 from posecap_contracts import decode_pose_frame
 from posecap_core import LandmarkMap
-from posecap_engine.errors import EngineError
+from posecap_engine.errors import CaptureUnavailableError, EngineError
 from posecap_engine.mediapipe_adapter import MediaPipeFrameSource
 from posecap_engine.pear_adapter import CameraSource, VideoFileSource
 
@@ -53,6 +53,24 @@ def test_mediapipe_source_previews_each_captured_frame_and_closes_window() -> No
 
     assert preview.offered == [first_frame, second_frame]
     assert preview.closed
+
+
+def test_mediapipe_source_fails_after_consecutive_camera_read_failures() -> None:
+    # Pins the MediaPipe side of the shared missed-frame policy (live_source
+    # count_failed_read); the PEAR suite pins the same contract for its adapter.
+    capture = _FakeCapture([None, None])
+    source = MediaPipeFrameSource(
+        Path("holistic_landmarker.task"),
+        source=CameraSource(3),
+        runtime_factory=lambda _config: _FakeRuntime([]),
+        capture_factory=lambda _config: capture,
+        max_camera_read_failures=2,
+    )
+
+    with pytest.raises(CaptureUnavailableError, match="camera index 3 did not return frames"):
+        next(source.frames())
+
+    assert capture.released
 
 
 def test_mediapipe_adapter_imports_without_loading_the_pear_adapter() -> None:

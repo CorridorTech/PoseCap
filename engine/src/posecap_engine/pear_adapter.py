@@ -27,7 +27,13 @@ from posecap_contracts import (
 
 from .config import PEAR_MODELS_REVISION
 from .errors import CaptureUnavailableError, EngineError
-from .live_source import CameraSource, LiveSource, VideoFileSource
+from .live_source import (
+    DEFAULT_MAX_CAMERA_READ_FAILURES,
+    CameraSource,
+    LiveSource,
+    VideoFileSource,
+    count_failed_read,
+)
 
 
 @dataclass(frozen=True)
@@ -65,19 +71,11 @@ CaptureFactory = Callable[[PearLiveConfig], _LiveCapture]
 Clock = Callable[[], float]
 
 
-def _describe_source(source: LiveSource) -> str:
-    if isinstance(source, VideoFileSource):
-        return f"video file {source.path}"
-    return f"camera index {source.index}"
-
-
 _PEAR_MODEL_REPO_ID = "BestWJH/PEAR_models"
 _PEAR_MODEL_FILENAME = "ehm_model_stage1.pt"
 _PEAR_CONFIG_RELATIVE_PATH = Path("configs") / "infer.yaml"
 _PEAR_YOLO_DIR = Path("model_zoo")
 _PATCH_SHAPE = (256, 256)
-_CAMERA_READ_RETRY_SECONDS = 0.005
-_DEFAULT_MAX_CAMERA_READ_FAILURES = 200
 
 
 class PearFrameSource:
@@ -97,7 +95,7 @@ class PearFrameSource:
         runtime_factory: RuntimeFactory | None = None,
         capture_factory: CaptureFactory | None = None,
         clock: Clock = time.time,
-        max_camera_read_failures: int = _DEFAULT_MAX_CAMERA_READ_FAILURES,
+        max_camera_read_failures: int = DEFAULT_MAX_CAMERA_READ_FAILURES,
         preview_writer: Any = None,
     ) -> None:
         if max_camera_read_failures <= 0:
@@ -130,7 +128,11 @@ class PearFrameSource:
                 if rgb_image is None and capture.exhausted:
                     return
                 if rgb_image is None:
-                    failed_reads = self._count_failed_read(failed_reads)
+                    failed_reads = count_failed_read(
+                        self._config.source,
+                        failed_reads=failed_reads,
+                        max_failures=self._max_camera_read_failures,
+                    )
                     continue
 
                 failed_reads = 0
@@ -148,17 +150,6 @@ class PearFrameSource:
             if self._preview_writer is not None:
                 with suppress(Exception):
                     self._preview_writer.close()
-
-    def _count_failed_read(self, failed_reads: int) -> int:
-        """Count a missed frame, raising once the read-failure budget is spent."""
-        failed_reads += 1
-        if failed_reads >= self._max_camera_read_failures:
-            raise CaptureUnavailableError(
-                f"{_describe_source(self._config.source)} did not return frames "
-                f"after {failed_reads} consecutive reads"
-            )
-        time.sleep(_CAMERA_READ_RETRY_SECONDS)
-        return failed_reads
 
 
 @dataclass(frozen=True)
