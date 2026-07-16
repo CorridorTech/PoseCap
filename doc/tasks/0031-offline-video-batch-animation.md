@@ -89,6 +89,30 @@ Live webcam keeps the ADR-0002 stream untouched. The open product decisions
 are the output-file contract (format, where it lands, import UX inside the
 addon) and how source fps maps to scene fps — those go through the spec.
 
+### 2026-07-16 — ground of the two open product questions
+
+Both questions raised at registration resolve by ground (comparable tools +
+Blender platform convention + the project's parametrization principle); they
+enter the spec as recommendations, not open forks.
+
+Import UX: comparable tools (Rokoko Video/Vision, DeepMotion, Plask) all
+converge on process-video-then-import-animation-file, and the friction they
+all share is the file juggling between web tool and Blender. PoseCap already
+lives inside Blender, so the recommended shape is one in-panel flow: pick a
+video file in the PoseCap panel, process with progress feedback, keyframes
+land on the armature — the intermediate frame-indexed file exists as an
+artifact (re-import without reprocessing, support diagnostics) but the happy
+path never asks the user to touch it. Simple default, advanced section
+exposes the artifact and reprocessing options.
+
+Frame-rate mapping: Blender's own BVH importer is the platform convention —
+default scales source fps to scene fps (time-preserving), with 1:1
+frame-to-frame mapping as the alternative. Recommended default: scale video
+fps to scene fps so a 24 fps video lands time-correct on a 30 fps timeline
+(Dean's "import at the current framerate of your blender timeline"); 1:1
+mapping as an advanced option. Both mappings are deterministic functions of
+frame index, never of processing speed.
+
 ## Definition of Done
 
 All Acceptance Criteria checked, plus:
