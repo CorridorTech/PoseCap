@@ -1,6 +1,7 @@
 # Shared Blender discovery for PoseCap Base install and uninstall handlers.
 
 #Requires -Version 5.1
+. (Join-Path $PSScriptRoot "native_command.ps1")
 
 function Get-SteamInstallRoots {
     $roots = @()
@@ -73,7 +74,9 @@ function Find-CompatibleBlenders {
 
     $compatible = foreach ($candidate in ($candidates | Select-Object -Unique)) {
         try {
-            $versionLine = & $candidate --version 2>&1 | Select-Object -First 1
+            $outputLines = @(Invoke-NativeCommand -FilePath $candidate -ArgumentList @('--version'))
+            $versionLine = @($outputLines) -match '^Blender\s' | Select-Object -First 1
+            if ($null -eq $versionLine) { continue }
             if ($versionLine -notmatch '^Blender\s+(\d+\.\d+(?:\.\d+)?)') { continue }
             $version = [version]$Matches[1]
             if ($version -lt [version]'4.2') { continue }

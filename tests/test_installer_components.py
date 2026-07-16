@@ -156,6 +156,11 @@ public static class BlenderStub
 {
     public static int Main(string[] args)
     {
+        if (Environment.GetEnvironmentVariable("POSECAP_STUB_STDERR") != null)
+        {
+            Console.Error.WriteLine("TBBmalloc: fixture third-party startup warning");
+        }
+
         if (args.Length == 1 && args[0] == "--version")
         {
             Console.WriteLine("Blender 5.2.0");
@@ -222,13 +227,16 @@ public static class BlenderStub
 def _run_base_handler(
     install_dir: Path,
     program_files_x86: Path,
+    stderr_noise: bool = False,
 ) -> subprocess.CompletedProcess[str]:
     def quote(path: Path) -> str:
         return str(path).replace("'", "''")
 
     isolated_program_files = install_dir.parent / "Program Files"
+    noise_line = "$env:POSECAP_STUB_STDERR = '1'\n" if stderr_noise else ""
     command = (
         "$ErrorActionPreference = 'Stop'\n"
+        f"{noise_line}"
         "function Get-ItemProperty {\n"
         "    [CmdletBinding()] param([string]$Path)\n"
         "    return $null\n"
@@ -686,6 +694,7 @@ def test_build_stages_every_modular_handler() -> None:
         "bootstrap_install.ps1",
         "blender_discovery.ps1",
         "component_lifecycle.ps1",
+        "native_command.ps1",
         "install_base.ps1",
         "install_mediapipe.ps1",
         "install_pear.ps1",
@@ -713,6 +722,43 @@ def test_base_handler_installs_with_blender_from_default_steam_library(
 
     assert result.returncode == 0, result.stdout + result.stderr
     assert (blender_dir / "posecap-installed.txt").is_file()
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows installer contract")
+def test_base_handler_survives_blender_stderr_noise_under_stop_preference(
+    tmp_path: Path,
+) -> None:
+    install_dir = tmp_path / "PoseCap"
+    extension_dir = install_dir / "extension"
+    extension_dir.mkdir(parents=True)
+    with zipfile.ZipFile(extension_dir / "posecap.zip", "w") as extension_zip:
+        extension_zip.writestr("blender_manifest.toml", 'id = "posecap"')
+
+    program_files_x86 = tmp_path / "Program Files (x86)"
+    blender_dir = program_files_x86 / "Steam/steamapps/common/Blender"
+    _compile_blender_stub(blender_dir / "blender.exe")
+
+    result = _run_base_handler(install_dir, program_files_x86, stderr_noise=True)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert (blender_dir / "posecap-installed.txt").is_file()
+    combined = result.stdout + result.stderr
+    assert "TBBmalloc: fixture third-party startup warning" in combined
+
+
+def test_native_stderr_tolerance_is_centralized_in_one_helper() -> None:
+    helper = _read("native_command.ps1")
+
+    assert "2>&1" in helper
+    for handler in (
+        "install_base.ps1",
+        "uninstall_base.ps1",
+        "blender_discovery.ps1",
+        "install_pear.ps1",
+    ):
+        content = _read(handler)
+        assert "2>&1" not in content, f"{handler} redirects native stderr outside the helper"
+        assert "Invoke-NativeCommand" in content
 
 
 @pytest.mark.skipif(sys.platform != "win32", reason="Windows installer contract")
