@@ -65,18 +65,23 @@ def resolve_installed_pose_backend(
     if len(catalog.ready) > 1:
         requested_id = selected_id.strip() if selected_id is not None else ""
         if requested_id:
-            normalized_id = requested_id.casefold()
-            for backend in catalog.ready:
-                if backend.manifest.id.casefold() == normalized_id:
-                    return backend.manifest
-            message = f"Selected Pose Backend '{requested_id}' is no longer ready"
-            raise BackendSelectionError(f"{message}; choose one before capture")
+            return _match_requested_backend(catalog, requested_id)
         raise BackendSelectionError(
             "Multiple Pose Backends are ready; select one in the PoseCap panel before capture"
         )
     details = "; ".join(f"{issue.manifest_path}: {issue.reason}" for issue in catalog.issues)
     suffix = f": {details}" if details else ""
     raise BackendSelectionError(f"No Pose Backend is ready{suffix}")
+
+
+def _match_requested_backend(catalog: PoseBackendCatalog, requested_id: str) -> PoseBackendManifest:
+    """The ready manifest matching an explicit selection, or a user-facing error."""
+    normalized_id = requested_id.casefold()
+    for backend in catalog.ready:
+        if backend.manifest.id.casefold() == normalized_id:
+            return backend.manifest
+    message = f"Selected Pose Backend '{requested_id}' is no longer ready"
+    raise BackendSelectionError(f"{message}; choose one before capture")
 
 
 def discover_pose_backends(registry_dir: Path) -> PoseBackendCatalog:

@@ -17,11 +17,11 @@ from posecap_addon.model_setup import (
     ModelSetupError,
     ModelSetupSession,
     MpiCredentials,
-    _urllib_fetch,
     find_downloaded_model_archives,
     install_from_downloaded_archive,
     install_missing_models,
     missing_model_assets,
+    urllib_fetch,
 )
 from posecap_contracts import MPI_DOWNLOAD_URL, REQUIRED_MODEL_ASSETS, PublicDownload
 
@@ -49,7 +49,7 @@ def test_forbidden_download_explains_the_ambiguous_refusal_and_safe_recovery(
     monkeypatch.setattr(urllib.request, "build_opener", lambda *a, **k: opener)
 
     with pytest.raises(ModelSetupError) as raised:
-        _urllib_fetch(
+        urllib_fetch(
             "https://download.example/download.php?domain=smpl&sfile=SMPL_python_v.1.1.0.zip",
             b"user=x",
             tmp_path / "f",
@@ -80,7 +80,7 @@ def test_unauthorized_download_points_to_account_verification(monkeypatch, tmp_p
     monkeypatch.setattr(urllib.request, "build_opener", lambda *a, **k: _UnauthorizedOpener())
 
     with pytest.raises(ModelSetupError) as raised:
-        _urllib_fetch(
+        urllib_fetch(
             "https://download.example/download.php", b"user=x", tmp_path / "f", lambda d, t: None
         )
 
@@ -198,7 +198,7 @@ def test_credential_path_installs_every_missing_model_end_to_end(tmp_path: Path)
         "generic_model.pkl",
     }
     mpi_requests = [(url, post) for url, post in fetcher.requests if "download.php" in url]
-    assert len(mpi_requests) == 3, "one fetch per MPI archive — FLAME zip must not repeat"
+    assert len(mpi_requests) == 3, "one fetch per MPI archive â€” FLAME zip must not repeat"
     for url, post_data in mpi_requests:
         assert url.startswith(MPI_DOWNLOAD_URL)
         assert post_data is not None
@@ -330,7 +330,7 @@ def test_smpl_zip_without_a_neutral_member_fails_friendly(tmp_path: Path) -> Non
     downloads = tmp_path / "Downloads"
     pear_root = tmp_path / "pear"
     downloads.mkdir()
-    # Only gendered members — no neutral model to install.
+    # Only gendered members â€” no neutral model to install.
     (downloads / "SMPL_python_v.1.1.0.zip").write_bytes(
         _zip_payload(
             "SMPL_python_v.1.1.0/models/basicModel_m_lbs_10_207_0_v1.1.0.pkl",
@@ -534,14 +534,14 @@ def test_session_runs_the_doctor_verification_after_a_successful_install(
     session = ModelSetupSession(
         fetch=_RecordingFetcher(),
         assets=_test_assets(),
-        verify=lambda _pear_root: "Models installed — doctor check passed.",
+        verify=lambda _pear_root: "Models installed â€” doctor check passed.",
     )
 
     session.start_credential_install(tmp_path, CREDENTIALS)
     session.join(timeout_seconds=60.0)
 
     assert session.state == "DONE"
-    assert session.status_message == "Models installed — doctor check passed."
+    assert session.status_message == "Models installed â€” doctor check passed."
 
 
 def test_doctor_verification_reports_green_when_engine_doctor_finds_assets(
@@ -628,7 +628,7 @@ def test_corrupted_manual_download_produces_a_friendly_message(tmp_path: Path) -
     assert "Traceback" not in message
 
 
-def test_urllib_fetch_carries_the_session_cookie_across_the_download_redirect(tmp_path):
+def testurllib_fetch_carries_the_session_cookie_across_the_download_redirect(tmp_path):
     """The real MPI download authenticates the POST, sets a session cookie, and
     302-redirects to the file; the redirect target serves the file only if that
     cookie rides along. urllib's default opener follows the redirect but drops
@@ -638,7 +638,7 @@ def test_urllib_fetch_carries_the_session_cookie_across_the_download_redirect(tm
     import http.server
     import threading
 
-    from posecap_addon.model_setup import _urllib_fetch
+    from posecap_addon.model_setup import urllib_fetch
 
     file_bytes = b"PK\x03\x04" + b"BODYMODEL" * 512
     html_login = b"<!DOCTYPE html><html><head><title>Login</title></head></html>"
@@ -672,7 +672,7 @@ def test_urllib_fetch_carries_the_session_cookie_across_the_download_redirect(tm
     thread.start()
     try:
         sink = tmp_path / "out.bin"
-        _urllib_fetch(
+        urllib_fetch(
             f"http://127.0.0.1:{port}/download.php",
             b"username=x&password=y",
             sink,

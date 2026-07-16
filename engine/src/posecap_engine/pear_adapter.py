@@ -127,16 +127,10 @@ class PearFrameSource:
         try:
             while True:
                 rgb_image = capture.read_rgb()
+                if rgb_image is None and capture.exhausted:
+                    return
                 if rgb_image is None:
-                    if capture.exhausted:
-                        return
-                    failed_reads += 1
-                    if failed_reads >= self._max_camera_read_failures:
-                        raise CaptureUnavailableError(
-                            f"{_describe_source(self._config.source)} did not return frames "
-                            f"after {failed_reads} consecutive reads"
-                        )
-                    time.sleep(_CAMERA_READ_RETRY_SECONDS)
+                    failed_reads = self._count_failed_read(failed_reads)
                     continue
 
                 failed_reads = 0
@@ -154,6 +148,17 @@ class PearFrameSource:
             if self._preview_writer is not None:
                 with suppress(Exception):
                     self._preview_writer.close()
+
+    def _count_failed_read(self, failed_reads: int) -> int:
+        """Count a missed frame, raising once the read-failure budget is spent."""
+        failed_reads += 1
+        if failed_reads >= self._max_camera_read_failures:
+            raise CaptureUnavailableError(
+                f"{_describe_source(self._config.source)} did not return frames "
+                f"after {failed_reads} consecutive reads"
+            )
+        time.sleep(_CAMERA_READ_RETRY_SECONDS)
+        return failed_reads
 
 
 @dataclass(frozen=True)
