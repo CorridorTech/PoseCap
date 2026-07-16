@@ -1,6 +1,6 @@
 # Task 0027: Remediate the GUIDELINES audit findings
 
-**Status:** in-progress
+**Status:** done
 **Created:** 2026-07-15
 **Owner:** alexandremendoncaalvaro
 **Execution:** AFK
@@ -42,7 +42,7 @@ Verifiable conditions. Each as a checkbox so progress is point-editable.
 - [x] The job-status wire format is pinned by golden JSON fixtures under
       `tests/contracts/fixtures/`, mirroring the pose-frame fixtures, so a
       coordinated encode/decode change cannot slip through round-trip tests.
-- [ ] Tests reach behavior through public interfaces per §9: the private-state
+- [x] Tests reach behavior through public interfaces per §9: the private-state
       accesses in `tests/addon/test_ui_state.py`, `tests/addon/test_model_setup.py`
       and `tests/engine/test_pear_adapter.py` are migrated to public seams, or the
       seams are promoted and documented.
@@ -77,6 +77,22 @@ Verifiable conditions. Each as a checkbox so progress is point-editable.
       exemption, README roadmap, git-history record.
 
 ## Notes
+
+### 2026-07-16 — task closed (section-9 seam decision)
+
+The maintainer accepted the recommendation on the last open item: the
+`tests/engine/test_pear_adapter.py` monkeypatch of `_load_pear_modules` is NOT
+promoted to a public injection seam. Rationale (WORKFLOW section 8): one
+adapter is a hypothetical seam — `PearFrameSource` already exposes
+`runtime_factory`/`capture_factory` injection points, and module loading has a
+single test consumer; a second seam would add interface surface nothing else
+varies across. The section-9 AC closes as "seams promoted and documented"
+for `test_ui_state.py` (slice 3) and `test_model_setup.py` (slice 4), with
+this documented exception for `_load_pear_modules`. Trade-off accepted: that
+test stays coupled to an internal name until a second consumer materializes,
+at which point promotion becomes justified. Every audit finding from
+2026-07-15 is now remediated or resolved by recorded decision; slices landed
+as PRs #63, #64, #65, #66, #67, #68, and #69.
 
 ### 2026-07-16 — slice-4 follow-up landed (shared missed-frame policy)
 
@@ -239,7 +255,7 @@ per-frame allocations, job-status fixture, private-state tests, git trailers/DCO
 
 All Acceptance Criteria checked, plus:
 
-- [ ] Local tests pass (or N/A documented in Notes)
-- [ ] Code review completed (human or fresh-context reviewer per WORKFLOW §10)
-- [ ] No orphan `TODO`/`FIXME` introduced
-- [ ] Status updated to `done` and Notes log closes the task
+- [x] Local tests pass (or N/A documented in Notes)
+- [x] Code review completed (human or fresh-context reviewer per WORKFLOW §10)
+- [x] No orphan `TODO`/`FIXME` introduced
+- [x] Status updated to `done` and Notes log closes the task
