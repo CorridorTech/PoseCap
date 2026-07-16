@@ -1,6 +1,6 @@
 # Task 0028: Stop Blender stderr noise from terminating the installer
 
-**Status:** proposed
+**Status:** in-progress
 **Created:** 2026-07-16
 **Owner:** alexandremendoncaalvaro
 **Execution:** AFK
@@ -37,15 +37,15 @@ a working install on the first try beats everything.
 
 Verifiable conditions. Each as a checkbox so progress is point-editable.
 
-- [ ] A Blender (or nvidia-smi) that writes any text to stderr while exiting 0
+- [x] A Blender (or nvidia-smi) that writes any text to stderr while exiting 0
       no longer aborts any installer or uninstaller step; success/failure is
       decided by exit code and parsed stdout only.
-- [ ] Stderr text still reaches the bootstrap transcript log, so field logs
+- [x] Stderr text still reaches the bootstrap transcript log, so field logs
       keep their diagnostic value (Dean's log carried the real traceback).
-- [ ] All seven `2>&1` native invocations under `$ErrorActionPreference =
+- [x] All seven `2>&1` native invocations under `$ErrorActionPreference =
       "Stop"` go through one shared helper (single place for the policy), not
       seven per-site workarounds.
-- [ ] A regression test pins the contract: a fake `blender.cmd` that prints a
+- [x] A regression test pins the contract: a fake `blender.cmd` that prints a
       warning to stderr and a valid extension list to stdout passes the
       install/verify step (extend `tests/test_installer_components.py` or the
       PowerShell-level harness it drives).
@@ -55,14 +55,14 @@ Verifiable conditions. Each as a checkbox so progress is point-editable.
 
 ## Plan
 
-- [ ] Ground (`ad-ground`) the canonical PowerShell 5.1 pattern for capturing
+- [x] Ground (`ad-ground`) the canonical PowerShell 5.1 pattern for capturing
       native stdout while tolerating stderr under `Stop` — candidate shape: a
       scoped helper whose function-local `$ErrorActionPreference = "Continue"`
       confines the relaxation (preference variables are dynamically scoped) and
       which stringifies merged output; weigh against Dean's save/restore patch
       and dropping `2>&1` (rejected if it silences stderr in hidden-window
       installs).
-- [ ] Red test first against the fake-Blender fixture, then the helper, then
+- [x] Red test first against the fake-Blender fixture, then the helper, then
       migrate the seven call sites.
 - [ ] Fresh-context review (WORKFLOW section 10) before the PR; the fix ships
       to users only with the next installer build (win.N bump, release is HITL).
@@ -77,6 +77,47 @@ and confirms the diagnosis; the repo fix generalizes it because the same
 landmine exists in discovery, uninstall, and the PEAR GPU probe, and a
 try/finally-safe scoped helper avoids leaving the preference relaxed on an
 unexpected throw.
+
+### 2026-07-16 — fix implemented
+
+Grounded empirically on PowerShell 5.1 (5.1.26100.8737): a native command
+writing one stderr line under `$ErrorActionPreference = "Stop"` with `2>&1`
+terminates the script before the exit code is checked (`NativeCommandError`);
+without `2>&1` no wrapping occurs even with redirected process stderr, so the
+scope is exactly the seven redirected sites. Fix shape: shared
+`packaging/installer/native_command.ps1` exposing `Invoke-NativeCommand` — a
+function-local `$ErrorActionPreference = "Continue"` (dynamic scoping restores
+`Stop` on return or throw, which Dean's save/restore patch could leak) that
+merges and stringifies output; callers keep deciding on `$LASTEXITCODE` plus
+parsed lines, and merged stderr still reaches the `Start-Transcript` log via
+`Out-Host`. All seven sites migrated; `Find-CompatibleBlenders` now searches
+every output line for the `Blender X.Y` banner because stderr noise can
+precede it. Regression tests: the C# Blender stub emits stderr noise when
+`POSECAP_STUB_STDERR` is set and the base handler must still succeed; a static
+test pins that no handler redirects native stderr outside the helper.
+
+Fresh-context review (two axes) found no blockers; applied fixes: direct
+dot-sourcing of the helper in both base handlers (no transitive dependency on
+`blender_discovery.ps1` loading it) and a failure-path regression test proving
+a non-zero Blender exit code still fails the step through the helper. Logged
+follow-up, deliberately out of this change: behavioral (non-static) stderr
+tests for the uninstall and nvidia-smi paths — today they are covered by the
+shared-helper policy test only.
+
+The flow after the fix:
+
+```mermaid
+sequenceDiagram
+    participant H as Handler (Stop)
+    participant N as Invoke-NativeCommand (Continue)
+    participant B as blender.exe
+    H->>N: FilePath + arguments
+    N->>B: run with 2>&1
+    B-->>N: stdout + stderr noise (exit 0)
+    N-->>H: merged lines (no terminating error)
+    H->>H: decide on $LASTEXITCODE + parsed lines
+    H->>H: Out-Host -> transcript keeps stderr
+```
 
 ## Definition of Done
 

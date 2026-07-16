@@ -102,7 +102,7 @@ def test_base_handler_requires_and_verifies_the_blender_extension() -> None:
     base = _read("installer/install_base.ps1")
     assert "Blender 4.2 or newer was not found" in base
     assert "extension install-file -r user_default -e" in base
-    assert "extension list" in base
+    assert '@("--command", "extension", "list")' in base
     assert "posecap\\s+\\[installed\\]" in base
     assert "best effort" not in base.lower()
 
@@ -111,7 +111,7 @@ def test_base_handler_replaces_a_stale_blender_extension_before_installing() -> 
     base = _read("installer/install_base.ps1")
 
     assert "if ($installedExtensions -match '(?m)^\\s*posecap\\s+\\[installed\\]')" in base
-    assert base.index("extension remove posecap") < base.index(
+    assert base.index('@("--command", "extension", "remove", "posecap")') < base.index(
         "extension install-file -r user_default -e"
     )
 

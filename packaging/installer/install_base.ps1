@@ -8,6 +8,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
+. (Join-Path $PSScriptRoot "native_command.ps1")
 . (Join-Path $PSScriptRoot "blender_discovery.ps1")
 
 function Invoke-BaseStep {
@@ -30,17 +31,19 @@ Invoke-BaseStep -Label "Install and verify the Blender extension" `
         $blender = @(Find-CompatibleBlenders) | Select-Object -First 1
         if ($null -eq $blender) { throw "Blender 4.2 or newer was not found" }
 
-        $installedExtensions = & $blender --command extension list 2>&1
+        $extensionListArguments = @("--command", "extension", "list")
+        $installedExtensions = Invoke-NativeCommand -FilePath $blender -ArgumentList $extensionListArguments
         $installedExtensions | Out-Host
         if ($LASTEXITCODE -ne 0) { throw "Blender could not list installed extensions" }
         if ($installedExtensions -match '(?m)^\s*posecap\s+\[installed\]') {
-            & $blender --command extension remove posecap 2>&1 | Out-Host
+            Invoke-NativeCommand -FilePath $blender `
+                -ArgumentList @("--command", "extension", "remove", "posecap") | Out-Host
             if ($LASTEXITCODE -ne 0) { throw "Blender could not remove the previous PoseCap extension" }
         }
 
         & $blender --command extension install-file -r user_default -e $extensionZip.FullName | Out-Host
         if ($LASTEXITCODE -ne 0) { throw "Blender could not install the PoseCap extension" }
-        $extensionList = & $blender --command extension list 2>&1
+        $extensionList = Invoke-NativeCommand -FilePath $blender -ArgumentList $extensionListArguments
         $extensionList | Out-Host
         if ($LASTEXITCODE -ne 0 -or -not ($extensionList -match '(?m)^\s*posecap\s+\[installed\]')) {
             throw "Blender did not report PoseCap as installed"

@@ -9,6 +9,7 @@ param(
 $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
 Set-StrictMode -Version Latest
+. (Join-Path $PSScriptRoot "native_command.ps1")
 
 $Uv = Join-Path $InstallDir "bin\uv.exe"
 $Wheels = Join-Path $InstallDir "wheels"
@@ -88,7 +89,7 @@ Invoke-PearStep -Label "Check NVIDIA driver (nvidia-smi)" `
     -Action {
         $smi = Get-Command nvidia-smi -ErrorAction SilentlyContinue
         if ($null -eq $smi) { throw "nvidia-smi not found -- no NVIDIA driver detected" }
-        $smiOutput = & $smi.Source 2>&1
+        $smiOutput = Invoke-NativeCommand -FilePath $smi.Source
         if ($LASTEXITCODE -ne 0) { throw "nvidia-smi failed -- driver present but not healthy" }
         $smiOutput | Select-Object -First 12 | Out-Host
     }
