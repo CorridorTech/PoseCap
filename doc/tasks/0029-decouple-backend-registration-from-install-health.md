@@ -3,7 +3,7 @@
 **Status:** proposed
 **Created:** 2026-07-16
 **Owner:** alexandremendoncaalvaro
-**Execution:** HITL
+**Execution:** AFK
 **Spec ref:**
 **Board ref:** issue #49
 
@@ -50,11 +50,14 @@ Verifiable conditions. Each as a checkbox so progress is point-editable.
 - [ ] Issue #49 is updated with the outcome and the interim manual
       registration steps for the reporter.
 
-## Decision needed (maintainer)
+## Decision — shape A (register on component presence)
 
-Three shapes were weighed; the recommendation is A.
+Three shapes were weighed; A is decided because B and C both fail the first
+acceptance criterion's intent (the broken-runtime lockout would remain the
+default experience) — an elimination by the criteria, not a taste call. The
+maintainer's veto stands at PR review as usual.
 
-- **A (recommended) — register on component presence.** Write the backend
+- **A (decided) — register on component presence.** Write the backend
   manifest as soon as the PEAR component's files exist, before the doctor
   step. Registration means "installed", health means "healthy" — two
   different questions answered in two places. Pro: unblocks self-fixed
