@@ -17,12 +17,10 @@ from .live_stream_panel import draw_live_stream_panel
 from .model_setup_panel import active_model_setup_session, draw_model_setup_status
 from .onboarding import draw_getting_started, onboarding_complete
 from .panel_text import context_wrap_chars
-from .preferences_panel import addon_preferences
+from .preferences_panel import ADDON_VERSION, addon_preferences
 from .stream_properties import settings_from_context
-from .support import addon_version
 from .support_panel import addon_log_path, draw_support_section
 
-_ADDON_VERSION = addon_version()
 _LAST_PANEL_DRAW_FAILURE: tuple[type[BaseException], str] | None = None
 
 
@@ -31,7 +29,7 @@ def draw_main_panel(layout: Any, context: Any) -> None:
     settings = settings_from_context(context)
     preferences = addon_preferences(context)
     header = layout.row(align=True)
-    header.label(text=f"PoseCap {_ADDON_VERSION}", icon="ARMATURE_DATA")
+    header.label(text=f"PoseCap {ADDON_VERSION}", icon="ARMATURE_DATA")
     header.prop(settings, "show_support", text="", icon="QUESTION")
     # Measure the panel so long status/hint text wraps to the actual width
     # instead of truncating (a non-technical user must read the whole message).

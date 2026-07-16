@@ -104,6 +104,17 @@ it at the new modules). Still open under section 9: `test_model_setup.py`
 `_urllib_fetch` (rides slice 4) and the `test_pear_adapter.py`
 `_load_pear_modules` seam decision.
 
+Fresh-context review (WORKFLOW section 10, two axes) ran before the PR. Spec
+axis: no behavior divergence found; one concern — `_ADDON_VERSION` computed in
+three modules — fixed by single-sourcing `ADDON_VERSION` in
+`preferences_panel.py`. Standards axis: no blockers; size concerns logged and
+accepted: `stream_properties.py` (365 lines) is one declarative property table
+(justification in its docstring), `stream_operators.py` (271 lines) is
+cohesive, and `start_live_stream` (~80 lines, under the 100 hard cap) was
+deliberately moved unchanged — shrinking it further belongs to a separate
+change, not this behavior-preserving slice. Both reviewers independently
+verified registration order and monkeypatch retargets.
+
 ### 2026-07-15 — else-reduction landed, section 9 scoped
 
 The eight `else`/`elif` sites outside `panels.py` were refactored to guard

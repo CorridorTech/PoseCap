@@ -15,7 +15,9 @@ ADDON_ID = (
     else _MANIFEST_ADDON_ID
 )
 
-_ADDON_VERSION = addon_version()
+# Single source for the displayed build label: the header, the preferences
+# label, and the support-bundle diagnostics must never disagree.
+ADDON_VERSION = addon_version()
 
 
 class AddonPreferences(Protocol):
@@ -39,7 +41,7 @@ def addon_preferences(context: Any) -> AddonPreferences | None:
 
 def draw_addon_preferences(layout: Any, preferences: AddonPreferences) -> None:
     """Draw persistent addon defaults."""
-    layout.label(text=f"PoseCap {_ADDON_VERSION}", icon="INFO")
+    layout.label(text=f"PoseCap {ADDON_VERSION}", icon="INFO")
     layout.label(text="Paths are detected automatically. Change them only for a custom install.")
     layout.prop(preferences, "pear_root")
     layout.prop(preferences, "engine_executable")

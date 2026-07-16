@@ -9,17 +9,14 @@ from typing import Any
 
 from .capture_readiness import panel_pear_root
 from .pear_root import resolve_engine_executable
-from .preferences_panel import AddonPreferences, addon_preferences
+from .preferences_panel import ADDON_VERSION, AddonPreferences, addon_preferences
 from .stream_properties import LiveStreamSettings, settings_from_context
 from .support import (
-    addon_version,
     create_support_bundle,
     default_installation_paths,
     diagnostic_summary,
     resolve_logs_directory,
 )
-
-_ADDON_VERSION = addon_version()
 
 
 def logs_directory(context: Any, bpy_module: Any) -> Path:
@@ -135,7 +132,7 @@ def _write_support_bundle(context: Any, bpy_module: Any) -> Path:
         lambda path: path.exists(),
     )
     diagnostics = diagnostic_summary(
-        version=_ADDON_VERSION,
+        version=ADDON_VERSION,
         blender_version=".".join(str(part) for part in bpy_module.app.version),
         lifecycle_state=str(settings.lifecycle_state),
         pear_root=pear_root,

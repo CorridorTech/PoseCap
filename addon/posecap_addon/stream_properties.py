@@ -4,7 +4,9 @@ The classes are built at runtime against an injected ``bpy_module`` (the
 repo-wide builder pattern, see ``model_setup_panel.build_model_setup_classes``)
 so unit tests exercise them without Blender. The grouped ``*_properties``
 helpers keep each builder under the GUIDELINES section 4 caps while preserving
-the exact property declaration order.
+the exact property declaration order. The file exceeds the ~200-line target
+because it is one declarative property table — splitting a single
+PropertyGroup's declarations across files would hide its surface, not shrink it.
 """
 
 from __future__ import annotations
