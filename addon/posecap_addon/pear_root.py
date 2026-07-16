@@ -1,4 +1,4 @@
-"""Single source of PEAR Root resolution, shared across the addon.
+"""Single source of PEAR Root and engine-executable resolution.
 
 The panel's model-detection, the engine launcher, and the model-setup
 operators each resolved the PEAR checkout their own way — and the model-setup
@@ -44,6 +44,22 @@ def resolve_pear_root(
     if installed is not None and exists(installed.pear_root):
         return str(installed.pear_root)
     return ""
+
+
+def resolve_engine_executable(
+    preferences: Any,
+    env: dict[str, str],
+    exists: PathExists,
+) -> str:
+    """Resolve the engine launcher: an explicit existing path wins, then the
+    installer's app-local venv exe (which is not on PATH), then the bare name."""
+    candidate = first_nonempty(getattr(preferences, "engine_executable", ""))
+    if candidate != "" and exists(Path(candidate)):
+        return candidate
+    installed = default_installation_paths(env)
+    if installed is not None and exists(installed.engine_executable):
+        return str(installed.engine_executable)
+    return candidate if candidate != "" else "posecap-engine"
 
 
 def first_nonempty(*values: object) -> str:
