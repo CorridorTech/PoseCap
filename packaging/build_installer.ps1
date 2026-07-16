@@ -70,6 +70,7 @@ foreach ($bootstrapScript in @(
     'blender_discovery.ps1',
     'component_lifecycle.ps1',
     'native_command.ps1',
+    'probe_blender.ps1',
     'install_base.ps1',
     'install_mediapipe.ps1',
     'install_pear.ps1',
