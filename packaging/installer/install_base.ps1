@@ -8,6 +8,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
+. (Join-Path $PSScriptRoot "native_command.ps1")
 . (Join-Path $PSScriptRoot "blender_discovery.ps1")
 
 function Invoke-BaseStep {

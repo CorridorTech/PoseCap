@@ -161,6 +161,13 @@ public static class BlenderStub
             Console.Error.WriteLine("TBBmalloc: fixture third-party startup warning");
         }
 
+        if (args.Length > 1
+            && Environment.GetEnvironmentVariable("POSECAP_STUB_FAIL_COMMANDS") != null)
+        {
+            Console.Error.WriteLine("fixture: extension command failed");
+            return 3;
+        }
+
         if (args.Length == 1 && args[0] == "--version")
         {
             Console.WriteLine("Blender 5.2.0");
@@ -227,16 +234,18 @@ public static class BlenderStub
 def _run_base_handler(
     install_dir: Path,
     program_files_x86: Path,
-    stderr_noise: bool = False,
+    stub_environment: dict[str, str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
     def quote(path: Path) -> str:
         return str(path).replace("'", "''")
 
     isolated_program_files = install_dir.parent / "Program Files"
-    noise_line = "$env:POSECAP_STUB_STDERR = '1'\n" if stderr_noise else ""
+    environment_lines = "".join(
+        f"$env:{name} = '{value}'\n" for name, value in (stub_environment or {}).items()
+    )
     command = (
         "$ErrorActionPreference = 'Stop'\n"
-        f"{noise_line}"
+        f"{environment_lines}"
         "function Get-ItemProperty {\n"
         "    [CmdletBinding()] param([string]$Path)\n"
         "    return $null\n"
@@ -738,12 +747,35 @@ def test_base_handler_survives_blender_stderr_noise_under_stop_preference(
     blender_dir = program_files_x86 / "Steam/steamapps/common/Blender"
     _compile_blender_stub(blender_dir / "blender.exe")
 
-    result = _run_base_handler(install_dir, program_files_x86, stderr_noise=True)
+    result = _run_base_handler(
+        install_dir, program_files_x86, stub_environment={"POSECAP_STUB_STDERR": "1"}
+    )
 
     assert result.returncode == 0, result.stdout + result.stderr
     assert (blender_dir / "posecap-installed.txt").is_file()
     combined = result.stdout + result.stderr
     assert "TBBmalloc: fixture third-party startup warning" in combined
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows installer contract")
+def test_base_handler_still_fails_on_nonzero_blender_exit_code(tmp_path: Path) -> None:
+    install_dir = tmp_path / "PoseCap"
+    extension_dir = install_dir / "extension"
+    extension_dir.mkdir(parents=True)
+    with zipfile.ZipFile(extension_dir / "posecap.zip", "w") as extension_zip:
+        extension_zip.writestr("blender_manifest.toml", 'id = "posecap"')
+
+    program_files_x86 = tmp_path / "Program Files (x86)"
+    blender_dir = program_files_x86 / "Steam/steamapps/common/Blender"
+    _compile_blender_stub(blender_dir / "blender.exe")
+
+    result = _run_base_handler(
+        install_dir, program_files_x86, stub_environment={"POSECAP_STUB_FAIL_COMMANDS": "1"}
+    )
+
+    assert result.returncode != 0
+    assert "Blender could not list installed extensions" in result.stdout + result.stderr
+    assert not (blender_dir / "posecap-installed.txt").exists()
 
 
 def test_native_stderr_tolerance_is_centralized_in_one_helper() -> None:
