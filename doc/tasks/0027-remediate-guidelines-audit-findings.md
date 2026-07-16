@@ -22,7 +22,7 @@ stack/layout/ADR digest, spec 0002 status, tasks 0004/0006 status).
 
 Verifiable conditions. Each as a checkbox so progress is point-editable.
 
-- [ ] `addon/posecap_addon/panels.py` no longer exceeds the §4 caps:
+- [x] `addon/posecap_addon/panels.py` no longer exceeds the §4 caps:
       `_build_blender_classes` (378 lines) is decomposed below the 100-line hard cap
       and the file (1406 lines) is split toward the ~200-line target, or any function
       that genuinely cannot shrink carries the §4 one-line justification comment.
@@ -70,13 +70,50 @@ Verifiable conditions. Each as a checkbox so progress is point-editable.
       job-status fixtures, docstrings, type-ignore fixes, test renames.
 - [x] Slice 2 — exception hierarchy (`core` first, then engine adapters), with the
       `mediapipe_cli.py` catch narrowed as the observable proof.
-- [ ] Slice 3 — `panels.py` decomposition (largest risk; fresh-context review
+- [x] Slice 3 — `panels.py` decomposition (largest risk; fresh-context review
       required per WORKFLOW §10 before merge).
 - [ ] Slice 4 — indentation flattening across the eight flagged functions.
 - [x] Slice 5 — decisions: §5 amendment ADR, abbreviation exemptions, benchmarks
       exemption, README roadmap, git-history record.
 
 ## Notes
+
+### 2026-07-16 — slice 3 landed (panels.py decomposition)
+
+`panels.py` went from 1406 lines to a 143-line aggregator by extracting eight
+cohesive modules in the repo's established `build_*_classes(bpy_module)`
+pattern (grounded against the official Blender per-module registration idiom
+and the node_wrangler / sun_position / Flamenco reference addons):
+`stream_properties` (PropertyGroups, protocols, backend choice),
+`preferences_panel`, `capture_readiness` (the single source for the
+onboarding/poll/execute gates), `stream_session` (session runtime plus the
+public `active_stream_session()` accessor), `stream_operators` (Start/Stop and
+`engine_command`), `support_panel`, `live_stream_panel`, `main_panel` (public
+`draw_main_panel`), and `scene_sync`; `resolve_engine_executable` moved to
+`pear_root.py` and `context_wrap_chars` to `panel_text.py`. Registration order
+is unchanged (pinned by the registration-order test) and unregistration stays
+the exact reverse mirror. The four remaining `else` sites folded into guard
+clauses/helpers — the addon package now has zero `else`/`elif` statements.
+The `tests/addon/test_ui_state.py` private accesses from AC section 9 migrated
+to the new public seams (`draw_main_panel`, `active_stream_session()`,
+`context_wrap_chars`); monkeypatch targets moved to the consuming modules.
+Verified: full pre-commit and pre-push gates green (pyright Win+Linux, 513
+passed), and the headless Blender 5.0.1 e2e smoke green before and after (the
+smoke itself caught the first cut's stale `panels.*` seams — fixed by pointing
+it at the new modules). Still open under section 9: `test_model_setup.py`
+`_urllib_fetch` (rides slice 4) and the `test_pear_adapter.py`
+`_load_pear_modules` seam decision.
+
+Fresh-context review (WORKFLOW section 10, two axes) ran before the PR. Spec
+axis: no behavior divergence found; one concern — `_ADDON_VERSION` computed in
+three modules — fixed by single-sourcing `ADDON_VERSION` in
+`preferences_panel.py`. Standards axis: no blockers; size concerns logged and
+accepted: `stream_properties.py` (365 lines) is one declarative property table
+(justification in its docstring), `stream_operators.py` (271 lines) is
+cohesive, and `start_live_stream` (~80 lines, under the 100 hard cap) was
+deliberately moved unchanged — shrinking it further belongs to a separate
+change, not this behavior-preserving slice. Both reviewers independently
+verified registration order and monkeypatch retargets.
 
 ### 2026-07-15 — else-reduction landed, section 9 scoped
 

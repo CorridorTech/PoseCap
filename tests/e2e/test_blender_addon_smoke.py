@@ -373,7 +373,9 @@ _BLENDER_SMOKE_SCRIPT = textwrap.dedent(
     posecap_extension.unregister()
     posecap_extension.unregister()
     posecap_extension.register()
-    panels = sys.modules["posecap_extension_smoke.posecap_addon.panels"]
+    stream_operators = sys.modules["posecap_extension_smoke.posecap_addon.stream_operators"]
+    capture_readiness = sys.modules["posecap_extension_smoke.posecap_addon.capture_readiness"]
+    stream_session = sys.modules["posecap_extension_smoke.posecap_addon.stream_session"]
     scene_update_handlers = [
         handler
         for handler in bpy.app.handlers.depsgraph_update_post
@@ -451,12 +453,12 @@ _BLENDER_SMOKE_SCRIPT = textwrap.dedent(
                     connection.sendall((encode_pose_frame(frame) + "\\n").encode("utf-8"))
 
         threading.Thread(target=serve_one_frame, daemon=True).start()
-        panels.start_engine_stream = lambda _command: LoopbackEngine(host, port)
-        panels.models_missing = lambda _root: False
+        stream_operators.start_engine_stream = lambda _command: LoopbackEngine(host, port)
+        capture_readiness.models_missing = lambda _root: False
         settings.pear_root = "synthetic-pear-root"
         assert bpy.ops.posecap.start_stream.poll()
         assert bpy.ops.posecap.start_stream() == {"FINISHED"}
-        session = panels._ACTIVE_SESSION
+        session = stream_session.active_stream_session()
         assert session is not None
         deadline = time.monotonic() + 5.0
         while time.monotonic() < deadline:

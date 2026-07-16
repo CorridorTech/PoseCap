@@ -9,7 +9,13 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
+import posecap_addon.capture_readiness
+import posecap_addon.main_panel
 import posecap_addon.panels
+import posecap_addon.stream_operators
+import posecap_addon.stream_properties
+import posecap_addon.stream_session
+import posecap_addon.support_panel
 import pytest
 from posecap_addon.character_setup import SMPLX_BODY_JOINTS
 from posecap_addon.engine_process import EngineEndpoint, EngineProcess
@@ -111,7 +117,7 @@ def test_capture_hint_wraps_at_a_narrow_panel_width() -> None:
 
 
 def test_panel_wrap_chars_reads_region_width_and_ui_scale() -> None:
-    from posecap_addon.panels import _panel_wrap_chars
+    from posecap_addon.panel_text import context_wrap_chars
 
     def _context(width: int, ui_scale: float = 1.0) -> SimpleNamespace:
         return SimpleNamespace(
@@ -119,9 +125,9 @@ def test_panel_wrap_chars_reads_region_width_and_ui_scale() -> None:
             preferences=SimpleNamespace(system=SimpleNamespace(ui_scale=ui_scale)),
         )
 
-    assert _panel_wrap_chars(_context(520)) > _panel_wrap_chars(_context(260))
+    assert context_wrap_chars(_context(520)) > context_wrap_chars(_context(260))
     # A context missing the region or preferences must fall back, never crash.
-    assert _panel_wrap_chars(SimpleNamespace()) >= 14
+    assert context_wrap_chars(SimpleNamespace()) >= 14
 
 
 def test_live_stream_panel_offers_record_when_streaming_and_stop_when_recording() -> None:
@@ -206,13 +212,13 @@ def test_start_stream_passes_engine_settings_from_the_advanced_section(monkeypat
     commands: list[tuple[str, ...]] = []
 
     monkeypatch.setattr(
-        posecap_addon.panels,
+        posecap_addon.stream_operators,
         "start_engine_stream",
         lambda command: commands.append(tuple(command)) or engine,
         raising=False,
     )
     monkeypatch.setattr(
-        posecap_addon.panels,
+        posecap_addon.stream_operators,
         "TcpPoseStreamClient",
         lambda host, port, **_kwargs: _FakeClient(host, port),
         raising=False,
@@ -239,7 +245,7 @@ def test_start_stream_rejects_an_out_of_order_start_before_character_setup(monke
     context = _FakeContext(settings)
     engine_starts: list[tuple[str, ...]] = []
     monkeypatch.setattr(
-        posecap_addon.panels,
+        posecap_addon.stream_operators,
         "start_engine_stream",
         lambda command: engine_starts.append(tuple(command)) or _FakeEngine(),
         raising=False,
@@ -284,9 +290,9 @@ def test_start_stream_rejects_an_out_of_order_start_before_model_setup(monkeypat
     _mark_capture_ready(settings, monkeypatch)
     context = _FakeContext(settings)
     engine_starts: list[tuple[str, ...]] = []
-    monkeypatch.setattr(posecap_addon.panels, "models_missing", lambda _root: True)
+    monkeypatch.setattr(posecap_addon.capture_readiness, "models_missing", lambda _root: True)
     monkeypatch.setattr(
-        posecap_addon.panels,
+        posecap_addon.stream_operators,
         "start_engine_stream",
         lambda command: engine_starts.append(tuple(command)) or _FakeEngine(),
         raising=False,
@@ -309,7 +315,7 @@ def test_start_stream_rejects_an_out_of_order_start_before_model_setup(monkeypat
 def test_license_free_backend_does_not_require_pear_body_models(monkeypatch) -> None:
     settings = _Settings(lifecycle_state="STOPPED")
     _mark_character_ready(settings)
-    monkeypatch.setattr(posecap_addon.panels, "models_missing", lambda _root: True)
+    monkeypatch.setattr(posecap_addon.capture_readiness, "models_missing", lambda _root: True)
     manifest = PoseBackendManifest(
         schema_version=1,
         id="mediapipe",
@@ -327,7 +333,9 @@ def test_license_free_backend_does_not_require_pear_body_models(monkeypatch) -> 
         apply_orientation_fix=False,
     )
 
-    issue = posecap_addon.panels._capture_setup_issue(_FakeContext(settings), settings, manifest)
+    issue = posecap_addon.capture_readiness.capture_setup_issue(
+        _FakeContext(settings), settings, manifest
+    )
 
     assert issue is None
 
@@ -374,20 +382,24 @@ def test_license_free_backend_launches_without_pear_and_declares_body_only(monke
     _mark_character_ready(settings)
     settings.pose_backend_id = "mediapipe"
     context = _FakeContext(settings)
-    monkeypatch.setattr(posecap_addon.panels, "models_missing", lambda _root: True)
+    monkeypatch.setattr(posecap_addon.capture_readiness, "models_missing", lambda _root: True)
 
     def resolve_backend(_env: dict[str, str], *, selected_id: str | None = None):
         selected_backend_ids.append(selected_id)
         return manifest
 
-    monkeypatch.setattr(posecap_addon.panels, "resolve_installed_pose_backend", resolve_backend)
-    monkeypatch.setattr(posecap_addon.panels, "start_engine_stream", lambda _command: _FakeEngine())
     monkeypatch.setattr(
-        posecap_addon.panels,
+        posecap_addon.stream_properties, "resolve_installed_pose_backend", resolve_backend
+    )
+    monkeypatch.setattr(
+        posecap_addon.stream_operators, "start_engine_stream", lambda _command: _FakeEngine()
+    )
+    monkeypatch.setattr(
+        posecap_addon.stream_operators,
         "TcpPoseStreamClient",
         lambda host, port, **_kwargs: _FakeClient(host, port),
     )
-    monkeypatch.setattr(posecap_addon.panels, "PoseApplyTimer", _RecordingTimer)
+    monkeypatch.setattr(posecap_addon.stream_operators, "PoseApplyTimer", _RecordingTimer)
 
     try:
         start_cls = bpy.utils.registered_class("POSECAP_OT_StartStream")
@@ -423,18 +435,20 @@ def test_start_stream_builds_the_limb_filter_from_the_apply_checkboxes(monkeypat
         register_blender_ui(bpy)
         context = _FakeContext(settings)
         monkeypatch.setattr(
-            posecap_addon.panels,
+            posecap_addon.stream_operators,
             "start_engine_stream",
             lambda _command: _FakeEngine(),
             raising=False,
         )
         monkeypatch.setattr(
-            posecap_addon.panels,
+            posecap_addon.stream_operators,
             "TcpPoseStreamClient",
             lambda host, port, **_kwargs: _FakeClient(host, port),
             raising=False,
         )
-        monkeypatch.setattr(posecap_addon.panels, "PoseApplyTimer", _RecordingTimer, raising=False)
+        monkeypatch.setattr(
+            posecap_addon.stream_operators, "PoseApplyTimer", _RecordingTimer, raising=False
+        )
         try:
             start_cls = bpy.utils.registered_class("POSECAP_OT_StartStream")
             assert start_cls().execute(context) == {"FINISHED"}
@@ -489,13 +503,15 @@ def test_main_panel_shows_getting_started_until_onboarding_is_complete(monkeypat
     # panel's face and it carries the model-setup wizard call-to-action.
     settings = _Settings(lifecycle_state="STOPPED")
     context = _FakeContext(settings)
-    monkeypatch.setattr(posecap_addon.panels, "models_missing", lambda _root: True, raising=False)
     monkeypatch.setattr(
-        posecap_addon.panels, "active_model_setup_session", lambda: None, raising=False
+        posecap_addon.capture_readiness, "models_missing", lambda _root: True, raising=False
+    )
+    monkeypatch.setattr(
+        posecap_addon.main_panel, "active_model_setup_session", lambda: None, raising=False
     )
     layout = _FakeLayout()
 
-    posecap_addon.panels._draw_main_panel(layout, context)
+    posecap_addon.main_panel.draw_main_panel(layout, context)
 
     assert any("Finish Setup" in text for text in layout._labels)
     assert layout.has_operator("posecap.setup_body_models_wizard")
@@ -511,12 +527,14 @@ def test_main_panel_keeps_capture_locked_until_the_character_is_converted(monkey
         data=SimpleNamespace(bones=[SimpleNamespace(name="mixamorig:Hips")]),
     )
     context = _FakeContext(settings)
-    monkeypatch.setattr(posecap_addon.panels, "models_missing", lambda _root: False)
-    monkeypatch.setattr(posecap_addon.panels, "active_model_setup_session", lambda: None)
-    monkeypatch.setattr(posecap_addon.panels, "draw_keyframe_manager_section", lambda *a, **k: None)
+    monkeypatch.setattr(posecap_addon.capture_readiness, "models_missing", lambda _root: False)
+    monkeypatch.setattr(posecap_addon.main_panel, "active_model_setup_session", lambda: None)
+    monkeypatch.setattr(
+        posecap_addon.main_panel, "draw_keyframe_manager_section", lambda *a, **k: None
+    )
     layout = _FakeLayout()
 
-    posecap_addon.panels._draw_main_panel(layout, context)
+    posecap_addon.main_panel.draw_main_panel(layout, context)
 
     assert any("Finish Setup" in text for text in layout._labels)
     assert layout.has_operator("posecap.convert_character")
@@ -532,16 +550,21 @@ def test_main_panel_collapses_getting_started_when_every_step_is_done(monkeypatc
         pose=_FakePose(list(SMPLX_BODY_JOINTS)),
     )
     context = _FakeContext(settings)
-    monkeypatch.setattr(posecap_addon.panels, "models_missing", lambda _root: False, raising=False)
     monkeypatch.setattr(
-        posecap_addon.panels, "active_model_setup_session", lambda: None, raising=False
+        posecap_addon.capture_readiness, "models_missing", lambda _root: False, raising=False
     )
     monkeypatch.setattr(
-        posecap_addon.panels, "draw_keyframe_manager_section", lambda *a, **k: None, raising=False
+        posecap_addon.main_panel, "active_model_setup_session", lambda: None, raising=False
+    )
+    monkeypatch.setattr(
+        posecap_addon.main_panel,
+        "draw_keyframe_manager_section",
+        lambda *a, **k: None,
+        raising=False,
     )
     layout = _FakeLayout()
 
-    posecap_addon.panels._draw_main_panel(layout, context)
+    posecap_addon.main_panel.draw_main_panel(layout, context)
 
     assert not any("Finish Setup" in text for text in layout._labels)
     assert not layout.has_operator("posecap.setup_body_models_wizard")
@@ -555,11 +578,11 @@ def test_main_panel_shows_version_and_support_tools_on_demand(monkeypatch) -> No
     settings.show_support = True
     preferences = _FakeAddonPreferences(pear_root="C:/PEAR", engine_executable="posecap-engine")
     context = _FakeContext(settings, addon_preferences=preferences)
-    monkeypatch.setattr(posecap_addon.panels, "models_missing", lambda _root: True)
-    monkeypatch.setattr(posecap_addon.panels, "active_model_setup_session", lambda: None)
+    monkeypatch.setattr(posecap_addon.capture_readiness, "models_missing", lambda _root: True)
+    monkeypatch.setattr(posecap_addon.main_panel, "active_model_setup_session", lambda: None)
     layout = _FakeLayout()
 
-    posecap_addon.panels._draw_main_panel(layout, context)
+    posecap_addon.main_panel.draw_main_panel(layout, context)
 
     assert any(label.startswith("PoseCap 1.0.6") for label in layout._labels)
     assert layout.has_operator("posecap.open_logs")
@@ -575,7 +598,9 @@ def test_open_logs_reports_a_filesystem_failure_in_the_panel(monkeypatch) -> Non
 
     bpy = _FakeBpy()
     register_blender_ui(bpy)
-    monkeypatch.setattr(posecap_addon.panels, "_logs_directory", lambda *_args: _ReadOnlyLogs())
+    monkeypatch.setattr(
+        posecap_addon.support_panel, "logs_directory", lambda *_args: _ReadOnlyLogs()
+    )
     reports: list[tuple[set[str], str]] = []
 
     try:
@@ -595,7 +620,7 @@ def test_open_logs_reports_a_blender_path_open_failure(monkeypatch, tmp_path) ->
         RuntimeError("Windows could not open the folder")
     )
     register_blender_ui(bpy)
-    monkeypatch.setattr(posecap_addon.panels, "_logs_directory", lambda *_args: tmp_path)
+    monkeypatch.setattr(posecap_addon.support_panel, "logs_directory", lambda *_args: tmp_path)
     reports: list[tuple[set[str], str]] = []
 
     try:
@@ -614,9 +639,9 @@ def test_open_logs_reports_a_blender_path_open_failure(monkeypatch, tmp_path) ->
 def test_support_bundle_reports_a_zip_failure_in_the_panel(monkeypatch, tmp_path) -> None:
     bpy = _FakeBpy()
     register_blender_ui(bpy)
-    monkeypatch.setattr(posecap_addon.panels, "_logs_directory", lambda *_args: tmp_path)
+    monkeypatch.setattr(posecap_addon.support_panel, "logs_directory", lambda *_args: tmp_path)
     monkeypatch.setattr(
-        posecap_addon.panels,
+        posecap_addon.support_panel,
         "create_support_bundle",
         lambda **_kwargs: (_ for _ in ()).throw(RuntimeError("ZIP creation failed")),
     )
@@ -727,11 +752,13 @@ def test_panel_draw_failure_shows_recovery_actions_and_logs_the_error(monkeypatc
             logged.append(message)
 
     monkeypatch.setattr(
-        posecap_addon.panels,
-        "_draw_main_panel",
+        posecap_addon.main_panel,
+        "draw_main_panel",
         lambda *_args: (_ for _ in ()).throw(RuntimeError("unexpected draw failure")),
     )
-    monkeypatch.setattr(posecap_addon.panels, "configure_addon_logging", lambda _path: _Logger())
+    monkeypatch.setattr(
+        posecap_addon.main_panel, "configure_addon_logging", lambda _path: _Logger()
+    )
 
     try:
         panel_cls = bpy.utils.registered_class("POSECAP_PT_LiveStream")
@@ -762,8 +789,10 @@ def test_repeated_panel_draw_failure_logs_once_until_the_panel_recovers(monkeypa
     def fail_draw(*_args: object) -> None:
         raise RuntimeError("persistent draw failure")
 
-    monkeypatch.setattr(posecap_addon.panels, "_draw_main_panel", fail_draw)
-    monkeypatch.setattr(posecap_addon.panels, "configure_addon_logging", lambda _path: _Logger())
+    monkeypatch.setattr(posecap_addon.main_panel, "draw_main_panel", fail_draw)
+    monkeypatch.setattr(
+        posecap_addon.main_panel, "configure_addon_logging", lambda _path: _Logger()
+    )
 
     try:
         panel_cls = bpy.utils.registered_class("POSECAP_PT_LiveStream")
@@ -775,9 +804,9 @@ def test_repeated_panel_draw_failure_logs_once_until_the_panel_recovers(monkeypa
 
         assert logged == ["panel draw failed"]
 
-        monkeypatch.setattr(posecap_addon.panels, "_draw_main_panel", lambda *_args: None)
+        monkeypatch.setattr(posecap_addon.main_panel, "draw_main_panel", lambda *_args: None)
         panel.draw(_FakeContext(_Settings(lifecycle_state="STOPPED")))
-        monkeypatch.setattr(posecap_addon.panels, "_draw_main_panel", fail_draw)
+        monkeypatch.setattr(posecap_addon.main_panel, "draw_main_panel", fail_draw)
         panel.draw(_FakeContext(_Settings(lifecycle_state="STOPPED")))
 
         assert logged == ["panel draw failed", "panel draw failed"]
@@ -791,12 +820,12 @@ def test_panel_recovery_stays_visible_when_the_log_file_is_unavailable(monkeypat
     caplog.set_level(logging.ERROR, logger="posecap_addon")
 
     monkeypatch.setattr(
-        posecap_addon.panels,
-        "_draw_main_panel",
+        posecap_addon.main_panel,
+        "draw_main_panel",
         lambda *_args: (_ for _ in ()).throw(RuntimeError("unexpected draw failure")),
     )
     monkeypatch.setattr(
-        posecap_addon.panels,
+        posecap_addon.main_panel,
         "configure_addon_logging",
         lambda _path: (_ for _ in ()).throw(PermissionError("logs are read-only")),
     )
@@ -844,13 +873,13 @@ def test_start_and_stop_operators_own_stream_runtime(monkeypatch) -> None:
         return client
 
     monkeypatch.setattr(
-        posecap_addon.panels,
+        posecap_addon.stream_operators,
         "start_engine_stream",
         fake_start_engine_stream,
         raising=False,
     )
     monkeypatch.setattr(
-        posecap_addon.panels,
+        posecap_addon.stream_operators,
         "TcpPoseStreamClient",
         fake_client_factory,
         raising=False,
@@ -916,7 +945,7 @@ def test_start_stream_turns_log_setup_failure_into_a_visible_status(monkeypatch)
     _mark_capture_ready(settings, monkeypatch)
     context = _FakeContext(settings)
     monkeypatch.setattr(
-        posecap_addon.panels,
+        posecap_addon.stream_operators,
         "configure_addon_logging",
         lambda _path: (_ for _ in ()).throw(PermissionError("logs are read-only")),
     )
@@ -941,15 +970,15 @@ def test_starting_shows_first_run_warmup_hint_after_ten_seconds(monkeypatch) -> 
     clients: list[_FakeClient] = []
     clock = {"t": 0.0}
 
-    monkeypatch.setattr(posecap_addon.panels, "_now", lambda: clock["t"], raising=False)
+    monkeypatch.setattr(posecap_addon.stream_session, "_now", lambda: clock["t"], raising=False)
     monkeypatch.setattr(
-        posecap_addon.panels,
+        posecap_addon.stream_operators,
         "start_engine_stream",
         lambda _command: _FakeEngine(),
         raising=False,
     )
     monkeypatch.setattr(
-        posecap_addon.panels,
+        posecap_addon.stream_operators,
         "TcpPoseStreamClient",
         lambda host, port, **_kwargs: clients.append(_FakeClient(host, port)) or clients[-1],
         raising=False,
@@ -985,7 +1014,7 @@ def test_engine_command_resolves_pear_root_from_env_var_when_unset() -> None:
     environ = {"POSECAP_PEAR_ROOT": "D:/pear-checkout"}
     existing = {Path("D:/pear-checkout")}
 
-    command = posecap_addon.panels._engine_command(
+    command = posecap_addon.stream_operators.engine_command(
         settings, None, environ=environ, path_exists=existing.__contains__
     )
 
@@ -1002,7 +1031,7 @@ def test_engine_command_resolves_installer_paths_for_a_fresh_install() -> None:
     installer_exe = Path(local, "PoseCap", "runtime", "venv", "Scripts", "posecap-engine.exe")
     existing = {installer_pear, installer_exe}
 
-    command = posecap_addon.panels._engine_command(
+    command = posecap_addon.stream_operators.engine_command(
         settings, preferences, environ=environ, path_exists=existing.__contains__
     )
 
@@ -1044,10 +1073,10 @@ def test_registered_pear_backend_preserves_existing_live_command(
         ),
     )
 
-    existing_command = posecap_addon.panels._engine_command(
+    existing_command = posecap_addon.stream_operators.engine_command(
         settings, preferences, environ={}, path_exists=lambda _path: True
     )
-    registered_command = posecap_addon.panels._engine_command(
+    registered_command = posecap_addon.stream_operators.engine_command(
         settings,
         preferences,
         backend_manifest=manifest,
@@ -1075,7 +1104,7 @@ def test_panel_resolves_installer_pear_root_on_a_fresh_install() -> None:
         ),
     )
 
-    resolved = posecap_addon.panels._panel_pear_root(
+    resolved = posecap_addon.capture_readiness.panel_pear_root(
         context, environ={"LOCALAPPDATA": local}, path_exists={installer_pear}.__contains__
     )
 
@@ -1172,9 +1201,9 @@ def test_panel_draw_never_writes_scene_or_preferences(monkeypatch, tmp_path) -> 
     engine.parent.mkdir(parents=True)
     engine.write_bytes(b"")
     monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
-    monkeypatch.setattr(posecap_addon.panels, "models_missing", lambda _root: True)
-    monkeypatch.setattr(posecap_addon.panels, "active_model_setup_session", lambda: None)
-    monkeypatch.setattr(posecap_addon.panels, "draw_keyframe_manager_section", lambda *a: None)
+    monkeypatch.setattr(posecap_addon.capture_readiness, "models_missing", lambda _root: True)
+    monkeypatch.setattr(posecap_addon.main_panel, "active_model_setup_session", lambda: None)
+    monkeypatch.setattr(posecap_addon.main_panel, "draw_keyframe_manager_section", lambda *a: None)
     bpy = _FakeBpy()
     bpy.context = context
 
@@ -1212,8 +1241,8 @@ def test_panel_and_scene_update_tolerate_a_pointer_that_raises_on_read(monkeypat
     context = _FakeContext(settings)
     bpy = _FakeBpy()
     bpy.context = context
-    monkeypatch.setattr(posecap_addon.panels, "models_missing", lambda _root: True)
-    monkeypatch.setattr(posecap_addon.panels, "active_model_setup_session", lambda: None)
+    monkeypatch.setattr(posecap_addon.capture_readiness, "models_missing", lambda _root: True)
+    monkeypatch.setattr(posecap_addon.main_panel, "active_model_setup_session", lambda: None)
 
     try:
         register_blender_ui(bpy)
@@ -1274,10 +1303,10 @@ def test_panel_reads_removed_target_without_writing_and_scene_update_clears_it(m
     settings = _Settings(lifecycle_state="STOPPED")
     context = _FakeContext(settings)
     keyframe_sections: list[object] = []
-    monkeypatch.setattr(posecap_addon.panels, "models_missing", lambda _root: True)
-    monkeypatch.setattr(posecap_addon.panels, "active_model_setup_session", lambda: None)
+    monkeypatch.setattr(posecap_addon.capture_readiness, "models_missing", lambda _root: True)
+    monkeypatch.setattr(posecap_addon.main_panel, "active_model_setup_session", lambda: None)
     monkeypatch.setattr(
-        posecap_addon.panels,
+        posecap_addon.main_panel,
         "draw_keyframe_manager_section",
         lambda *args: keyframe_sections.append(args),
     )
@@ -1328,7 +1357,7 @@ def test_engine_command_passes_video_source_only_in_video_mode() -> None:
     settings.source_kind = "VIDEO"
     settings.video_source = "C:/clips/dance.mp4"
 
-    command = posecap_addon.panels._engine_command(
+    command = posecap_addon.stream_operators.engine_command(
         settings, None, environ={}, path_exists=lambda _path: True
     )
 
@@ -1343,7 +1372,7 @@ def test_engine_command_loops_the_video_source_in_video_mode() -> None:
     settings.source_kind = "VIDEO"
     settings.video_source = "C:/clips/dance.mp4"
 
-    command = posecap_addon.panels._engine_command(
+    command = posecap_addon.stream_operators.engine_command(
         settings, None, environ={}, path_exists=lambda _path: True
     )
 
@@ -1356,7 +1385,7 @@ def test_engine_command_camera_mode_does_not_loop() -> None:
     settings.pear_root = "C:/PEAR"
     settings.source_kind = "CAMERA"
 
-    command = posecap_addon.panels._engine_command(
+    command = posecap_addon.stream_operators.engine_command(
         settings, None, environ={}, path_exists=lambda _path: True
     )
 
@@ -1369,7 +1398,7 @@ def test_engine_command_camera_mode_ignores_a_stale_video_path() -> None:
     settings.source_kind = "CAMERA"
     settings.video_source = "C:/clips/old.mp4"  # left over, must not hijack a camera run
 
-    command = posecap_addon.panels._engine_command(
+    command = posecap_addon.stream_operators.engine_command(
         settings, None, environ={}, path_exists=lambda _path: True
     )
 
@@ -1410,13 +1439,13 @@ def test_engine_command_requests_the_preview_window_only_when_enabled() -> None:
     settings.pear_root = "C:/PEAR"
 
     settings.preview_enabled = True
-    command = posecap_addon.panels._engine_command(
+    command = posecap_addon.stream_operators.engine_command(
         settings, None, environ={}, path_exists=lambda _p: True
     )
     assert "--preview-window" in command
 
     settings.preview_enabled = False
-    command = posecap_addon.panels._engine_command(
+    command = posecap_addon.stream_operators.engine_command(
         settings, None, environ={}, path_exists=lambda _p: True
     )
     assert "--preview-window" not in command
@@ -1425,7 +1454,7 @@ def test_engine_command_requests_the_preview_window_only_when_enabled() -> None:
 def test_engine_command_errors_with_where_to_fix_when_nothing_resolves() -> None:
     settings = _Settings(lifecycle_state="STOPPED")
     with pytest.raises(ValueError, match="panel or the addon preferences"):
-        posecap_addon.panels._engine_command(
+        posecap_addon.stream_operators.engine_command(
             settings, None, environ={}, path_exists=lambda _path: False
         )
 
@@ -1441,7 +1470,7 @@ def test_engine_command_prefers_explicit_paths_over_fallbacks() -> None:
     # value must win over installer discovery.
     existing = {Path("E:/typed/posecap-engine.exe")}
 
-    command = posecap_addon.panels._engine_command(
+    command = posecap_addon.stream_operators.engine_command(
         settings, preferences, environ=environ, path_exists=existing.__contains__
     )
 
@@ -1454,7 +1483,7 @@ def test_engine_command_falls_back_to_path_name_for_dev_without_installer() -> N
     settings.pear_root = "F:/dev/pear"
     preferences = _FakeAddonPreferences(pear_root="", engine_executable="posecap-engine")
 
-    command = posecap_addon.panels._engine_command(
+    command = posecap_addon.stream_operators.engine_command(
         settings, preferences, environ={}, path_exists=lambda _path: False
     )
 
@@ -1486,13 +1515,13 @@ def test_start_stream_uses_addon_preferences_when_scene_runtime_fields_are_empty
         return engine
 
     monkeypatch.setattr(
-        posecap_addon.panels,
+        posecap_addon.stream_operators,
         "start_engine_stream",
         fake_start_engine_stream,
         raising=False,
     )
     monkeypatch.setattr(
-        posecap_addon.panels,
+        posecap_addon.stream_operators,
         "TcpPoseStreamClient",
         lambda host, port, **_kwargs: clients.append(_FakeClient(host, port)) or clients[-1],
         raising=False,
@@ -1552,25 +1581,25 @@ def test_start_stream_configures_apply_time_instrumentation(monkeypatch, tmp_pat
         return object()
 
     monkeypatch.setattr(
-        posecap_addon.panels,
+        posecap_addon.stream_operators,
         "start_engine_stream",
         lambda _command: engine,
         raising=False,
     )
     monkeypatch.setattr(
-        posecap_addon.panels,
+        posecap_addon.stream_operators,
         "TcpPoseStreamClient",
         lambda host, port, **_kwargs: clients.append(_FakeClient(host, port)) or clients[-1],
         raising=False,
     )
     monkeypatch.setattr(
-        posecap_addon.panels,
+        posecap_addon.stream_operators,
         "configure_addon_logging",
         fake_configure_addon_logging,
         raising=False,
     )
     monkeypatch.setattr(
-        posecap_addon.panels,
+        posecap_addon.stream_operators,
         "ApplyTimeInstrumentation",
         fake_instrumentation,
         raising=False,
@@ -1597,13 +1626,13 @@ def test_starting_stream_stops_from_timer_when_client_reports_connect_error(monk
     clients: list[_FakeClient] = []
 
     monkeypatch.setattr(
-        posecap_addon.panels,
+        posecap_addon.stream_operators,
         "start_engine_stream",
         lambda _command: engine,
         raising=False,
     )
     monkeypatch.setattr(
-        posecap_addon.panels,
+        posecap_addon.stream_operators,
         "TcpPoseStreamClient",
         lambda host, port, **_kwargs: clients.append(_FakeClient(host, port)) or clients[-1],
         raising=False,
@@ -1635,13 +1664,13 @@ def test_apply_exception_stops_session_and_surfaces_error(monkeypatch) -> None:
     clients: list[_FakeClient] = []
 
     monkeypatch.setattr(
-        posecap_addon.panels,
+        posecap_addon.stream_operators,
         "start_engine_stream",
         lambda _command: engine,
         raising=False,
     )
     monkeypatch.setattr(
-        posecap_addon.panels,
+        posecap_addon.stream_operators,
         "TcpPoseStreamClient",
         lambda host, port, **_kwargs: clients.append(_FakeClient(host, port)) or clients[-1],
         raising=False,
@@ -1650,7 +1679,7 @@ def test_apply_exception_stops_session_and_surfaces_error(monkeypatch) -> None:
     try:
         start_cls = bpy.utils.registered_class("POSECAP_OT_StartStream")
         assert start_cls().execute(context) == {"FINISHED"}
-        session = posecap_addon.panels._ACTIVE_SESSION
+        session = posecap_addon.stream_session.active_stream_session()
         assert session is not None
 
         def explode() -> float:
@@ -1687,7 +1716,7 @@ def test_start_stream_real_client_timeout_stops_engine_process(monkeypatch) -> N
     command = (sys.executable, "-c", script)
     engines: list[EngineProcess] = []
     clients: list[TcpPoseStreamClient] = []
-    start_engine_stream = posecap_addon.panels.start_engine_stream
+    start_engine_stream = posecap_addon.stream_operators.start_engine_stream
 
     def capture_engine(_command: tuple[str, ...]) -> EngineProcess:
         engine = start_engine_stream(command, startup_timeout_seconds=2.0)
@@ -1705,13 +1734,13 @@ def test_start_stream_real_client_timeout_stops_engine_process(monkeypatch) -> N
         return client
 
     monkeypatch.setattr(
-        posecap_addon.panels,
+        posecap_addon.stream_operators,
         "start_engine_stream",
         capture_engine,
         raising=False,
     )
     monkeypatch.setattr(
-        posecap_addon.panels,
+        posecap_addon.stream_operators,
         "TcpPoseStreamClient",
         real_timeout_client,
         raising=False,
@@ -1750,13 +1779,13 @@ def test_streaming_socket_drop_shows_reconnecting_until_next_frame(monkeypatch) 
     clients: list[_FakeClient] = []
 
     monkeypatch.setattr(
-        posecap_addon.panels,
+        posecap_addon.stream_operators,
         "start_engine_stream",
         lambda _command: engine,
         raising=False,
     )
     monkeypatch.setattr(
-        posecap_addon.panels,
+        posecap_addon.stream_operators,
         "TcpPoseStreamClient",
         lambda host, port, **_kwargs: clients.append(_FakeClient(host, port)) or clients[-1],
         raising=False,
@@ -1794,13 +1823,13 @@ def test_streaming_socket_drop_does_not_resume_from_queued_stale_frame(monkeypat
     clients: list[_FakeClient] = []
 
     monkeypatch.setattr(
-        posecap_addon.panels,
+        posecap_addon.stream_operators,
         "start_engine_stream",
         lambda _command: engine,
         raising=False,
     )
     monkeypatch.setattr(
-        posecap_addon.panels,
+        posecap_addon.stream_operators,
         "TcpPoseStreamClient",
         lambda host, port, **_kwargs: clients.append(_FakeClient(host, port)) or clients[-1],
         raising=False,
@@ -1834,13 +1863,13 @@ def test_streaming_engine_death_stops_with_reported_reason(monkeypatch) -> None:
     clients: list[_FakeClient] = []
 
     monkeypatch.setattr(
-        posecap_addon.panels,
+        posecap_addon.stream_operators,
         "start_engine_stream",
         lambda _command: engine,
         raising=False,
     )
     monkeypatch.setattr(
-        posecap_addon.panels,
+        posecap_addon.stream_operators,
         "TcpPoseStreamClient",
         lambda host, port, **_kwargs: clients.append(_FakeClient(host, port)) or clients[-1],
         raising=False,
@@ -1875,13 +1904,13 @@ def test_streaming_invalid_armature_warns_and_reselected_target_resumes(monkeypa
     clients: list[_FakeClient] = []
 
     monkeypatch.setattr(
-        posecap_addon.panels,
+        posecap_addon.stream_operators,
         "start_engine_stream",
         lambda _command: engine,
         raising=False,
     )
     monkeypatch.setattr(
-        posecap_addon.panels,
+        posecap_addon.stream_operators,
         "TcpPoseStreamClient",
         lambda host, port, **_kwargs: clients.append(_FakeClient(host, port)) or clients[-1],
         raising=False,
@@ -1934,13 +1963,13 @@ def test_stop_stream_terminates_engine_process_and_removes_pid(monkeypatch) -> N
     clients: list[_FakeClient] = []
 
     monkeypatch.setattr(
-        posecap_addon.panels,
+        posecap_addon.stream_operators,
         "start_engine_stream",
         lambda _command: engine,
         raising=False,
     )
     monkeypatch.setattr(
-        posecap_addon.panels,
+        posecap_addon.stream_operators,
         "TcpPoseStreamClient",
         lambda host, port, **_kwargs: clients.append(_FakeClient(host, port)) or clients[-1],
         raising=False,
@@ -2312,7 +2341,7 @@ def _mark_character_ready(settings: _Settings) -> None:
 
 def _mark_capture_ready(settings: _Settings, monkeypatch: pytest.MonkeyPatch) -> None:
     _mark_character_ready(settings)
-    monkeypatch.setattr(posecap_addon.panels, "models_missing", lambda _root: False)
+    monkeypatch.setattr(posecap_addon.capture_readiness, "models_missing", lambda _root: False)
 
 
 def _assert_posecap_engine_log(log_path: str) -> None:

@@ -36,6 +36,18 @@ def region_wrap_chars(region: Any, ui_scale: float) -> int:
     return max(_MIN_WRAP_CHARS, int(usable / (_PIXELS_PER_CHAR * ui_scale)))
 
 
+def context_wrap_chars(context: Any) -> int:
+    """Characters that fit one panel line, from the live region width + UI scale.
+
+    Any missing piece (no region, headless) falls back to the default width, so
+    the panel draws correctly whether or not there is a region to measure."""
+    region = getattr(context, "region", None)
+    preferences = getattr(context, "preferences", None)
+    system = getattr(preferences, "system", None)
+    ui_scale = float(getattr(system, "ui_scale", 1.0) or 1.0)
+    return region_wrap_chars(region, ui_scale)
+
+
 def draw_wrapped_label(
     layout: Any,
     text: str,
