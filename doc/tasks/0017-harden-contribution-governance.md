@@ -120,6 +120,17 @@ maintainer's unsigned-Windows-distribution decision (task 0026 Notes,
 2026-07-14) removed Authenticode from the release gate, so signing is
 intentionally not part of this criterion. Status flipped to done.
 
+### 2026-07-17 — precision note on the release-workflow evidence
+
+Clarifying the previous entry after review: the `release.yml` "Verify draft
+release asset inventory" step is a filename-inventory verification, not a
+functional installer run. The functional verification of the installer was
+the human-driven GUI qualification recorded in task 0026 (`v1.0.6-win.3`);
+the `v1.0.6-win.4` evidence is workflow-run completion with artifacts,
+checksums, and attestations, not an independent functional re-verification.
+The criterion stands on that combined evidence; the workflow alone does not
+functionally verify the installer.
+
 ## Definition of Done
 
 All Acceptance Criteria checked, plus:
