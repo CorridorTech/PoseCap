@@ -837,6 +837,49 @@ def test_base_handler_honors_manual_blender_override(tmp_path: Path) -> None:
 
 
 @pytest.mark.skipif(sys.platform != "win32", reason="Windows installer contract")
+def test_compatible_override_outranks_a_discovered_blender(tmp_path: Path) -> None:
+    install_dir = tmp_path / "PoseCap"
+    extension_dir = install_dir / "extension"
+    extension_dir.mkdir(parents=True)
+    with zipfile.ZipFile(extension_dir / "posecap.zip", "w") as extension_zip:
+        extension_zip.writestr("blender_manifest.toml", 'id = "posecap"')
+
+    custom_blender_dir = tmp_path / "MyPortableBlender"
+    _compile_blender_stub(custom_blender_dir / "blender.exe")
+    (install_dir / "blender_override.txt").write_text(
+        str(custom_blender_dir / "blender.exe"), encoding="utf-8"
+    )
+    program_files_x86 = tmp_path / "Program Files (x86)"
+    steam_blender_dir = program_files_x86 / "Steam/steamapps/common/Blender"
+    _compile_blender_stub(steam_blender_dir / "blender.exe")
+
+    result = _run_base_handler(install_dir, program_files_x86)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert (custom_blender_dir / "posecap-installed.txt").is_file()
+    assert not (steam_blender_dir / "posecap-installed.txt").exists()
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows installer contract")
+def test_empty_override_file_degrades_to_automatic_discovery(tmp_path: Path) -> None:
+    install_dir = tmp_path / "PoseCap"
+    extension_dir = install_dir / "extension"
+    extension_dir.mkdir(parents=True)
+    with zipfile.ZipFile(extension_dir / "posecap.zip", "w") as extension_zip:
+        extension_zip.writestr("blender_manifest.toml", 'id = "posecap"')
+
+    (install_dir / "blender_override.txt").write_bytes(b"")
+    program_files_x86 = tmp_path / "Program Files (x86)"
+    steam_blender_dir = program_files_x86 / "Steam/steamapps/common/Blender"
+    _compile_blender_stub(steam_blender_dir / "blender.exe")
+
+    result = _run_base_handler(install_dir, program_files_x86)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert (steam_blender_dir / "posecap-installed.txt").is_file()
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows installer contract")
 def test_stale_blender_override_falls_back_to_automatic_discovery(tmp_path: Path) -> None:
     install_dir = tmp_path / "PoseCap"
     extension_dir = install_dir / "extension"

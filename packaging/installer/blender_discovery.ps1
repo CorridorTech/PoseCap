@@ -54,6 +54,7 @@ function Get-SteamLibraryRoots {
 
 function Get-BlenderVersion {
     param([Parameter(Mandatory = $true)] [string]$Path)
+    if ([string]::IsNullOrWhiteSpace($Path)) { return $null }
     if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return $null }
     try {
         $outputLines = @(Invoke-NativeCommand -FilePath $Path -ArgumentList @('--version'))
@@ -74,9 +75,9 @@ function Get-BlenderOverridePath {
     if ([string]::IsNullOrWhiteSpace($InstallDir)) { return $null }
     $overrideFile = Join-Path $InstallDir "blender_override.txt"
     if (-not (Test-Path -LiteralPath $overrideFile -PathType Leaf)) { return $null }
-    $overridePath = (Get-Content -LiteralPath $overrideFile -Raw).Trim()
-    if ([string]::IsNullOrWhiteSpace($overridePath)) { return $null }
-    return $overridePath
+    $fileContents = Get-Content -LiteralPath $overrideFile -Raw
+    if ([string]::IsNullOrWhiteSpace($fileContents)) { return $null }
+    return $fileContents.Trim()
 }
 
 function Find-CompatibleBlenders {

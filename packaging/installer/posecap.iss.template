@@ -121,7 +121,9 @@ begin
   if not BlenderProbeDone then
   begin
     WizardForm.StatusLabel.Caption := 'Looking for Blender...';
-    BlenderFound := RunBlenderProbe('') = 0;
+    { -InstallDir lets the probe honor a still-valid override recorded by a
+      previous install, so a returning user is not asked to browse again. }
+    BlenderFound := RunBlenderProbe(ExpandConstant('-InstallDir "{app}"')) = 0;
     BlenderProbeDone := True;
   end;
   Result := BlenderFound;
@@ -155,11 +157,11 @@ begin
   if CurStep <> ssPostInstall then
     Exit;
 
+  { UTF-8 with BOM so PowerShell reads non-ASCII paths (accented user names)
+    exactly as the wizard captured them. }
   if BlenderProbeDone and (not BlenderFound) and (BlenderPage.Values[0] <> '') then
-    SaveStringToFile(
-      ExpandConstant('{app}\blender_override.txt'),
-      BlenderPage.Values[0],
-      False
+    SaveStringsToUTF8File(
+      ExpandConstant('{app}\blender_override.txt'), [BlenderPage.Values[0]], False
     );
 
   SelectedComponents := 'base';
