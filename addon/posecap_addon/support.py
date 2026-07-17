@@ -191,7 +191,10 @@ def _archive_logs(archive: zipfile.ZipFile, logs_directory: Path) -> int:
                 omitted_files += 1
                 continue
             archive.write(log_path, f"logs/{log_path.name}")
-        except OSError:
+        except (FileNotFoundError, PermissionError):
+            # A log rotating away or locked mid-collection is an omission;
+            # any other OSError (for example disk full) is a real failure and
+            # propagates to the caller's cleanup.
             omitted_files += 1
             continue
         included_files += 1
@@ -200,10 +203,24 @@ def _archive_logs(archive: zipfile.ZipFile, logs_directory: Path) -> int:
 
 
 def _log_candidates(logs_directory: Path) -> tuple[Path, ...]:
-    """List the setup marker first so stray logs can never crowd it out."""
+    """List the setup marker first, then logs newest first across families.
+
+    Recency ordering means the caps drop the stalest files instead of whole
+    alphabetically-later log families; the name tie-break keeps the archive
+    order deterministic.
+    """
     setup_marker = logs_directory / "SETUP_OK"
     markers = (setup_marker,) if setup_marker.is_file() else ()
-    return markers + tuple(sorted(logs_directory.glob("*.log*")))
+    return markers + tuple(sorted(logs_directory.glob("*.log*"), key=_recency_key))
+
+
+def _recency_key(log_path: Path) -> tuple[float, str]:
+    """Sort newest first; a file vanishing mid-sort falls to the end."""
+    try:
+        newest_first = -log_path.stat().st_mtime
+    except OSError:
+        newest_first = 0.0
+    return (newest_first, log_path.name)
 
 
 def _looks_like_installed_engine(path: Path) -> bool:

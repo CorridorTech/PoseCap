@@ -84,6 +84,29 @@ lint-imports, pytest (536 passed, 3 skipped) all green locally. Two-axis
 fresh-context review (Standards, Spec) run per WORKFLOW §10; both findings
 above addressed, no standards findings.
 
+### 2026-07-17 — independent review applied
+
+The authoritative two-axis review (coordinator session, 2026-07-17) returned
+no blockers and two concerns on this task; both applied with TDD, and this
+independent review is the one the Definition of Done review box stands on:
+
+- Per-file error handling narrowed to `FileNotFoundError`/`PermissionError`;
+  any other `OSError` (for example disk full) now fails the bundle attempt
+  cleanly — partial ZIP removed, real error surfaced — instead of being
+  mislabeled in `diagnostics.txt` as a cap omission. Evidence:
+  `test_disk_failure_during_log_collection_fails_the_bundle_cleanly`, red at
+  DID NOT RAISE, green after the narrowed catch.
+- Cap selection changed from lexicographic to recency (mtime newest first,
+  name tie-break for determinism), so near the caps the freshest logs across
+  all families survive instead of whole alphabetically-later families being
+  dropped. Evidence: `test_the_freshest_logs_across_families_survive_the_caps`,
+  red with the newest family excluded, green after `_recency_key`. The
+  byte-cap test gained explicit mtimes to stay deterministic under the new
+  ordering.
+
+Gates re-run after the fixes: ruff check, ruff format --check, pyright
+Windows and Linux, lint-imports, pytest (543 passed, 3 skipped) all green.
+
 ## Definition of Done
 
 All Acceptance Criteria checked, plus:
