@@ -40,6 +40,20 @@ Fresh-context release review identified the unbounded `*.log*` collection as a
 non-blocking robustness concern. It is tracked separately so the 1.0.1 patch can
 ship its installer and setup fixes without silently accepting the debt.
 
+### 2026-07-17 — implementation ground
+
+Verified against current code: each log family is already bounded per file
+(RotatingFileHandler, 1 MB x 4 — instrumentation.py:78, engine
+logging_config.py:28 via config.py:5) but the bundle-level aggregate is not:
+`_archive_logs` (support.py:142) globs every `*.log*` with no count or byte
+cap. The refactor in PR #68 extracted `_archive_logs` as the exact seam for
+the policy; it currently returns nothing, and `diagnostics.txt` is finalized
+upstream (support_panel.py:134) and written before logs are archived
+(support.py:133-134), so recording omissions requires the helper to return
+omission info to the caller (or reordering the writes). Tests: the strict
+namelist equality in tests/addon/test_support.py:80-84 must be updated by
+any bounding change; no limit/omission tests exist yet.
+
 ## Definition of Done
 
 All Acceptance Criteria checked, plus:

@@ -73,6 +73,32 @@ Evidence base: issue #49 reporter's working hand-built runtime (Torch nightly
 cu128 + source-built PyTorch3D on an RTX 5090) and PyTorch 2.7.0 release
 notes announcing official `sm_120` stable support with cu128 wheels.
 
+### 2026-07-17 — matrix ground (web research, cited)
+
+Recommended matrix: `torch==2.9.1+cu128` + `torchvision==0.24.x+cu128` +
+PyTorch3D `v0.7.9` (current pin — its tag already contains the MSVC/CUDA-12.8
+pulsar fix, commit 366eff21). One wheel serves all target GPUs: the v2.9.1
+build scripts pin `TORCH_CUDA_ARCH_LIST = 7.0;7.5;8.0;8.6;9.0;10.0;12.0`
+(RTX 30 native sm_86, RTX 40 runs sm_86 binaries, RTX 50 native sm_120) — no
+per-architecture payloads. Time window: PyTorch is sunsetting CUDA 12.8
+(cu128 default replaced by cu130 in 2.11, removed from the build matrix in
+2.12), so 2.9.1 is the last patched line distributing cu128; this matrix is
+stable but terminal, and the next migration will be CUDA 13 with a fresh
+PyTorch3D revalidation. Fallback if the 2.9.1 source build fails:
+`torch==2.7.1+cu128` (direct community evidence of PyTorch3D Windows builds).
+
+Risks to gate in the plan: (1) no direct report of a PyTorch3D Windows build
+against 2.9.1 — the qualification build is the gate, fallback recorded; (2)
+`torch.load` default flipped to `weights_only=True` in 2.6 — audit every
+PEAR checkpoint load; GUIDELINES §12 bans `weights_only=False`, so the
+remediation is an `add_safe_globals` allowlist, never the banned flag; (3) a
+conv3d+AMP performance regression in 2.9.0 (possibly fixed only in 2.10) —
+check whether PEAR uses conv3d under autocast, benchmark if so; (4) driver
+floor rises to R570+ and Pascal/GTX 10xx drop off — release notes must say
+both. Full citations in the research record (PyPI/pytorch releases,
+dev-discuss cu128 deprecation RFCs #172663/#178665, v2.9.1 build scripts,
+pytorch3d #1970/v0.7.9, pytorch/vision matrix).
+
 ## Definition of Done
 
 All Acceptance Criteria checked, plus:
