@@ -1,6 +1,6 @@
 # Spec 0005: Bind characters for capture without modifying the asset
 
-**Status:** draft
+**Status:** accepted
 **Created:** 2026-07-17
 **Owner:** alexandremendoncaalvaro
 
