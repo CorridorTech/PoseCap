@@ -186,6 +186,11 @@ def test_installer_removes_versioned_payload_from_previous_releases() -> None:
     assert "[InstallDelete]" in template
     assert 'Type: files; Name: "{app}\\wheels\\*.whl"' in template
     assert 'Type: files; Name: "{app}\\extension\\*.zip"' in template
+    # The v1.0.7-win.8 upgrade qualification failed on this exact gap: the
+    # MediaPipe payload extracts into payloads\mediapipe\wheels, the previous
+    # release's wheels survive the upgrade, and the bootstrap's exact-count
+    # verification then fails for every upgrading user.
+    assert 'Type: files; Name: "{app}\\payloads\\mediapipe\\wheels\\*.whl"' in template
 
 
 def test_installer_propagates_bootstrap_failure_to_its_exit_code() -> None:
