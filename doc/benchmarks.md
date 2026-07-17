@@ -63,6 +63,52 @@ shared and undershoots the isolated-stage prediction.
 `pytest -m gpu` (3 fixtures, full runtime, wire-contract assertions):
 121 s with yolov8x → 47 s with yolov8s, 3/3 passing, exact frame counts.
 
+### 2026-07-17 — cu128 vs cu124 A/B on a cold GPU (task 0032 / ADR-0016 qualification)
+
+Method: interleaved A/B — warmup pair discarded, 6 measured pairs, runtimes
+alternated within each pair to cancel slow thermal drift. NET FPS =
+(frames − 1) / (last − first captured_at), identical to the 2026-07-10 baseline
+row. Fixture `dance_fast_indoor_1280x720_30fps.mp4` (300 frames), detector
+`yolov8s` (default), `live --source` + TCP client. Harness/method scripts:
+`ab_runner.py` over `measure_fps.py` (session tools).
+Conditions: quiesced desktop, GPU 43–56 °C, ~1.7 GB VRAM held (desktop apps
+only), inter-run util ~0–2 %, per-run power 150–195 W (real GPU compute) —
+near clean-room, unlike the shared-GPU 2026-07-10 baseline (~3.7 GB held).
+
+Runtimes (only the CUDA matrix differs; precision policy identical):
+
+| | OLD | NEW |
+|---|---|---|
+| venv | `%LOCALAPPDATA%\PoseCap\runtime\venv` | `C:\Dev\PoseCap\.venv-pear` |
+| pear root | `%LOCALAPPDATA%\PoseCap\pear` | `C:\Dev\PoseCap-PEAR` |
+| torch | 2.4.1+cu124 | 2.9.1+cu128 |
+| torchvision | 0.19.1 | 0.24.1 |
+| cuDNN | 9.1.0 | 9.10.2 |
+
+| Matrix | mean NET FPS | median | stdev | mean frame-time |
+|---|---|---|---|---|
+| OLD cu124 (2.4.1) | 30.25 | 30.40 | 0.73 | 33.1 ms |
+| NEW cu128 (2.9.1) | 20.53 | 20.70 | 0.46 | 48.7 ms |
+
+Per-pair frame-time delta (NEW vs OLD): +45.0, +40.9, +43.6, +47.3, +57.9,
++49.8 % — **median +46.2 %, i.e. −32 % throughput**. Consistent across all six
+pairs with tight variance on both sides: a real, large regression, not noise.
+
+Reading: cu128 regresses live throughput hard on this pre-Blackwell (Ampere
+`sm_86`) GPU. On a cold GPU cu124 sustains ~30 FPS and cu128 ~20.5 FPS; the
+2026-07-10 baseline of 24.1 was shared-GPU and undershot cu124's cold ceiling.
+Precision policy is identical on both paths (`torch.no_grad()` +
+`set_float32_matmul_precision("high")`, no autocast) and `cudnn.benchmark=False`
+on both — the delta tracks the torch/cuDNN kernel matrix (cuDNN 9.1 → 9.10 on
+Ampere), not pipeline Python. This is the qualification-gate FPS regression
+(GUIDELINES §5, >10 % frame-time) flagged in task 0032; it is **not** the
+conv3d+AMP path (task 0032 risk 3, separately confirmed N/A — zero conv3d on
+any PEAR path). Untested recovery lead, left to the maintainer: `cudnn.benchmark
+= True` (fixed 720p input) may reclaim part of the cost.
+
+Product tradeoff: cu128 is required for RTX 50 (Blackwell) support per ADR-0016;
+this is its measured cost on the existing RTX 30/40 audience.
+
 ### Context: upstream claims
 
 PEAR reports 100+ FPS model-only inference and a 50 FPS live demo (project

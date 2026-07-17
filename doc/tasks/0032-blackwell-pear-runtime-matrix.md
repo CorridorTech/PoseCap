@@ -223,6 +223,105 @@ Evidence added per review request:
   real source-to-TCP inference is the gate that actually proves YOLO
   weights load under torch 2.9.1.
 
+### 2026-07-17 — cold-GPU A/B: real cu128 frame-time regression on RTX 30/40
+
+The qualification-gate FPS instrumentation (risk-3 note said it "still applies
+via the standard FPS instrumentation") fired. Measured cleanly on a quiesced,
+cold RTX 3080 — an earlier same-day attempt was inconclusive because the
+machine was thermally/load-contended.
+
+Method: interleaved A/B, warmup pair discarded, 6 measured pairs alternating
+per runtime, NET FPS = (frames−1)/(last−first captured_at) — the exact
+benchmarks.md baseline method. OLD `%LOCALAPPDATA%\PoseCap\runtime\venv`
+(torch 2.4.1+cu124) vs NEW `C:\Dev\PoseCap\.venv-pear` (torch 2.9.1+cu128),
+`yolov8s`, `dance_fast_indoor_1280x720_30fps.mp4`.
+
+Result: OLD 30.25 vs NEW 20.53 mean NET FPS — **+46.2 % median paired
+frame-time, −32 % throughput**, consistent +41–58 % across all six pairs, tight
+variance both sides. cu128 costs ~one-third of live throughput on Ampere
+(`sm_86`). Full ledger row (matrix, conditions, per-pair table) in
+`doc/benchmarks.md` (2026-07-17 cold-GPU A/B entry).
+
+This is a **product tradeoff for the maintainer**, not a silent absorb: cu128 is
+required for RTX 50 (ADR-0016) but regresses the existing RTX 30/40 audience by
+~32 %. It does not change the recommended matrix (RTX 50 stays locked out on
+cu124), but the release that ships ADR-0016 should decide whether to disclose
+the pre-Blackwell cost in release notes and whether a recovery pass is worth it.
+
+Cause is the torch/cuDNN kernel matrix (cuDNN 9.1.0 → 9.10.2 on Ampere), not
+pipeline Python: precision policy identical on both paths (`torch.no_grad()` +
+`set_float32_matmul_precision("high")`, no autocast), `cudnn.benchmark=False`
+on both. It is **not** risk 3 (conv3d+AMP) — that is separately re-confirmed
+N/A this session: zero `conv3d`/`Conv3d` anywhere in either PEAR root or the
+adapter (the 2.9.0 regression needs conv3d to exist to bite), and the only AMP
+reference remains `models/vitdet/cascade_mask_rcnn_vitdet_h_75ep.py:40`
+(`train.amp.enabled`), a vitdet training config off the inference path.
+
+Untested recovery lead for the qualification step, not yet actioned:
+`torch.backends.cudnn.benchmark = True` (live input size is fixed at 720p) may
+reclaim part of the cost via cuDNN algorithm autotuning — worth a spike before
+accepting the regression as final.
+
+### 2026-07-17 — cudnn.benchmark recovery lead tested: does NOT recover
+
+Ran the lead from the entry above (`torch.backends.cudnn.benchmark = True`,
+injected via `sitecustomize` on the CLI subprocess, verified False→True).
+Interleaved A/B, NEW-off vs NEW-on, alternated within-pair, 5 measured pairs.
+
+The machine was CPU-contended during this spike by an unrelated
+`corridorkey2_offline-full` Inno Setup compile (ISCC pid 28324, LZMA + models),
+so absolute FPS was ~half the clean main-sweep numbers and the OLD cold anchor
+read 12–15 instead of ~30 — a clean absolute re-run is owed once the machine
+quiesces. But the *paired* within-pair comparison is robust to that drift (off
+and on runs are adjacent, same contention): benchmark=True never wins —
+per-pair OLD-off ≥ on in all 5 pairs (off 15.7/16.7/16.7/18.2/14.5 vs on
+12.7/12.5/16.3/16.0/12.9), mean off 16.36 vs on 14.08 (−13.9%). So
+`cudnn.benchmark=True` does not reclaim the cu128 regression; it is neutral-to-
+slightly-worse, consistent with the live pipeline seeing variable EHM batch
+sizes (variable detected-person count) that force cuDNN to re-benchmark per
+shape. Lead closed — do not pursue `cudnn.benchmark` as the fix.
+
+Implication for the cause: the cu128 cost is most likely in the PEAR EHM ViT
+backbone (attention/matmul-heavy), which cuDNN conv autotuning does not touch —
+not in a conv path. Any future recovery attempt should profile the EHM forward
+under both matrices (e.g. per-op timing / `torch.profiler`), not conv knobs.
+The regression itself stays as recorded: real, ~+46% frame-time on Ampere, a
+maintainer product tradeoff against RTX 50 support.
+
+### 2026-07-17 — finalized release-note copy (maintainer chose accept + disclose)
+
+Maintainer decision on the measured Ampere regression: ship the cu128 matrix and
+disclose the cost (accept, not optimize — the `cudnn.benchmark` recovery lead was
+tested and does not recover; see the entry above). This is the finalized
+user-facing release-note block for the release that ships ADR-0016, covering the
+three statements risk 4 mandated (RTX 50 support, R570+ driver floor, Pascal
+drop) plus the measured RTX 30/40 throughput cost:
+
+> [!IMPORTANT]
+> **GPU support changed in this release.** The PEAR (GPU pose) backend moved to
+> a new CUDA runtime to add RTX 50-series support.
+> - **RTX 50-series (Blackwell) is now supported.** These GPUs could not run the
+>   PEAR backend on earlier releases.
+> - **NVIDIA driver R570 or newer is required** for the PEAR backend — update
+>   your driver before installing if you use GPU pose.
+> - **GeForce GTX 10-series (Pascal) and older GPUs are no longer supported** by
+>   the PEAR backend. The MediaPipe (CPU) backend still runs on any machine.
+> - **RTX 30/40-series: live PEAR frame rate is lower than the previous
+>   release** — about one-third lower on an RTX 3080 in our testing. This is the
+>   cost of a single runtime that serves every supported GPU from one installer.
+>   Real-time capture still works; throughput is lower.
+
+Wiring (done in this change): the durable three-fact portion (RTX 50 support,
+R570+ driver floor, Pascal drop) is folded into the `$releaseNotice` here-string
+in `.github/workflows/release.yml`, so `--generate-notes` prepends it on every
+cu128 release — the cu128 matrix already landed on `main` via #88, so the notice
+belongs on `main`, not on the (merged) `fix/0032-blackwell-torch-matrix` branch.
+The transition-specific "RTX 30/40 ~one-third lower live FPS vs the previous
+release" line is NOT auto-wired (it is release-relative); the maintainer pastes
+it from the block above into the first cu128 release draft before publishing.
+Exact FPS figures stay in `doc/benchmarks.md` (2026-07-17 cold-GPU A/B entry),
+not the user-facing note.
+
 ## Definition of Done
 
 All Acceptance Criteria checked, plus:
