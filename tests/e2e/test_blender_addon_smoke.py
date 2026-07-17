@@ -49,6 +49,42 @@ def test_blender_panel_survives_out_of_order_and_repeated_user_workflows(
         assert "posecap real fbx workflow ok" in completed.stdout
 
 
+def test_blender_conversion_re_rests_a_non_t_pose_custom_mixamo_character(
+    tmp_path: Path,
+) -> None:
+    """Task 0033 regression: custom Mixamo uploads keep the uploaded bind pose.
+
+    A drooped-arms (non-T) Mixamo-named armature must convert cleanly (the
+    re-rest fires despite the preset's T-pose claim), a forced probe failure
+    must leave the pose reset with a user-grade message, and a shape-keyed
+    mesh that needs re-posing must fail with its way out.
+    """
+    blender = _blender_executable()
+    if blender is None:
+        pytest.skip("set POSECAP_BLENDER or put blender on PATH to run e2e smoke")
+
+    script = tmp_path / "posecap_blender_non_t_pose_conversion.py"
+    script.write_text(_BLENDER_NON_T_POSE_CONVERSION_SCRIPT, encoding="utf-8")
+    completed = subprocess.run(
+        [
+            str(blender),
+            "--background",
+            "--factory-startup",
+            "--python",
+            str(script),
+            "--",
+            str(Path(__file__).parents[2]),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    assert "posecap non-t-pose conversion regression ok" in completed.stdout
+
+
 def _run_blender_script(
     blender: Path,
     tmp_path: Path,
@@ -486,6 +522,189 @@ _BLENDER_SMOKE_SCRIPT = textwrap.dedent(
         assert scene_update_handler not in bpy.app.handlers.depsgraph_update_post
 
     print("posecap blender conversion smoke ok")
+    """
+).strip()
+
+
+_BLENDER_NON_T_POSE_CONVERSION_SCRIPT = textwrap.dedent(
+    """
+    from __future__ import annotations
+
+    import importlib.util
+    import math
+    import sys
+    from pathlib import Path
+
+    repo_root = Path(sys.argv[sys.argv.index("--") + 1])
+    for package in ("core", "contracts"):
+        source_root = str(repo_root / package / "src")
+        if source_root not in sys.path:
+            sys.path.insert(0, source_root)
+
+    import bpy
+    from mathutils import Euler, Matrix, Vector
+
+    setup_path = repo_root / "addon" / "posecap_addon" / "character_setup.py"
+    spec = importlib.util.spec_from_file_location("posecap_character_setup", setup_path)
+    character_setup = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = character_setup
+    spec.loader.exec_module(character_setup)
+
+    PREFIX = "mixamorig:"
+    BASE_WORLD = {
+        "Hips": (0.0, 0.0, 1.00),
+        "Spine": (0.0, 0.0, 1.10),
+        "Spine1": (0.0, 0.0, 1.25),
+        "Spine2": (0.0, 0.0, 1.40),
+        "Neck": (0.0, 0.0, 1.55),
+        "Head": (0.0, 0.0, 1.65),
+        "LeftShoulder": (0.05, 0.0, 1.50),
+        "RightShoulder": (-0.05, 0.0, 1.50),
+        "LeftUpLeg": (0.10, 0.0, 0.95),
+        "RightUpLeg": (-0.10, 0.0, 0.95),
+        "LeftLeg": (0.10, 0.0, 0.50),
+        "RightLeg": (-0.10, 0.0, 0.50),
+        "LeftFoot": (0.10, 0.0, 0.10),
+        "RightFoot": (-0.10, 0.0, 0.10),
+        "LeftToeBase": (0.10, -0.12, 0.03),
+        "RightToeBase": (-0.10, -0.12, 0.03),
+    }
+    PARENTS = {
+        "Spine": "Hips",
+        "Spine1": "Spine",
+        "Spine2": "Spine1",
+        "Neck": "Spine2",
+        "Head": "Neck",
+        "LeftShoulder": "Spine2",
+        "RightShoulder": "Spine2",
+        "LeftArm": "LeftShoulder",
+        "LeftForeArm": "LeftArm",
+        "LeftHand": "LeftForeArm",
+        "RightArm": "RightShoulder",
+        "RightForeArm": "RightArm",
+        "RightHand": "RightForeArm",
+        "LeftUpLeg": "Hips",
+        "RightUpLeg": "Hips",
+        "LeftLeg": "LeftUpLeg",
+        "RightLeg": "RightUpLeg",
+        "LeftFoot": "LeftLeg",
+        "RightFoot": "RightLeg",
+        "LeftToeBase": "LeftFoot",
+        "RightToeBase": "RightFoot",
+    }
+
+    def build_drooped_mixamo_armature(*, droop_degrees: float, with_shape_key: bool = False):
+        # Emulates a Blender FBX import of a custom Mixamo auto-rigged upload:
+        # Y-up object rotation, centimeter scale, arms drooped below horizontal.
+        bpy.ops.wm.read_factory_settings(use_empty=True)
+        world = dict(BASE_WORLD)
+        theta = math.radians(droop_degrees)
+        for sign, side in ((1.0, "Left"), (-1.0, "Right")):
+            direction = Vector((sign * math.cos(theta), 0.0, -math.sin(theta)))
+            shoulder_root = Vector(BASE_WORLD[side + "Shoulder"])
+            arm = shoulder_root + direction * 0.05
+            world[side + "Arm"] = tuple(arm)
+            world[side + "ForeArm"] = tuple(arm + direction * 0.26)
+            world[side + "Hand"] = tuple(arm + direction * 0.52)
+
+        arm_data = bpy.data.armatures.new("Armature")
+        arm_obj = bpy.data.objects.new("Armature", arm_data)
+        bpy.context.collection.objects.link(arm_obj)
+        arm_obj.rotation_euler = Euler((math.radians(90.0), 0.0, 0.0), "XYZ")
+        arm_obj.scale = (0.01, 0.01, 0.01)
+        to_local = Matrix.LocRotScale(
+            Vector((0.0, 0.0, 0.0)), arm_obj.rotation_euler, arm_obj.scale
+        ).inverted()
+
+        bpy.context.view_layer.objects.active = arm_obj
+        arm_obj.select_set(True)
+        bpy.ops.object.mode_set(mode="EDIT")
+        edit_bones = {}
+        for suffix, position in world.items():
+            bone = arm_data.edit_bones.new(PREFIX + suffix)
+            bone.head = to_local @ Vector(position)
+            bone.tail = bone.head + Vector((0.0, 5.0, 0.0))
+            edit_bones[suffix] = bone
+        for suffix, parent in PARENTS.items():
+            edit_bones[suffix].parent = edit_bones[parent]
+            edit_bones[parent].tail = edit_bones[suffix].head
+        for bone in edit_bones.values():
+            if (bone.tail - bone.head).length < 1e-8:
+                bone.tail = bone.head + Vector((0.0, 5.0, 0.0))
+        bpy.ops.object.mode_set(mode="OBJECT")
+
+        mesh_data = bpy.data.meshes.new("BodyMesh")
+        mesh_data.from_pydata(
+            [(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)], [], [(0, 1, 2)]
+        )
+        mesh = bpy.data.objects.new("BodyMesh", mesh_data)
+        bpy.context.collection.objects.link(mesh)
+        modifier = mesh.modifiers.new("Armature", "ARMATURE")
+        modifier.object = arm_obj
+        if with_shape_key:
+            mesh.shape_key_add(name="Basis")
+        bpy.context.view_layer.update()
+        return arm_obj
+
+    def convert(arm_obj, **kwargs):
+        preset = character_setup.detect_skeleton_preset(
+            {bone.name for bone in arm_obj.pose.bones}
+        )
+        assert preset is not None and preset.name == "mixamo"
+        return character_setup.convert_armature(bpy, arm_obj, preset, **kwargs)
+
+    # The field failure (task 0033): drooped bind converts cleanly via re-rest.
+    arm_obj = build_drooped_mixamo_armature(droop_degrees=70.0)
+    result = convert(arm_obj)
+    assert result.max_probe_error <= 0.05 * 0.26, result.probe_lines
+    bpy.context.view_layer.update()
+    world = arm_obj.matrix_world
+    shoulder = world @ arm_obj.pose.bones["left_shoulder"].head
+    elbow = world @ arm_obj.pose.bones["left_elbow"].head
+    rest_direction = (elbow - shoulder).normalized()
+    assert rest_direction.dot(Vector((1.0, 0.0, 0.0))) > 0.999, tuple(rest_direction)
+
+    # A forced probe failure resets the pose and speaks user language.
+    arm_obj = build_drooped_mixamo_armature(droop_degrees=70.0)
+    try:
+        convert(arm_obj, re_rest_t_pose=False)
+    except character_setup.ConversionError as exc:
+        assert "Ctrl+Z" in str(exc), str(exc)
+        quaternion = arm_obj.pose.bones["left_shoulder"].rotation_quaternion
+        assert abs(quaternion.w - 1.0) < 1e-6, tuple(quaternion)
+    else:
+        raise AssertionError("expected the probe to fail without the re-rest")
+
+    # A shape-keyed mesh that needs re-posing fails with its way out.
+    arm_obj = build_drooped_mixamo_armature(droop_degrees=70.0, with_shape_key=True)
+    try:
+        convert(arm_obj)
+    except character_setup.ConversionError as exc:
+        assert "shape keys" in str(exc), str(exc)
+    else:
+        raise AssertionError("expected the shape-keyed re-rest to be refused")
+
+    # Threshold crossover against the real probe geometry: below the trigger
+    # the gate stays silent (shape-keyed near-T characters keep converting
+    # and the probes still pass); above it the re-rest fires (observable as
+    # the shape-key refusal), and without shape keys the re-rest repairs it.
+    arm_obj = build_drooped_mixamo_armature(droop_degrees=1.5, with_shape_key=True)
+    result = convert(arm_obj)
+    assert result.max_probe_error <= 0.05 * 0.26, result.probe_lines
+
+    arm_obj = build_drooped_mixamo_armature(droop_degrees=2.5, with_shape_key=True)
+    try:
+        convert(arm_obj)
+    except character_setup.ConversionError as exc:
+        assert "shape keys" in str(exc), str(exc)
+    else:
+        raise AssertionError("expected the 2.5-degree droop to trigger the re-rest")
+
+    arm_obj = build_drooped_mixamo_armature(droop_degrees=2.5)
+    result = convert(arm_obj)
+    assert result.max_probe_error <= 0.05 * 0.26, result.probe_lines
+
+    print("posecap non-t-pose conversion regression ok")
     """
 ).strip()
 

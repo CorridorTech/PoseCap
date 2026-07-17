@@ -65,6 +65,7 @@ ConversionError = _character_setup.ConversionError
 SMPLX_BODY_JOINTS = _character_setup.SMPLX_BODY_JOINTS
 DEFAULT_UE_MAPPING = _character_setup.UE_MAPPING
 ARM_TARGETS = _character_setup.ARM_TARGETS
+PROBE_RELATIVE_TOLERANCE = _character_setup.PROBE_RELATIVE_TOLERANCE
 validate_mapping = _character_setup.validate_mapping
 probe_expectations = _character_setup.probe_expectations
 
@@ -91,7 +92,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument(
         "--probe-tolerance",
         type=float,
-        default=0.05,
+        default=PROBE_RELATIVE_TOLERANCE,
         help="Relative tolerance for the self-verification probes",
     )
     return parser.parse_args(argv)
