@@ -39,6 +39,19 @@ Fresh-context review of release PR 35 found the same-second filename collision.
 The finding is non-blocking for the installer and setup patch, but it must be
 resolved before support bundles are relied on for repeated captures.
 
+### 2026-07-17 — implementation ground
+
+Verified against current code: the filename is second-granular
+(`support.py:131`, `PoseCap-Support-%Y%m%d-%H%M%S.zip`) and the archive
+opens with `ZipFile(output, "w")` (`support.py:132`), which truncates an
+existing file — two button clicks in the same wall-clock second collide and
+the second silently replaces the first (`_write_support_bundle` passes no
+timestamp, support_panel.py:122-148). Fix shape: collision-safe path
+creation at support.py:131-132 (probe-and-suffix or exclusive-create "x"
+with retry); the injectable `timestamp` parameter already used by
+tests/addon/test_support.py:65-85 keeps the tests deterministic; the exact-
+name assertion at test_support.py:78 stays valid for the no-collision case.
+
 ## Definition of Done
 
 All Acceptance Criteria checked, plus:

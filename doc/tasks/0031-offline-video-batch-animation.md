@@ -113,6 +113,35 @@ fps to scene fps so a 24 fps video lands time-correct on a 30 fps timeline
 mapping as an advanced option. Both mappings are deterministic functions of
 frame index, never of processing speed.
 
+### 2026-07-17 — implementation map (in-repo ground for the spec)
+
+Full seam map produced for the spec session; load-bearing findings:
+
+- ADR-0002 explicitly keeps file-based exchange "for batch and
+  single-capture jobs, where on-disk artifacts are the product" — the batch
+  output file is a documented sidestep of the live stream, not an amendment;
+  the new ADR records that.
+- `contracts/job.py` (`JobStatus`, queued/running/done/failed) was written
+  for exactly this batch progress channel, is tested, and has zero consumers
+  today — reuse it.
+- The source generators already emit every decoded frame exactly once, in
+  order, with a 0-based `seq` (pear_adapter/mediapipe_adapter `frames()`);
+  `captured_at` wall clock is metric-only. Batch reuses the generators and
+  replaces the TCP sink (`serve_once`, cli.py) with a file-writer port —
+  port in core, adapter at the edge, wire format in contracts.
+- The addon's keyframe write has no explicit-frame path: keys land at the
+  playhead advancing under `animation_play` (recording.py, apply_timer.py)
+  — the structural root of Dean's framerate complaint. Batch import needs a
+  `frame_set(n)`-driven writer; `keyframe_manager.py` tooling then works
+  unchanged on the imported keys.
+- Per ADR-0010 isolation, `process` is a new subcommand in each backend CLI
+  (cli.py and mediapipe_cli.py), launched via the manifest command;
+  manifests declare no verb capability today — spec question.
+- Test assets ready: fixture videos with pinned exact frame counts
+  (tests/fixtures/video, e.g. four 240-frame clips) and
+  `test_source_stream_invariants.py` already proves exactly-once ordered
+  emission end to end — the template for the batch contract test.
+
 ## Definition of Done
 
 All Acceptance Criteria checked, plus:
