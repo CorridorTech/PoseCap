@@ -38,7 +38,25 @@ def test_pre_push_pyright_checks_windows_and_linux_platforms() -> None:
 def test_pre_commit_install_defaults_include_pre_push() -> None:
     config = _load_yaml(REPO_ROOT / ".pre-commit-config.yaml")
 
-    assert set(config["default_install_hook_types"]) == {"pre-commit", "pre-push"}
+    assert set(config["default_install_hook_types"]) == {
+        "pre-commit",
+        "pre-push",
+        "commit-msg",
+    }
+
+
+def test_commit_msg_validates_subject_as_pr_title() -> None:
+    commit_msg_hooks = [hook for hook in _local_hooks() if hook.get("id") == "commit-subject"]
+
+    assert commit_msg_hooks == [
+        {
+            "id": "commit-subject",
+            "name": "commit subject is a valid PR title",
+            "entry": "uv run python tools/check_commit_subject.py",
+            "language": "system",
+            "stages": ["commit-msg"],
+        }
+    ]
 
 
 def test_pre_push_rejects_unsigned_commits() -> None:
