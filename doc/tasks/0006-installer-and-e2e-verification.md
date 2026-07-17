@@ -17,18 +17,18 @@ Verifiable conditions. Each as a checkbox so progress is point-editable.
 
 - [ ] On a clean Windows machine (no dev tooling): installer run to working live stream in 15 minutes or less, documented step-by-step in Notes (PRD metric).
 - [ ] Doctor check reports: GPU visible, model paths found, engine starts, TCP port free — each with an actionable failure message.
-- [ ] Environment setup fetches PEAR at the pinned revision and weights at the pinned HF revision; failure modes produce actionable messages, never raw tracebacks.
-- [ ] SMPL-X model acquisition documented (official MPI/Meshcapade sources, local path config); nothing licensed enters the repo or installer artifacts.
+- [x] Environment setup fetches PEAR at the pinned revision and weights at the pinned HF revision; failure modes produce actionable messages, never raw tracebacks.
+- [x] SMPL-X model acquisition documented (official MPI/Meshcapade sources, local path config); nothing licensed enters the repo or installer artifacts.
 - [ ] 10-minute continuous stream: zero errors in both logs, sustained at or above 30 FPS (spec success criterion; measured numbers recorded in Notes).
 - [ ] p95 capture-to-viewport latency under 100 ms over the same session; clock-source decision recorded in Notes (spec open question).
-- [ ] After Blender exit, no engine process within 5 seconds (spec success criterion).
+- [x] After Blender exit, no engine process within 5 seconds (spec success criterion).
 
 ## Plan
 
 Concrete sequential steps. Each as a checkbox. Reference file paths where applicable.
 
 - [ ] `tools/install/` — environment installer (uv bootstrap, sync, PEAR fetch at pin, ADR-0007 PEAR runtime matrix, gated PyTorch3D source build).
-- [ ] Doctor command (engine CLI subcommand) per workflows.md install flow.
+- [x] Doctor command (engine CLI subcommand) per workflows.md install flow.
 - [ ] Latency measurement: resolve clock-source question; implement timestamp comparison tooling over the instrumentation logs.
 - [ ] Clean-machine install run; document timings and friction in Notes; fix what failed; repeat until criterion passes.
 - [ ] 10-minute measured session; record FPS/latency/error numbers in Notes.
@@ -233,6 +233,35 @@ through 1.0.x, video-to-armature E2E with `POSECAP_E2E_OK`, fresh-context review
 so `proposed` no longer described reality. The clean-machine install and the
 sustained 10-minute session criteria remain legitimately open, so the task is
 `in-progress`, not `done`. Recorded by the 2026-07-15 repository drift audit.
+
+### 2026-07-17 — registry hygiene verification
+
+Criteria re-verified against the current code and git history. The installer
+premise moved from the monolithic `tools/install/` plan to the modular
+packaging suite (ADR-0011, spec 0003, tasks 0022-0024), so the evidence lives
+there:
+
+- Pinned-fetch criterion satisfied: `engine/src/posecap_engine/config.py`
+  pins `PEAR_REVISION` and `PEAR_MODELS_REVISION`; the installer downloads
+  hash-verified payloads and keeps failures observable instead of leaking
+  tracebacks (`tests/test_installer_components.py`, e.g. the
+  invalid-sha256 rejection and pear-failure-keeps-base-ready tests).
+- SMPL-X acquisition criterion satisfied: `doc/guides/smplx-model-setup.md`
+  documents the official sources, and the payload packer rejects licensed
+  files from installer artifacts
+  (`test_payload_packer_rejects_unexpected_or_licensed_files`).
+- Orphan-process criterion satisfied by the 2026-07-13 measurement above
+  (engine exit observed 0.233 seconds after Blender termination).
+- Doctor plan step exists (`posecap-engine doctor`,
+  `engine/src/posecap_engine/doctor.py`), but the doctor criterion stays
+  open: the checks cover GPU, imports, PEAR checkout, licensed assets, and
+  weights, with no engine-start or TCP-port-free check.
+
+Still open, so the task stays in-progress: the clean-machine 15-minute
+install, the doctor engine-start and port checks, the 10-minute sustained
+30 FPS session, and the p95 latency measurement. Plan step 1's
+`tools/install/` shape is superseded by `packaging/` and should not be built
+as written.
 
 ## Definition of Done
 
