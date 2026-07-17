@@ -113,7 +113,16 @@ begin
   BlenderFound := False;
   ProbeFilesExtracted := False;
   if NvidiaDriverPresent then
+  begin
     WizardSelectComponents(WizardSelectedComponents(False) + ',pear');
+    { A programmatic component change does not flip the Types combo (Inno only
+      switches to the custom type on a *manual* change), so it would read
+      "Recommended" while PEAR - a custom-only component - is checked. Point
+      the combo at the custom type ourselves (the last, iscustom-flagged
+      entry) to keep the label honest; ItemIndex alone moves the label without
+      touching the checkboxes WizardSelectComponents just set. }
+    WizardForm.TypesCombo.ItemIndex := WizardForm.TypesCombo.Items.Count - 1;
+  end;
   BlenderPage := CreateInputFilePage(
     wpSelectComponents,
     'Locate Blender',
