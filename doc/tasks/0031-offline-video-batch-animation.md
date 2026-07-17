@@ -31,7 +31,7 @@ capture, and the framerate mismatch is structural, not tunable.
 
 Verifiable conditions. Each as a checkbox so progress is point-editable.
 
-- [ ] A grounded shape decision is recorded (feature spec, plus ADR if the
+- [x] A grounded shape decision is recorded (feature spec, plus ADR if the
       transport decision amends or sidesteps ADR-0002): offline batch
       processing versus pacing fixes to the live path, with the tradeoffs
       written down.
@@ -158,6 +158,16 @@ a sidestep, not an amendment. Open questions carried in the spec: manifest
 batch-capability declaration, cancellation JobState, artifact default
 location, VFR handling. Both await maintainer review before status flips;
 implementation task split follows acceptance.
+
+### 2026-07-17 — spec accepted, implementation tasks split
+
+Maintainer approved the package (spec 0004, ADR-0013, cancellation scope
+included); PR #82 merged. Spec flipped to accepted, ADR-0013 to accepted.
+Implementation split into three vertical slices per the spec:
+task 0035 (engine `process` verb + artifact wire format + manifest
+capability), task 0036 (core mapping + explicit-frame keyframe import),
+task 0037 (in-panel GUI flow + cancel + Dean's answer; HITL). Acceptance
+criterion 1 checked — the shape decision is recorded and accepted.
 
 ## Definition of Done
 
