@@ -4,6 +4,7 @@ import socket
 import subprocess
 import sys
 import time
+import tomllib
 from collections.abc import Callable
 from pathlib import Path
 from types import SimpleNamespace
@@ -584,7 +585,12 @@ def test_main_panel_shows_version_and_support_tools_on_demand(monkeypatch) -> No
 
     posecap_addon.main_panel.draw_main_panel(layout, context)
 
-    assert any(label.startswith("PoseCap 1.0.6") for label in layout._labels)
+    # Derive the expected version from the manifest so a release bump cannot
+    # strand a stale literal here (the 1.0.7 bump caught exactly that).
+    manifest_version = tomllib.loads(
+        (Path(__file__).parents[2] / "addon" / "blender_manifest.toml").read_text(encoding="utf-8")
+    )["version"]
+    assert any(label.startswith(f"PoseCap {manifest_version}") for label in layout._labels)
     assert layout.has_operator("posecap.open_logs")
     assert layout.has_operator("posecap.create_support_bundle")
     assert layout.has_property("pear_root")
