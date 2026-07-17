@@ -1,2 +1,5 @@
-torch==2.4.1+cu124
-torchvision==0.19.1+cu124
+# Blackwell matrix proposed in ADR-0016 (qualification pending). Recorded
+# fallback if the PyTorch3D source build fails against torch 2.9.1:
+# torch==2.7.1+cu128 with torchvision==0.22.1 (task 0032 Notes / ADR-0016).
+torch==2.9.1+cu128
+torchvision==0.24.1+cu128

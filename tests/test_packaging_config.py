@@ -1,9 +1,10 @@
 """Guards for the installer packaging inputs (task 0006).
 
-The installer's determinism rests on these files: the lockfiles must pin the
-exact validated runtime matrix (ADR-0007) and the Inno template must keep every
+The installer's determinism rests on these files: the lockfiles must pin one
+exact runtime matrix (ADR-0007 validated cu124; the cu128 re-pin is proposed
+in ADR-0016, qualification pending) and the Inno template must keep every
 token the renderer replaces. A drifted pin here means a clean machine installs
-something the workstation never validated.
+something no workstation ever validated.
 """
 
 import re
@@ -16,10 +17,73 @@ def _read(name: str) -> str:
     return (_PACKAGING / name).read_text(encoding="utf-8")
 
 
+def _read_runtime_setup() -> str:
+    return (Path(__file__).parents[1] / "tools" / "install" / "setup_pear_runtime.ps1").read_text(
+        encoding="utf-8"
+    )
+
+
+def _torch_lock_matrix() -> tuple[str, str, str]:
+    """Return (torch version, torchvision version, CUDA tag) from the lock.
+
+    The lock is the single source of truth for the shipped matrix; every
+    cross-file consistency test derives its expectations from it so a
+    coordinated wrong bump cannot satisfy the guards.
+    """
+    lock = _read("requirements-torch.lock")
+    torch = re.search(r"^torch==(\d+\.\d+\.\d+)\+cu(\d+)$", lock, re.MULTILINE)
+    torchvision = re.search(r"^torchvision==(\d+\.\d+\.\d+)\+cu(\d+)$", lock, re.MULTILINE)
+    assert torch is not None and torchvision is not None
+    assert torch.group(2) == torchvision.group(2)
+    return torch.group(1), torchvision.group(1), torch.group(2)
+
+
 def test_torch_lock_pins_validated_cuda_matrix() -> None:
     lock = _read("requirements-torch.lock")
-    assert "torch==2.4.1+cu124" in lock
-    assert "torchvision==0.19.1+cu124" in lock
+    assert "torch==2.9.1+cu128" in lock
+    assert "torchvision==0.24.1+cu128" in lock
+
+
+def test_installer_manifest_torch_index_matches_the_lock_cuda_tag() -> None:
+    # install_pear.ps1 resolves requirements-torch.lock against the manifest's
+    # torchIndexUrl; a mismatched CUDA tag makes every clean install fail.
+    _, _, cuda_tag = _torch_lock_matrix()
+    build = _read("build_installer.ps1")
+    assert f"torchIndexUrl = 'https://download.pytorch.org/whl/cu{cuda_tag}'" in build
+
+
+def test_runtime_setup_default_matrix_matches_the_lock() -> None:
+    # The release runner builds PyTorch3D against the runtime this script
+    # creates; a drifted pin here ships a payload the runner never validated.
+    torch_version, torchvision_version, cuda_tag = _torch_lock_matrix()
+    setup = _read_runtime_setup()
+    default = re.search(r'\[string\]\$Cuda = "(\d+\.\d+)"', setup)
+    assert default is not None
+    assert default.group(1).replace(".", "") == cuda_tag
+    assert f'"{default.group(1)}" = "https://download.pytorch.org/whl/cu{cuda_tag}"' in setup
+    expected_pins = f'"{default.group(1)}" = @("torch=={torch_version}", '
+    expected_pins += f'"torchvision=={torchvision_version}")'
+    assert expected_pins in setup
+
+
+def test_runtime_setup_toolkit_default_matches_the_wheel_cuda_tag() -> None:
+    # ADR-0007 shipped with the toolkit (v12.8) ahead of the wheel tag (cu124)
+    # and had to surface the mismatch as a warning; this guard pins the two to
+    # the same CUDA line so that axis cannot silently drift again.
+    _, _, cuda_tag = _torch_lock_matrix()
+    setup = _read_runtime_setup()
+    toolkit = re.search(r"CUDA\\v(\d+)\.(\d+)", setup)
+    assert toolkit is not None
+    assert f"{toolkit.group(1)}{toolkit.group(2)}" == cuda_tag
+
+
+def test_pear_install_labels_carry_no_cuda_version_literal() -> None:
+    # The torch matrix lives in requirements-torch.lock and the manifest's
+    # torchIndexUrl; a CUDA version literal in the user-facing install steps
+    # goes stale on every re-pin ("Install PyTorch CUDA 12.4 wheels" while
+    # installing cu128).
+    pear = _read("installer/install_pear.ps1")
+    assert re.search(r"cu\d{3}|CUDA \d+\.\d+", pear) is None
 
 
 def test_pypi_lock_pins_every_line_exactly() -> None:

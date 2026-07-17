@@ -2,8 +2,8 @@
 
 [CmdletBinding()]
 param(
-    [ValidateSet("12.4")]
-    [string]$Cuda = "12.4",
+    [ValidateSet("12.4", "12.8")]
+    [string]$Cuda = "12.8",
 
     [string]$PearRoot = "C:\Dev\PoseCap-PEAR",
 
@@ -90,8 +90,19 @@ function Assert-Directory {
     throw $FailureMessage
 }
 
+# 12.8 is the Blackwell matrix proposed in ADR-0016 (qualification pending);
+# 12.4 keeps the ADR-0007 validated matrix reproducible for rollback and
+# triage until supersession. Recorded fallback if the PyTorch3D source build
+# fails against torch 2.9.1: torch==2.7.1+cu128 with torchvision==0.22.1
+# (task 0032 Notes / ADR-0016).
 $TorchIndexes = @{
     "12.4" = "https://download.pytorch.org/whl/cu124"
+    "12.8" = "https://download.pytorch.org/whl/cu128"
+}
+
+$TorchVersions = @{
+    "12.4" = @("torch==2.4.1", "torchvision==0.19.1")
+    "12.8" = @("torch==2.9.1", "torchvision==0.24.1")
 }
 
 $VenvFullPath = Resolve-TargetPath $VenvPath
@@ -159,12 +170,10 @@ try {
 
     Invoke-Logged `
         -Label "Install Torch/Torchvision CUDA $Cuda wheel matrix" `
-        -Command @(
+        -Command (@(
             "uv", "pip", "install", "--python", $PythonExe,
-            "--index-url", $TorchIndexes[$Cuda],
-            "torch==2.4.1",
-            "torchvision==0.19.1"
-        )
+            "--index-url", $TorchIndexes[$Cuda]
+        ) + $TorchVersions[$Cuda])
 
     # PEAR's requirements file pins an older Torch stack, so task 0007 owns this curated set.
     Invoke-Logged `

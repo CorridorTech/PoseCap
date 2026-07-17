@@ -103,7 +103,7 @@ $manifest = [ordered]@{
     pearSource    = $pearPayload.pear_source
     mediaPipePayload = $mediaPipePayload.archive
     mediaPipeModel = $mediaPipePayload.model
-    torchIndexUrl = 'https://download.pytorch.org/whl/cu124'
+    torchIndexUrl = 'https://download.pytorch.org/whl/cu128'
 }
 $manifest | ConvertTo-Json | Out-File -Encoding utf8 (Join-Path $Staging 'installer_manifest.json')
 
@@ -116,7 +116,7 @@ Downloaded or bundled by the PoseCap installer, each under its own license:
 - PEAR model weights (Hugging Face BestWJH/PEAR_models, pinned revision) -- Apache-2.0.
 - MediaPipe 0.10.35 and Holistic Landmarker task bundle -- Apache-2.0.
 - PyTorch3D 0.7.9 (facebookresearch/pytorch3d, repacked build) -- BSD-3-Clause.
-- PyTorch / Torchvision cu124 wheels -- BSD-style, see pytorch.org.
+- PyTorch / Torchvision cu128 wheels -- BSD-style, see pytorch.org.
 - YOLOv8x weights via Ultralytics -- AGPL-3.0 (weights fetched at install time).
 - uv (Astral) -- MIT/Apache-2.0.
 - CPython 3.11 (python-build-standalone) -- PSF license.
