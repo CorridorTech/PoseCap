@@ -1,6 +1,6 @@
 # Task `0024`: Integrate MediaPipe Lite backend
 
-**Status:** in-progress
+**Status:** done
 **Created:** 2026-07-14
 **Owner:** alexandremendoncaalvaro
 **Execution:** AFK
@@ -27,7 +27,7 @@ without changing the high-fidelity PEAR offer.
 - [x] The source-preview lifecycle offers live frames and closes cleanly on stream
   teardown.
 - [x] An installed isolated component streams the real fixture video over TCP.
-- [ ] A clean GUI-driven suite installation selects MediaPipe Lite, reaches the
+- [x] A clean GUI-driven suite installation selects MediaPipe Lite, reaches the
   ready PoseCap panel, and exercises a live capture with the installed component.
 
 ## Plan
@@ -40,7 +40,7 @@ without changing the high-fidelity PEAR offer.
   installer rendering coverage under `packaging/` and `tools/`.
 - [x] Cover body capability filtering, no-model onboarding, live streaming, preview
   teardown, and installed-component streaming with focused tests.
-- [ ] Run the clean GUI installation acceptance after this implementation slice is
+- [x] Run the clean GUI installation acceptance after this implementation slice is
   frozen, then record the observed result here.
 
 ## Notes
@@ -96,11 +96,27 @@ remaining standards issue. Its sole specification concern is the deliberately op
 clean GUI acceptance criterion; that criterion remains the release gate for this
 task, rather than an unrecorded gap.
 
+### 2026-07-17 — closed by registry hygiene verification
+
+The open criterion — a clean GUI-driven suite installation reaching a ready
+panel and exercising a live capture — is satisfied by the release
+qualification recorded in task 0026 Notes (2026-07-14): from an empty
+application-data root and an isolated Blender profile, the GUI installer
+candidate installed MediaPipe Lite, the panel reached the ready state, and a
+capture through the live streaming path visibly drove the converted Mixamo
+armature at 17.74-23.00 FPS, with a screen recording retained. The public
+`v1.0.6-win.3` release additionally passed the installed MediaPipe
+integration test after an unauthenticated download (task 0026 Notes,
+2026-07-15). That qualification drove the live path from the panel's video
+source; the camera-specific GUI journey is tracked by task 0026's MediaPipe
+criterion, not here. No orphan TODO or FIXME exists in the Python tree
+(repository grep, 2026-07-17). Status flipped to done.
+
 ## Definition of Done
 
 All Acceptance Criteria checked, plus:
 
 - [x] Local tests pass (or N/A documented in Notes)
 - [x] Code review completed (human or fresh-context reviewer per WORKFLOW Â§10)
-- [ ] No orphan `TODO`/`FIXME` introduced
-- [ ] Status updated to `done` and Notes log closes the task
+- [x] No orphan `TODO`/`FIXME` introduced
+- [x] Status updated to `done` and Notes log closes the task
