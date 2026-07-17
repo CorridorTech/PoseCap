@@ -107,7 +107,7 @@ Invoke-PearStep -Label "Create engine virtual environment" `
         Invoke-Uv @("venv", "--clear", "--python", "3.11", $VenvDir)
     }
 
-Invoke-PearStep -Label "Install PyTorch CUDA 12.4 wheels (~2.5 GB download)" `
+Invoke-PearStep -Label "Install PyTorch CUDA wheels (~2.5 GB download)" `
     -Fix "Check your internet connection and disk space (needs ~8 GB free), then re-run setup." `
     -Action {
         Invoke-Uv @(
