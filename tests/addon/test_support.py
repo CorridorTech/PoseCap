@@ -6,6 +6,8 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from posecap_addon.support import (
+    MAX_LOG_BYTES,
+    MAX_LOG_FILES,
     addon_version,
     create_support_bundle,
     default_installation_paths,
@@ -83,6 +85,105 @@ def test_support_bundle_contains_diagnostics_and_logs(tmp_path: Path) -> None:
             "logs/posecap-engine.log.1",
         }
         assert archive.read("diagnostics.txt") == b"PoseCap version: 1.0.0\n"
+
+
+def test_support_bundle_caps_the_number_of_log_files(tmp_path: Path) -> None:
+    logs = tmp_path / "logs"
+    logs.mkdir()
+    for index in range(MAX_LOG_FILES + 2):
+        (logs / f"stray-{index:02d}.log").write_text("stray line", encoding="utf-8")
+
+    bundle = create_support_bundle(
+        destination_directory=tmp_path / "Downloads",
+        logs_directory=logs,
+        diagnostics="PoseCap version: 1.0.0\n",
+        timestamp=datetime(2026, 7, 13, 12, 30, tzinfo=UTC),
+    )
+
+    with zipfile.ZipFile(bundle) as archive:
+        log_entries = [name for name in archive.namelist() if name.startswith("logs/")]
+        assert len(log_entries) == MAX_LOG_FILES
+        report = archive.read("diagnostics.txt").decode("utf-8")
+        assert "Log files omitted from this bundle: 2" in report
+
+
+def test_support_bundle_caps_the_total_log_bytes(tmp_path: Path) -> None:
+    logs = tmp_path / "logs"
+    logs.mkdir()
+    over_half_the_budget = MAX_LOG_BYTES // 2 + 1
+    (logs / "alpha.log").write_bytes(b"a" * over_half_the_budget)
+    (logs / "bravo.log").write_bytes(b"b" * over_half_the_budget)
+    (logs / "charlie.log").write_text("small line", encoding="utf-8")
+
+    bundle = create_support_bundle(
+        destination_directory=tmp_path / "Downloads",
+        logs_directory=logs,
+        diagnostics="PoseCap version: 1.0.0\n",
+        timestamp=datetime(2026, 7, 13, 12, 30, tzinfo=UTC),
+    )
+
+    with zipfile.ZipFile(bundle) as archive:
+        names = set(archive.namelist())
+        assert "logs/alpha.log" in names
+        assert "logs/bravo.log" not in names
+        assert "logs/charlie.log" in names
+        report = archive.read("diagnostics.txt").decode("utf-8")
+        assert "Log files omitted from this bundle: 1" in report
+
+
+def test_setup_marker_counts_toward_the_bundle_caps(tmp_path: Path) -> None:
+    logs = tmp_path / "logs"
+    logs.mkdir()
+    for index in range(MAX_LOG_FILES):
+        (logs / f"stray-{index:02d}.log").write_text("stray line", encoding="utf-8")
+    (logs / "SETUP_OK").write_text("ok", encoding="utf-8")
+
+    bundle = create_support_bundle(
+        destination_directory=tmp_path / "Downloads",
+        logs_directory=logs,
+        diagnostics="PoseCap version: 1.0.0\n",
+        timestamp=datetime(2026, 7, 13, 12, 30, tzinfo=UTC),
+    )
+
+    with zipfile.ZipFile(bundle) as archive:
+        log_entries = [name for name in archive.namelist() if name.startswith("logs/")]
+        assert "logs/SETUP_OK" in log_entries
+        assert len(log_entries) == MAX_LOG_FILES
+        report = archive.read("diagnostics.txt").decode("utf-8")
+        assert "Log files omitted from this bundle: 1" in report
+
+
+def test_support_bundle_survives_a_log_vanishing_mid_collection(
+    tmp_path: Path, monkeypatch
+) -> None:
+    logs = tmp_path / "logs"
+    logs.mkdir()
+    (logs / "alpha.log").write_text("kept line", encoding="utf-8")
+    (logs / "bravo.log").write_text("vanishing line", encoding="utf-8")
+    real_write = zipfile.ZipFile.write
+
+    def racing_write(
+        archive: zipfile.ZipFile, filename: str | Path, arcname: str | None = None
+    ) -> None:
+        if Path(filename).name == "bravo.log":
+            raise FileNotFoundError(filename)
+        real_write(archive, filename, arcname)
+
+    monkeypatch.setattr(zipfile.ZipFile, "write", racing_write)
+
+    bundle = create_support_bundle(
+        destination_directory=tmp_path / "Downloads",
+        logs_directory=logs,
+        diagnostics="PoseCap version: 1.0.0\n",
+        timestamp=datetime(2026, 7, 13, 12, 30, tzinfo=UTC),
+    )
+
+    with zipfile.ZipFile(bundle) as archive:
+        names = set(archive.namelist())
+        assert "logs/alpha.log" in names
+        assert "logs/bravo.log" not in names
+        report = archive.read("diagnostics.txt").decode("utf-8")
+        assert "Log files omitted from this bundle: 1" in report
 
 
 def test_diagnostics_report_readiness_without_secrets(tmp_path: Path) -> None:

@@ -12,6 +12,17 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+MAX_LOG_FILES = 20
+"""Maximum number of log files a support bundle collects.
+
+Each log family is already rotation-bounded (1 MB x 4 files); a healthy
+installation produces at most eight files, so the cap only triggers on
+anomalous log directories.
+"""
+
+MAX_LOG_BYTES = 10 * 1024 * 1024
+"""Maximum total log bytes a support bundle collects (10 MiB)."""
+
 _INSTALLER_SUBPATH = ("PoseCap",)
 _ENGINE_SUBPATH = ("runtime", "venv", "Scripts", "posecap-engine.exe")
 _PEAR_SUBPATH = ("pear",)
@@ -130,21 +141,48 @@ def create_support_bundle(
     destination_directory.mkdir(parents=True, exist_ok=True)
     output = destination_directory / f"PoseCap-Support-{created_at:%Y%m%d-%H%M%S}.zip"
     with zipfile.ZipFile(output, "w", compression=zipfile.ZIP_DEFLATED) as archive:
-        archive.writestr("diagnostics.txt", diagnostics)
-        _archive_logs(archive, logs_directory)
+        omitted_files = _archive_logs(archive, logs_directory)
+        archive.writestr("diagnostics.txt", diagnostics + _omission_note(omitted_files))
     return output
 
 
-def _archive_logs(archive: zipfile.ZipFile, logs_directory: Path) -> None:
-    """Add bounded PoseCap logs and the setup marker to the bundle."""
+def _omission_note(omitted_files: int) -> str:
+    """Describe capped log collection so support can ask for the rest."""
+    if omitted_files == 0:
+        return ""
+    limits = f"limit: {MAX_LOG_FILES} files, {MAX_LOG_BYTES} bytes"
+    return f"Log files omitted from this bundle: {omitted_files} ({limits}).{os.linesep}"
+
+
+def _archive_logs(archive: zipfile.ZipFile, logs_directory: Path) -> int:
+    """Add bounded PoseCap logs and the setup marker; return the omitted file count."""
     if not logs_directory.is_dir():
-        return
-    for log_path in sorted(logs_directory.glob("*.log*")):
-        if log_path.is_file():
+        return 0
+    included_files = 0
+    included_bytes = 0
+    omitted_files = 0
+    for log_path in _log_candidates(logs_directory):
+        if not log_path.is_file():
+            continue
+        try:
+            log_bytes = log_path.stat().st_size
+            if included_files >= MAX_LOG_FILES or included_bytes + log_bytes > MAX_LOG_BYTES:
+                omitted_files += 1
+                continue
             archive.write(log_path, f"logs/{log_path.name}")
+        except OSError:
+            omitted_files += 1
+            continue
+        included_files += 1
+        included_bytes += log_bytes
+    return omitted_files
+
+
+def _log_candidates(logs_directory: Path) -> tuple[Path, ...]:
+    """List the setup marker first so stray logs can never crowd it out."""
     setup_marker = logs_directory / "SETUP_OK"
-    if setup_marker.is_file():
-        archive.write(setup_marker, "logs/SETUP_OK")
+    markers = (setup_marker,) if setup_marker.is_file() else ()
+    return markers + tuple(sorted(logs_directory.glob("*.log*")))
 
 
 def _looks_like_installed_engine(path: Path) -> bool:
