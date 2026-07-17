@@ -8,9 +8,31 @@ something no workstation ever validated.
 """
 
 import re
+import tomllib
 from pathlib import Path
 
 _PACKAGING = Path(__file__).parents[1] / "packaging"
+_REPO = Path(__file__).parents[1]
+
+
+def test_every_version_site_matches_the_workspace_root() -> None:
+    """One release version, everywhere users or tooling can see one.
+
+    The v1.0.7-win.6 qualification build shipped an extension zip still named
+    1.0.6 because the root pyproject bump missed the Blender manifest and the
+    workspace members; this guard makes a partial bump fail before a build.
+    """
+    root = tomllib.loads((_REPO / "pyproject.toml").read_text(encoding="utf-8"))
+    version = root["project"]["version"]
+    for member in ("core", "contracts", "engine"):
+        member_toml = tomllib.loads((_REPO / member / "pyproject.toml").read_text(encoding="utf-8"))
+        assert member_toml["project"]["version"] == version, member
+    manifest = tomllib.loads(
+        (_REPO / "addon" / "blender_manifest.toml").read_text(encoding="utf-8")
+    )
+    assert manifest["version"] == version
+    for wheel in manifest["wheels"]:
+        assert f"-{version}-" in wheel, wheel
 
 
 def _read(name: str) -> str:

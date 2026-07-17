@@ -768,12 +768,12 @@ dev = [
 
 [[package]]
 name = "posecap-contracts"
-version = "1.0.6"
+version = "1.0.7"
 source = { editable = "contracts" }
 
 [[package]]
 name = "posecap-core"
-version = "1.0.6"
+version = "1.0.7"
 source = { editable = "core" }
 dependencies = [
     { name = "numpy" },
@@ -788,7 +788,7 @@ requires-dist = [
 
 [[package]]
 name = "posecap-engine"
-version = "1.0.6"
+version = "1.0.7"
 source = { editable = "engine" }
 dependencies = [
     { name = "opencv-python" },
