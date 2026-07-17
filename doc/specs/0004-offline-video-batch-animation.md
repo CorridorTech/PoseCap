@@ -1,6 +1,6 @@
 # Spec 0004: Offline video batch animation
 
-**Status:** draft
+**Status:** accepted
 **Created:** 2026-07-17
 **Owner:** alexandremendoncaalvaro
 
@@ -233,6 +233,9 @@ Definitional. Per-criterion progress tracking lives in per-Spec tasks, not here.
   [0010](../adr/0010-discover-isolated-pose-backends.md),
   [0013](../adr/0013-batch-video-frame-indexed-artifact.md)
 - Tasks: [0031 offline video batch animation](../tasks/0031-offline-video-batch-animation.md)
-  (implementation tasks appended as they are created)
+  (umbrella),
+  [0035 engine batch artifact](../tasks/0035-engine-batch-process-artifact.md),
+  [0036 addon artifact import](../tasks/0036-addon-artifact-keyframe-import.md),
+  [0037 batch panel flow](../tasks/0037-batch-panel-flow.md)
 - Depends on: [PRD](../product/PRD.md),
   [spec 0001 live webcam pose streaming](0001-live-webcam-pose-streaming.md)

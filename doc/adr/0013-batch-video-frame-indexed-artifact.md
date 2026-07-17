@@ -1,6 +1,6 @@
 # ADR-0013: Process video offline into a frame-indexed artifact file
 
-**Status:** proposed
+**Status:** accepted
 **Date:** 2026-07-17
 **Deciders:** alexandremendoncaalvaro
 
