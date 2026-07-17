@@ -65,7 +65,40 @@ jobs:
             install --yes ffmpeg
       - name: Install FFmpeg (Windows)
         if: ${{ runner.os == 'Windows' }}
-        run: choco install ffmpeg --no-progress --yes
+        # The Chocolatey community feed has real outages (503s on 2026-07-17
+        # broke main): retry, fall back to winget, and fail THIS step loudly
+        # if ffprobe still is not runnable — never let the gap surface later
+        # as a confusing test assertion.
+        shell: pwsh
+        run: |
+          if (Get-Command ffprobe -ErrorAction SilentlyContinue) {
+            ffprobe -version | Select-Object -First 1
+            exit 0
+          }
+          $installed = $false
+          foreach ($attempt in 1..3) {
+            choco install ffmpeg --no-progress --yes
+            if ($LASTEXITCODE -eq 0) { $installed = $true; break }
+            if ($attempt -lt 3) {
+              Write-Warning "choco install ffmpeg failed (attempt $attempt of 3); retrying in 20s"
+              Start-Sleep -Seconds 20
+            }
+          }
+          if (-not $installed) {
+            Write-Warning "Chocolatey feed unavailable; falling back to winget"
+            foreach ($attempt in 1..2) {
+              winget install --id Gyan.FFmpeg --exact --silent --accept-source-agreements --accept-package-agreements --disable-interactivity
+              if ($LASTEXITCODE -eq 0) { break }
+              if ($attempt -lt 2) { Start-Sleep -Seconds 20 }
+            }
+            $ffprobe = Get-ChildItem -Path "$env:LOCALAPPDATA\Microsoft\WinGet\Packages" -Recurse -Filter ffprobe.exe -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($ffprobe) { Add-Content -Path $env:GITHUB_PATH -Value $ffprobe.DirectoryName; $env:Path = "$($ffprobe.DirectoryName);$env:Path" }
+          }
+          if (-not (Get-Command ffprobe -ErrorAction SilentlyContinue)) {
+            Write-Error "ffprobe is not runnable after choco retries and the winget fallback"
+            exit 1
+          }
+          ffprobe -version | Select-Object -First 1
       - name: Sync workspace (locked)
         run: uv sync --locked
       - name: Lint
