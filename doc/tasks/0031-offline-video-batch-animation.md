@@ -4,7 +4,7 @@
 **Created:** 2026-07-16
 **Owner:** alexandremendoncaalvaro
 **Execution:** HITL
-**Spec ref:**
+**Spec ref:** [doc/specs/0004-offline-video-batch-animation.md](../specs/0004-offline-video-batch-animation.md)
 **Board ref:**
 
 ## Context
@@ -52,19 +52,22 @@ Verifiable conditions. Each as a checkbox so progress is point-editable.
 Concrete sequential steps. Each as a checkbox. Reference file paths where
 applicable.
 
-- [ ] Ground (`ad-ground` / `ad-grill`) the shape: engine-side batch CLI
+- [x] Ground (`ad-ground` / `ad-grill`) the shape: engine-side batch CLI
       writing a frame-indexed animation file (candidate: JSONL of the existing
       wire-format payloads keyed by frame index, imported by the addon) versus
       addon-driven frame stepping over the TCP stream; weigh against repairing
       the live path's video pacing (rejected if the realtime contract makes
       exact-once framing structurally impossible). Check the seek/scrub
       reverse-channel note already deferred against ADR-0002.
-- [ ] Draft the feature spec (`ad-spec`, doc/specs/0004) with the chosen
+- [x] Draft the feature spec (`ad-spec`, doc/specs/0004) with the chosen
       shape; split implementation tasks from it (engine batch mode, addon
       import, UI entry point per the non-technical-user constraint — GUI only,
       no user-facing CLI).
 - [ ] Implement per the spec's task split (TDD; fixture video with known frame
       count and golden frame-index mapping).
+- [ ] Update ARCHITECTURE.md's batch IPC pattern line (today it describes
+      image file-drop only) when the video batch path lands, so the pattern
+      description matches what ships.
 - [ ] Answer Dean with the decision and ship vehicle.
 
 ## Notes
@@ -141,6 +144,20 @@ Full seam map produced for the spec session; load-bearing findings:
   (tests/fixtures/video, e.g. four 240-frame clips) and
   `test_source_stream_invariants.py` already proves exactly-once ordered
   emission end to end — the template for the batch contract test.
+
+### 2026-07-17 — spec and ADR drafted
+
+Spec 0004 drafted at doc/specs/0004-offline-video-batch-animation.md (status
+draft) from the grounded Notes above: in-panel GUI flow, engine `process` verb
+per backend CLI writing a frame-indexed artifact of wire-format payloads,
+JobStatus progress reuse, explicit-frame (`frame_set`) keyframe import,
+scale-source-fps-to-scene default with 1:1 advanced. ADR-0013 drafted at
+doc/adr/0013-batch-video-frame-indexed-artifact.md (status proposed) recording
+the transport decision as the file-based batch exchange ADR-0002 reserved —
+a sidestep, not an amendment. Open questions carried in the spec: manifest
+batch-capability declaration, cancellation JobState, artifact default
+location, VFR handling. Both await maintainer review before status flips;
+implementation task split follows acceptance.
 
 ## Definition of Done
 
