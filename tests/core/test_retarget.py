@@ -10,11 +10,17 @@ import math
 import numpy as np
 import pytest
 from posecap_core.retarget import (
+    PROBE_RELATIVE_TOLERANCE,
     SMPLX_BODY_JOINTS,
+    T_POSE_MAX_ARM_DEVIATION_DEGREES,
     UE_MAPPING,
+    arm_t_pose_deviation_degrees,
     detect_skeleton_preset,
     mixamo_mapping,
+    mixamo_preset,
+    needs_t_pose_re_rest,
     probe_expectations,
+    ue_preset,
     validate_mapping,
 )
 from posecap_core.rotation import axis_angle_to_quaternion
@@ -113,6 +119,69 @@ def test_mixamo_characters_skip_the_tpose_re_rest_and_ue_does_not() -> None:
     mixamo = detect_skeleton_preset({"mixamorig:Hips", "mixamorig:LeftUpLeg"})
     assert ue is not None and not ue.already_t_pose
     assert mixamo is not None and mixamo.already_t_pose
+
+
+def test_t_pose_arms_measure_zero_deviation() -> None:
+    left = arm_t_pose_deviation_degrees((0.15, 0.0, 1.5), (0.41, 0.0, 1.5), "l")
+    right = arm_t_pose_deviation_degrees((-0.15, 0.0, 1.5), (-0.41, 0.0, 1.5), "r")
+    assert left == pytest.approx(0.0, abs=1e-9)
+    assert right == pytest.approx(0.0, abs=1e-9)
+
+
+def test_drooped_arms_measure_their_droop_angle() -> None:
+    # Field failure shape (task 0033): custom Mixamo uploads keep the uploaded
+    # bind pose, commonly arms hanging ~70 degrees below horizontal.
+    theta = math.radians(70.0)
+    elbow = (0.15 + 0.26 * math.cos(theta), 0.0, 1.5 - 0.26 * math.sin(theta))
+    deviation = arm_t_pose_deviation_degrees((0.15, 0.0, 1.5), elbow, "l")
+    assert deviation == pytest.approx(70.0, abs=1e-6)
+
+
+def test_forward_arms_measure_their_deviation_too() -> None:
+    deviation = arm_t_pose_deviation_degrees((0.15, 0.0, 1.5), (0.15, -0.26, 1.5), "l")
+    assert deviation == pytest.approx(90.0, abs=1e-6)
+
+
+def test_deviation_threshold_stays_below_the_probe_failure_angle() -> None:
+    # The probe tolerates PROBE_RELATIVE_TOLERANCE of the arm length, which a
+    # small-angle droop crosses at ~2.9 degrees; the re-rest trigger must fire
+    # before that so no character can both skip the re-rest and fail the probe.
+    assert 0.0 < T_POSE_MAX_ARM_DEVIATION_DEGREES < math.degrees(PROBE_RELATIVE_TOLERANCE)
+
+
+def _arm_lines(droop_degrees: float) -> dict:
+    theta = math.radians(droop_degrees)
+    lines = {}
+    for side, sign in (("l", 1.0), ("r", -1.0)):
+        shoulder = (sign * 0.15, 0.0, 1.5)
+        elbow = (
+            sign * (0.15 + 0.26 * math.cos(theta)),
+            0.0,
+            1.5 - 0.26 * math.sin(theta),
+        )
+        lines[side] = (shoulder, elbow)
+    return lines
+
+
+def test_a_preset_that_never_claims_t_pose_always_re_rests() -> None:
+    assert needs_t_pose_re_rest(ue_preset(), _arm_lines(0.0))
+
+
+def test_a_measured_t_pose_keeps_the_claimed_skip() -> None:
+    assert not needs_t_pose_re_rest(mixamo_preset("mixamorig:"), _arm_lines(0.0))
+
+
+def test_arms_past_the_threshold_invalidate_the_t_pose_claim() -> None:
+    preset = mixamo_preset("mixamorig:")
+    assert not needs_t_pose_re_rest(preset, _arm_lines(1.9))
+    assert needs_t_pose_re_rest(preset, _arm_lines(2.1))
+    assert needs_t_pose_re_rest(preset, _arm_lines(70.0))
+
+
+def test_one_drooped_arm_is_enough_to_re_rest() -> None:
+    lines = _arm_lines(0.0)
+    lines["r"] = _arm_lines(70.0)["r"]
+    assert needs_t_pose_re_rest(mixamo_preset("mixamorig:"), lines)
 
 
 def test_validate_mapping_reports_missing_joints() -> None:

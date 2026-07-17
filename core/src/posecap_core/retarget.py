@@ -13,6 +13,7 @@ grounded on the mixamorig <-> SMPL correspondence used across retarget tools).
 
 from __future__ import annotations
 
+import math
 import re
 from dataclasses import dataclass
 
@@ -124,6 +125,59 @@ _UE_ARM_CHAINS = {
 }
 ARM_TARGETS = {"l": (1.0, 0.0, 0.0), "r": (-1.0, 0.0, 0.0)}
 
+# Relative tolerance of the converter's self-verification probes, as a
+# fraction of the measured arm length. Shared by the Blender-side converter
+# default and the re-rest trigger margin below.
+PROBE_RELATIVE_TOLERANCE = 0.05
+
+# A preset's already_t_pose is a claim about the download default, not the
+# character in front of us: Mixamo auto-rigged custom uploads keep whatever
+# bind pose the mesh was uploaded in (task 0033). Arms measured further than
+# this from their T-pose target need the re-rest regardless of the claim.
+# PROBE_RELATIVE_TOLERANCE fails a small-angle droop from ~2.9 degrees
+# (degrees(0.05)), so the trigger fires with margin below that.
+T_POSE_MAX_ARM_DEVIATION_DEGREES = 2.0
+
+ArmLines = dict[str, tuple[tuple[float, float, float], tuple[float, float, float]]]
+
+
+def needs_t_pose_re_rest(preset: SkeletonPreset, arm_lines: ArmLines) -> bool:
+    """Whether the measured arms invalidate a preset's T-pose claim.
+
+    ``arm_lines`` maps ``ARM_TARGETS`` keys to (shoulder_head, elbow_head)
+    world positions in any unit. A preset that never claims a T-pose always
+    re-rests; a claimed T-pose re-rests when either arm measures further
+    than ``T_POSE_MAX_ARM_DEVIATION_DEGREES`` from its target.
+    """
+    if not preset.already_t_pose:
+        return True
+    return any(
+        arm_t_pose_deviation_degrees(shoulder, elbow, side) > T_POSE_MAX_ARM_DEVIATION_DEGREES
+        for side, (shoulder, elbow) in arm_lines.items()
+    )
+
+
+def arm_t_pose_deviation_degrees(
+    shoulder_head: tuple[float, float, float],
+    elbow_head: tuple[float, float, float],
+    side: str,
+) -> float:
+    """Angle in degrees between the shoulder-to-elbow world line and the T-pose target.
+
+    ``side`` is an ``ARM_TARGETS`` key (``"l"`` or ``"r"``); positions are
+    world-space coordinates in any unit (only the direction matters).
+    """
+    direction = tuple(
+        elbow - shoulder for elbow, shoulder in zip(elbow_head, shoulder_head, strict=True)
+    )
+    length = math.sqrt(sum(component * component for component in direction))
+    if length == 0.0:
+        return 180.0
+    target = ARM_TARGETS[side]
+    cosine = sum(d * t for d, t in zip(direction, target, strict=True)) / length
+    return math.degrees(math.acos(max(-1.0, min(1.0, cosine))))
+
+
 ArmChains = dict[str, tuple[tuple[str, str], ...]]
 
 
@@ -156,8 +210,9 @@ def mixamo_mapping(prefix: str) -> dict[str, str]:
 
 def mixamo_preset(prefix: str, *, include_hands: bool = False) -> SkeletonPreset:
     """The Mixamo skeleton preset for one export prefix ('' when stripped)."""
-    # Mixamo characters download in T-pose; the UE-style A-pose re-rest
-    # would corrupt an already correct rest pose.
+    # Library characters download in T-pose, so the re-rest defaults to off —
+    # but the claim is geometry-verified at conversion time because custom
+    # auto-rigged uploads keep the uploaded bind pose (task 0033).
     chains: ArmChains = {
         "l": (
             (prefix + "LeftArm", prefix + "LeftForeArm"),

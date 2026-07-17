@@ -26,6 +26,7 @@ from dataclasses import dataclass
 
 from posecap_core import (
     ARM_TARGETS,
+    PROBE_RELATIVE_TOLERANCE,
     SMPLX_BODY_JOINTS,
     UE_MAPPING,
     PoseCapError,
@@ -33,6 +34,7 @@ from posecap_core import (
     axis_angle_to_quaternion,
     detect_skeleton_preset,
     mixamo_preset,
+    needs_t_pose_re_rest,
     probe_expectations,
     ue_preset,
     validate_mapping,
@@ -42,6 +44,7 @@ from posecap_core import (
 # conversion API. Listed so the facade re-exports read as intentional.
 __all__ = [
     "ARM_TARGETS",
+    "PROBE_RELATIVE_TOLERANCE",
     "SMPLX_BODY_JOINTS",
     "UE_MAPPING",
     "ConversionError",
@@ -75,7 +78,7 @@ def convert_armature(
     *,
     re_rest_t_pose: bool | None = None,
     bone_length: float = 10.0,
-    probe_tolerance: float = 0.05,
+    probe_tolerance: float = PROBE_RELATIVE_TOLERANCE,
 ) -> ConversionResult:  # pragma: no cover - exercised inside Blender only
     """Convert one armature in the open file; raises ConversionError on failure."""
     missing_joints = validate_mapping(preset.mapping)
@@ -90,8 +93,11 @@ def convert_armature(
             "the armature has a mirrored (negative) scale — apply "
             "Object > Apply > Rotation & Scale, then convert again"
         )
-    needs_re_rest = not preset.already_t_pose if re_rest_t_pose is None else re_rest_t_pose
+    needs_re_rest = (
+        _needs_re_rest(bpy, arm_obj, preset) if re_rest_t_pose is None else re_rest_t_pose
+    )
     if needs_re_rest:
+        _refuse_shape_keyed_re_rest(mesh_objs)
         _re_rest_tpose(bpy, arm_obj, mesh_objs, preset.arm_chains)
     _rename_and_reorient(bpy, arm_obj, mesh_objs, preset.mapping, bone_length)
     return _verify(bpy, arm_obj, probe_tolerance)
@@ -140,6 +146,45 @@ def _deforming_armatures(objects):
             ):
                 armatures.append(armature)
     return armatures
+
+
+def _needs_re_rest(bpy, arm_obj, preset: SkeletonPreset) -> bool:
+    """Whether the arm chains must be re-rested into a T-pose before reorienting.
+
+    ``already_t_pose`` is a claim about the family's download default; custom
+    Mixamo auto-rigged uploads keep the uploaded bind pose (task 0033), so the
+    claim is verified against the measured shoulder-to-elbow directions
+    (``needs_t_pose_re_rest`` in the retarget domain).
+    """
+    if not preset.already_t_pose:
+        return True
+    bpy.context.view_layer.update()
+    world = arm_obj.matrix_world
+
+    def head_world(joint):
+        return tuple(world @ arm_obj.pose.bones[preset.mapping[joint]].head)
+
+    arm_lines = {
+        "l": (head_world("left_shoulder"), head_world("left_elbow")),
+        "r": (head_world("right_shoulder"), head_world("right_elbow")),
+    }
+    return needs_t_pose_re_rest(preset, arm_lines)
+
+
+def _refuse_shape_keyed_re_rest(mesh_objs):
+    """Fail before any mutation when a needed re-rest cannot re-bind the mesh.
+
+    Applying the armature modifier rejects shape-keyed meshes; raise the
+    user's way out instead of leaking Blender's RuntimeError (GUIDELINES
+    §2.2). Characters that already measure as T-posed never reach this.
+    """
+    keyed = [m.name for m in mesh_objs if getattr(m.data, "shape_keys", None) is not None]
+    if keyed:
+        raise ConversionError(
+            "this character is not in a T-pose, and its mesh has shape keys "
+            f"({', '.join(sorted(keyed))}), so PoseCap cannot re-pose it automatically. "
+            "Re-export the character with the arms in a T-pose, then convert again"
+        )
 
 
 def _re_rest_tpose(bpy, arm_obj, mesh_objs, arm_chains):  # pragma: no cover - Blender only
@@ -243,19 +288,27 @@ def _verify(bpy, arm_obj, relative_tolerance):  # pragma: no cover - Blender onl
     probes = (("raise_z", (0.0, 0.0, math.pi / 2)), ("swing_y", (0.0, math.pi / 2, 0.0)))
     lines: list[str] = []
     max_error = 0.0
-    for label, axis_angle in probes:
-        delta = apply_shoulder(axis_angle)
-        want = expected[label]
-        error = max(abs(delta[i] - want[i]) for i in range(3))
-        max_error = max(max_error, error)
-        lines.append(
-            f"probe {label}: delta=({delta.x:+.3f},{delta.y:+.3f},{delta.z:+.3f}) "
-            f"expected=({want[0]:+.3f},{want[1]:+.3f},{want[2]:+.3f}) err={error:.4f}"
-        )
-        if error > tolerance:
-            raise ConversionError(
-                f"probe {label} failed: error {error:.4f} > tolerance {tolerance:.4f}"
+    try:
+        for label, axis_angle in probes:
+            delta = apply_shoulder(axis_angle)
+            want = expected[label]
+            error = max(abs(delta[i] - want[i]) for i in range(3))
+            max_error = max(max_error, error)
+            lines.append(
+                f"probe {label}: delta=({delta.x:+.3f},{delta.y:+.3f},{delta.z:+.3f}) "
+                f"expected=({want[0]:+.3f},{want[1]:+.3f},{want[2]:+.3f}) err={error:.4f}"
             )
-    for pose_bone in arm_obj.pose.bones:
-        pose_bone.rotation_quaternion = (1.0, 0.0, 0.0, 0.0)
+            if error > tolerance:
+                raise ConversionError(
+                    "PoseCap could not verify this character after conversion. "
+                    "Press Ctrl+Z to undo. The most common cause is a character "
+                    "whose arms were not bound in a T-pose — re-export it in a "
+                    f"T-pose and convert again (check {label}: error {error:.4f} "
+                    f"> tolerance {tolerance:.4f})"
+                )
+    finally:
+        # Failure must not leave the probe pose applied (the field report's
+        # "lifted arm" was the raise_z probe surviving the error path).
+        for pose_bone in arm_obj.pose.bones:
+            pose_bone.rotation_quaternion = (1.0, 0.0, 0.0, 0.0)
     return ConversionResult(probe_lines=tuple(lines), max_probe_error=max_error)
