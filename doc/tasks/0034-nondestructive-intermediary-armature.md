@@ -1,10 +1,10 @@
 # Task 0034: Drive characters through a non-destructive intermediary armature
 
-**Status:** proposed
+**Status:** in-progress
 **Created:** 2026-07-17
 **Owner:** alexandremendoncaalvaro
 **Execution:** HITL
-**Spec ref:**
+**Spec ref:** [spec 0005](../specs/0005-non-destructive-character-binding.md)
 **Board ref:**
 
 ## Context
@@ -60,7 +60,7 @@ Verifiable conditions. Each as a checkbox so progress is point-editable.
 Concrete sequential steps. Each as a checkbox. Reference file paths where
 applicable.
 
-- [ ] Ground (`ad-ground` / `ad-grill`): how comparable tools bind mocap to
+- [x] Ground (`ad-ground` / `ad-grill`): how comparable tools bind mocap to
       arbitrary characters non-destructively (Rokoko retargeter, Auto-Rig
       Pro remap, Blender constraint-based retargeting addons), and what the
       existing `character_setup.py` machinery (SMPL-X armature creation,
@@ -84,6 +84,28 @@ makes this direction "very important". Relationship recorded on both sides:
 structural fix that would make that failure class impossible. The 0033
 diagnosis decides how much repair the destructive path deserves in the
 meantime.
+
+### 2026-07-17 — ground closed; spec and ADR drafted
+
+Ground closed (four sources: official Blender docs, line-level reading of
+the Rokoko / Expy Kit / Keemap repos plus Auto-Rig Pro documentation,
+in-repo pose-application seams, git history of the conversion path). The
+synthesis and the shape selection live in
+[ADR-0014](../adr/0014-bind-via-compensated-pose-writes.md); the feature
+contract is [spec 0005](../specs/0005-non-destructive-character-binding.md)
+(draft).
+
+Note on the title: the selected design creates no intermediary armature
+object — the binding is a computed map driving the user's own bones, per
+ADR-0014's Decision; Dean's literal ghost-armature shape is recorded there
+as the rejected alternative (kept possible as a later UX layer). The
+outcome he asked for (non-destructive, failure costs nothing) is the
+spec's contract.
+
+Maintainer decisions pending (HITL): accept spec 0005 and ADR-0014, and
+the fate of the destructive conversion path (recommendation: keep as
+shipped fallback while the binding field-proves for one release, then
+retire; open question in spec 0005, to be recorded in its own ADR).
 
 ## Definition of Done
 
