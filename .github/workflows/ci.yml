@@ -78,12 +78,18 @@ jobs:
           foreach ($attempt in 1..3) {
             choco install ffmpeg --no-progress --yes
             if ($LASTEXITCODE -eq 0) { $installed = $true; break }
-            Write-Warning "choco install ffmpeg failed (attempt $attempt of 3); retrying in 20s"
-            Start-Sleep -Seconds 20
+            if ($attempt -lt 3) {
+              Write-Warning "choco install ffmpeg failed (attempt $attempt of 3); retrying in 20s"
+              Start-Sleep -Seconds 20
+            }
           }
           if (-not $installed) {
             Write-Warning "Chocolatey feed unavailable; falling back to winget"
-            winget install --id Gyan.FFmpeg --exact --silent --accept-source-agreements --accept-package-agreements --disable-interactivity
+            foreach ($attempt in 1..2) {
+              winget install --id Gyan.FFmpeg --exact --silent --accept-source-agreements --accept-package-agreements --disable-interactivity
+              if ($LASTEXITCODE -eq 0) { break }
+              if ($attempt -lt 2) { Start-Sleep -Seconds 20 }
+            }
             $ffprobe = Get-ChildItem -Path "$env:LOCALAPPDATA\Microsoft\WinGet\Packages" -Recurse -Filter ffprobe.exe -ErrorAction SilentlyContinue | Select-Object -First 1
             if ($ffprobe) { Add-Content -Path $env:GITHUB_PATH -Value $ffprobe.DirectoryName; $env:Path = "$($ffprobe.DirectoryName);$env:Path" }
           }
