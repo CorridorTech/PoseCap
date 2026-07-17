@@ -148,6 +148,15 @@ Still open, so the task stays in-progress: the clean-machine acceptance run
 against the published URLs — the `v1.0.6-win.3` validation ran on the
 development workstation, not on a machine without development tooling.
 
+### 2026-07-17 — precision note on the inventory-test evidence
+
+Clarifying the previous entry after review: the cited installer tests assert
+marker-file presence and inventory record contents for each scenario; they
+do not perform a literal disk-scan-versus-inventory equality comparison. The
+criterion remains checked on that assertion granularity — inventory
+reflecting the observed install state across selection, repair, and
+interruption — without claiming a stronger test shape than exists.
+
 ## Definition of Done
 
 All Acceptance Criteria checked, plus:
