@@ -67,6 +67,88 @@ Name: "{userprograms}\PoseCap\PoseCap Doctor (PEAR)"; Filename: "powershell.exe"
 Name: "{userprograms}\PoseCap\PoseCap Doctor (MediaPipe)"; Filename: "powershell.exe"; Parameters: "-ExecutionPolicy Bypass -NoExit -Command ""& '{app}\backends\mediapipe\runtime\Scripts\posecap-mediapipe.exe' doctor --model-path '{app}\backends\mediapipe\models\holistic_landmarker.task'"""; WorkingDir: "{app}"; Components: mediapipe
 
 [Code]
+var
+  BlenderPage: TInputFileWizardPage;
+  BlenderProbeDone: Boolean;
+  BlenderFound: Boolean;
+  ProbeFilesExtracted: Boolean;
+
+function RunBlenderProbe(const Arguments: String): Integer;
+var
+  ResultCode: Integer;
+begin
+  if not ProbeFilesExtracted then
+  begin
+    ExtractTemporaryFile('probe_blender.ps1');
+    ExtractTemporaryFile('blender_discovery.ps1');
+    ExtractTemporaryFile('native_command.ps1');
+    ProbeFilesExtracted := True;
+  end;
+  if Exec(
+    ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
+    ExpandConstant('-NoProfile -ExecutionPolicy Bypass -File "{tmp}\probe_blender.ps1" ' + Arguments),
+    ExpandConstant('{tmp}'),
+    SW_HIDE,
+    ewWaitUntilTerminated,
+    ResultCode
+  ) then
+    Result := ResultCode
+  else
+    Result := -1;
+end;
+
+procedure InitializeWizard;
+begin
+  BlenderProbeDone := False;
+  BlenderFound := False;
+  ProbeFilesExtracted := False;
+  BlenderPage := CreateInputFilePage(
+    wpSelectComponents,
+    'Locate Blender',
+    'PoseCap could not find Blender 4.2 or newer on this computer.',
+    'Select the blender.exe of your Blender 4.2 (or newer) installation, then click Next.'
+    + #13#10#13#10
+    + 'If Blender is not installed yet, cancel setup, install Blender 4.2 or newer, and run PoseCap Setup again.'
+  );
+  BlenderPage.Add('Path to blender.exe:', 'Blender|blender.exe|Programs|*.exe', '.exe');
+end;
+
+function ShouldSkipPage(PageID: Integer): Boolean;
+begin
+  Result := False;
+  if PageID <> BlenderPage.ID then
+    Exit;
+  if not BlenderProbeDone then
+  begin
+    WizardForm.StatusLabel.Caption := 'Looking for Blender...';
+    { -InstallDir lets the probe honor a still-valid override recorded by a
+      previous install, so a returning user is not asked to browse again. }
+    BlenderFound := RunBlenderProbe(ExpandConstant('-InstallDir "{app}"')) = 0;
+    BlenderProbeDone := True;
+  end;
+  Result := BlenderFound;
+end;
+
+function NextButtonClick(CurPageID: Integer): Boolean;
+begin
+  Result := True;
+  if CurPageID <> BlenderPage.ID then
+    Exit;
+  if RunBlenderProbe('-CandidatePath "' + BlenderPage.Values[0] + '"') <> 0 then
+  begin
+    MsgBox(
+      'The selected file is not Blender 4.2 or newer.'
+      + #13#10#13#10
+      + 'Pick the blender.exe inside an installed Blender 4.2+ folder, for example:'
+      + #13#10
+      + 'C:\Program Files\Blender Foundation\Blender 4.2\blender.exe',
+      mbError,
+      MB_OK
+    );
+    Result := False;
+  end;
+end;
+
 procedure CurStepChanged(CurStep: TSetupStep);
 var
   ResultCode: Integer;
@@ -74,6 +156,13 @@ var
 begin
   if CurStep <> ssPostInstall then
     Exit;
+
+  { UTF-8 with BOM so PowerShell reads non-ASCII paths (accented user names)
+    exactly as the wizard captured them. }
+  if BlenderProbeDone and (not BlenderFound) and (BlenderPage.Values[0] <> '') then
+    SaveStringsToUTF8File(
+      ExpandConstant('{app}\blender_override.txt'), [BlenderPage.Values[0]], False
+    );
 
   SelectedComponents := 'base';
   if WizardIsComponentSelected('mediapipe') then
@@ -142,6 +231,7 @@ begin
 end;
 
 [UninstallDelete]
+Type: files; Name: "{app}\blender_override.txt"
 Type: files; Name: "{app}\installed_components.json"
 Type: filesandordirs; Name: "{app}\python"
 Type: filesandordirs; Name: "{app}\runtime"

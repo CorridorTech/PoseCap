@@ -704,6 +704,7 @@ def test_build_stages_every_modular_handler() -> None:
         "blender_discovery.ps1",
         "component_lifecycle.ps1",
         "native_command.ps1",
+        "probe_blender.ps1",
         "install_base.ps1",
         "install_mediapipe.ps1",
         "install_pear.ps1",
@@ -778,6 +779,160 @@ def test_base_handler_still_fails_on_nonzero_blender_exit_code(tmp_path: Path) -
     assert not (blender_dir / "posecap-installed.txt").exists()
 
 
+def _run_probe(
+    tmp_path: Path,
+    program_files_x86: Path,
+    probe_arguments: str = "",
+) -> subprocess.CompletedProcess[str]:
+    def quote(path: Path) -> str:
+        return str(path).replace("'", "''")
+
+    isolated_program_files = tmp_path / "Program Files"
+    command = (
+        "function Get-ItemProperty {\n"
+        "    [CmdletBinding()] param([string]$Path)\n"
+        "    return $null\n"
+        "}\n"
+        f"$env:ProgramFiles = '{quote(isolated_program_files)}'\n"
+        f"${{env:ProgramFiles(x86)}} = '{quote(program_files_x86)}'\n"
+        "$env:PATH = 'C:\\Windows\\System32;"
+        "C:\\Windows\\System32\\WindowsPowerShell\\v1.0'\n"
+        f"& '{quote(_INSTALLER / 'probe_blender.ps1')}' {probe_arguments}\n"
+        "exit $LASTEXITCODE"
+    )
+    return subprocess.run(
+        [
+            str(_powershell_path()),
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-Command",
+            command,
+        ],
+        capture_output=True,
+        check=False,
+        text=True,
+    )
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows installer contract")
+def test_base_handler_honors_manual_blender_override(tmp_path: Path) -> None:
+    install_dir = tmp_path / "PoseCap"
+    extension_dir = install_dir / "extension"
+    extension_dir.mkdir(parents=True)
+    with zipfile.ZipFile(extension_dir / "posecap.zip", "w") as extension_zip:
+        extension_zip.writestr("blender_manifest.toml", 'id = "posecap"')
+
+    custom_blender_dir = tmp_path / "MyPortableBlender"
+    _compile_blender_stub(custom_blender_dir / "blender.exe")
+    (install_dir / "blender_override.txt").write_text(
+        str(custom_blender_dir / "blender.exe"), encoding="utf-8"
+    )
+    program_files_x86 = tmp_path / "Program Files (x86)"
+
+    result = _run_base_handler(install_dir, program_files_x86)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert (custom_blender_dir / "posecap-installed.txt").is_file()
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows installer contract")
+def test_compatible_override_outranks_a_discovered_blender(tmp_path: Path) -> None:
+    install_dir = tmp_path / "PoseCap"
+    extension_dir = install_dir / "extension"
+    extension_dir.mkdir(parents=True)
+    with zipfile.ZipFile(extension_dir / "posecap.zip", "w") as extension_zip:
+        extension_zip.writestr("blender_manifest.toml", 'id = "posecap"')
+
+    custom_blender_dir = tmp_path / "MyPortableBlender"
+    _compile_blender_stub(custom_blender_dir / "blender.exe")
+    (install_dir / "blender_override.txt").write_text(
+        str(custom_blender_dir / "blender.exe"), encoding="utf-8"
+    )
+    program_files_x86 = tmp_path / "Program Files (x86)"
+    steam_blender_dir = program_files_x86 / "Steam/steamapps/common/Blender"
+    _compile_blender_stub(steam_blender_dir / "blender.exe")
+
+    result = _run_base_handler(install_dir, program_files_x86)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert (custom_blender_dir / "posecap-installed.txt").is_file()
+    assert not (steam_blender_dir / "posecap-installed.txt").exists()
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows installer contract")
+def test_empty_override_file_degrades_to_automatic_discovery(tmp_path: Path) -> None:
+    install_dir = tmp_path / "PoseCap"
+    extension_dir = install_dir / "extension"
+    extension_dir.mkdir(parents=True)
+    with zipfile.ZipFile(extension_dir / "posecap.zip", "w") as extension_zip:
+        extension_zip.writestr("blender_manifest.toml", 'id = "posecap"')
+
+    (install_dir / "blender_override.txt").write_bytes(b"")
+    program_files_x86 = tmp_path / "Program Files (x86)"
+    steam_blender_dir = program_files_x86 / "Steam/steamapps/common/Blender"
+    _compile_blender_stub(steam_blender_dir / "blender.exe")
+
+    result = _run_base_handler(install_dir, program_files_x86)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert (steam_blender_dir / "posecap-installed.txt").is_file()
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows installer contract")
+def test_stale_blender_override_falls_back_to_automatic_discovery(tmp_path: Path) -> None:
+    install_dir = tmp_path / "PoseCap"
+    extension_dir = install_dir / "extension"
+    extension_dir.mkdir(parents=True)
+    with zipfile.ZipFile(extension_dir / "posecap.zip", "w") as extension_zip:
+        extension_zip.writestr("blender_manifest.toml", 'id = "posecap"')
+
+    (install_dir / "blender_override.txt").write_text(
+        str(tmp_path / "Removed" / "blender.exe"), encoding="utf-8"
+    )
+    program_files_x86 = tmp_path / "Program Files (x86)"
+    steam_blender_dir = program_files_x86 / "Steam/steamapps/common/Blender"
+    _compile_blender_stub(steam_blender_dir / "blender.exe")
+
+    result = _run_base_handler(install_dir, program_files_x86)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert (steam_blender_dir / "posecap-installed.txt").is_file()
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows installer contract")
+def test_probe_distinguishes_discovered_manual_and_absent_blender(tmp_path: Path) -> None:
+    program_files_x86 = tmp_path / "Program Files (x86)"
+    assert _run_probe(tmp_path, program_files_x86).returncode == 1
+
+    blender_dir = program_files_x86 / "Steam/steamapps/common/Blender"
+    _compile_blender_stub(blender_dir / "blender.exe")
+    assert _run_probe(tmp_path, program_files_x86).returncode == 0
+
+    candidate = str(blender_dir / "blender.exe").replace("'", "''")
+    manual = _run_probe(
+        tmp_path, program_files_x86, probe_arguments=f"-CandidatePath '{candidate}'"
+    )
+    assert manual.returncode == 0
+    bogus = str(tmp_path / "nope.exe").replace("'", "''")
+    assert (
+        _run_probe(
+            tmp_path, program_files_x86, probe_arguments=f"-CandidatePath '{bogus}'"
+        ).returncode
+        == 1
+    )
+
+
+def test_inno_offers_manual_blender_path_when_discovery_fails() -> None:
+    template = _read("posecap.iss.template")
+
+    assert "CreateInputFilePage" in template
+    assert "probe_blender.ps1" in template
+    assert "ShouldSkipPage" in template
+    assert "blender_override.txt" in template
+    assert 'Type: files; Name: "{app}\\blender_override.txt"' in template
+
+
 def test_pear_registration_precedes_the_doctor_gate() -> None:
     pear = _read("install_pear.ps1")
 
@@ -849,7 +1004,10 @@ def test_inno_uninstaller_removes_blender_extension_before_app_files() -> None:
     assert "ewWaitUntilTerminated" in template
     assert 'Type: files; Name: "{app}\\installed_components.json"' in template
     uninstall_base = _read("uninstall_base.ps1")
-    assert "$blenders = @(Find-CompatibleBlenders)" in uninstall_base
+    assert (
+        "$blenders = @(Find-CompatibleBlenders -InstallDir (Split-Path -Parent $PSScriptRoot))"
+        in uninstall_base
+    )
     assert "foreach ($blender in $blenders)" in uninstall_base
 
 

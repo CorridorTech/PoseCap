@@ -28,7 +28,7 @@ Invoke-BaseStep -Label "Install and verify the Blender extension" `
             throw "the PoseCap Blender extension package is missing"
         }
 
-        $blender = @(Find-CompatibleBlenders) | Select-Object -First 1
+        $blender = @(Find-CompatibleBlenders -InstallDir $InstallDir) | Select-Object -First 1
         if ($null -eq $blender) { throw "Blender 4.2 or newer was not found" }
 
         $extensionListArguments = @("--command", "extension", "list")

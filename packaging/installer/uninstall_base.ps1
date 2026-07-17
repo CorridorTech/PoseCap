@@ -10,7 +10,7 @@ Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot "blender_discovery.ps1")
 
 try {
-    $blenders = @(Find-CompatibleBlenders)
+    $blenders = @(Find-CompatibleBlenders -InstallDir (Split-Path -Parent $PSScriptRoot))
     if ($blenders.Count -eq 0) {
         Write-Warning "Blender 4.2 or newer was not found; extension cleanup was skipped."
         exit 0

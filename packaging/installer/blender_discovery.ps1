@@ -52,7 +52,39 @@ function Get-SteamLibraryRoots {
         Select-Object -Unique
 }
 
+function Get-BlenderVersion {
+    # Not Mandatory: the parameter binder would reject an empty string with a
+    # terminating error before the body runs; an empty path must instead
+    # return $null like every other non-Blender input.
+    param([string]$Path = "")
+    if ([string]::IsNullOrWhiteSpace($Path)) { return $null }
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return $null }
+    try {
+        $outputLines = @(Invoke-NativeCommand -FilePath $Path -ArgumentList @('--version'))
+        $versionLine = @($outputLines) -match '^Blender\s' | Select-Object -First 1
+        if ($null -eq $versionLine) { return $null }
+        if ($versionLine -notmatch '^Blender\s+(\d+\.\d+(?:\.\d+)?)') { return $null }
+        return [version]$Matches[1]
+    }
+    catch { return $null }
+}
+
+function Get-BlenderOverridePath {
+    # The manual path the user picked in the setup wizard (task 0030). It is
+    # candidate input only: it passes the same version gate as every
+    # discovered Blender, and a stale or invalid override simply falls
+    # through to automatic discovery.
+    param([string]$InstallDir = "")
+    if ([string]::IsNullOrWhiteSpace($InstallDir)) { return $null }
+    $overrideFile = Join-Path $InstallDir "blender_override.txt"
+    if (-not (Test-Path -LiteralPath $overrideFile -PathType Leaf)) { return $null }
+    $fileContents = Get-Content -LiteralPath $overrideFile -Raw
+    if ([string]::IsNullOrWhiteSpace($fileContents)) { return $null }
+    return $fileContents.Trim()
+}
+
 function Find-CompatibleBlenders {
+    param([string]$InstallDir = "")
     $candidates = @()
     $onPath = Get-Command blender -ErrorAction SilentlyContinue
     if ($null -ne $onPath) { $candidates += $onPath.Source }
@@ -73,17 +105,21 @@ function Find-CompatibleBlenders {
     }
 
     $compatible = foreach ($candidate in ($candidates | Select-Object -Unique)) {
-        try {
-            $outputLines = @(Invoke-NativeCommand -FilePath $candidate -ArgumentList @('--version'))
-            $versionLine = @($outputLines) -match '^Blender\s' | Select-Object -First 1
-            if ($null -eq $versionLine) { continue }
-            if ($versionLine -notmatch '^Blender\s+(\d+\.\d+(?:\.\d+)?)') { continue }
-            $version = [version]$Matches[1]
-            if ($version -lt [version]'4.2') { continue }
-            [pscustomobject]@{ Path = [string]$candidate; Version = $version }
-        }
-        catch { continue }
+        $version = Get-BlenderVersion -Path $candidate
+        if ($null -eq $version -or $version -lt [version]'4.2') { continue }
+        [pscustomobject]@{ Path = [string]$candidate; Version = $version }
     }
+    $discovered = @($compatible | Sort-Object Version -Descending |
+        Select-Object -ExpandProperty Path)
 
-    return $compatible | Sort-Object Version -Descending | Select-Object -ExpandProperty Path
+    # A compatible user-chosen override outranks discovered installs; the
+    # user picked it deliberately.
+    $overridePath = Get-BlenderOverridePath -InstallDir $InstallDir
+    if ($null -ne $overridePath) {
+        $overrideVersion = Get-BlenderVersion -Path $overridePath
+        if ($null -ne $overrideVersion -and $overrideVersion -ge [version]'4.2') {
+            return @($overridePath) + @($discovered | Where-Object { $_ -ne $overridePath })
+        }
+    }
+    return $discovered
 }
