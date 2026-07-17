@@ -2,8 +2,8 @@
 
 [CmdletBinding()]
 param(
-    [ValidateSet("12.4")]
-    [string]$Cuda = "12.4",
+    [ValidateSet("12.8")]
+    [string]$Cuda = "12.8",
 
     [string]$PearRoot = "C:\Dev\PoseCap-PEAR",
 
@@ -91,7 +91,7 @@ function Assert-Directory {
 }
 
 $TorchIndexes = @{
-    "12.4" = "https://download.pytorch.org/whl/cu124"
+    "12.8" = "https://download.pytorch.org/whl/cu128"
 }
 
 $VenvFullPath = Resolve-TargetPath $VenvPath
@@ -162,8 +162,8 @@ try {
         -Command @(
             "uv", "pip", "install", "--python", $PythonExe,
             "--index-url", $TorchIndexes[$Cuda],
-            "torch==2.4.1",
-            "torchvision==0.19.1"
+            "torch==2.9.1",
+            "torchvision==0.24.1"
         )
 
     # PEAR's requirements file pins an older Torch stack, so task 0007 owns this curated set.

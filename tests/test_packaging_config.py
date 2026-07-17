@@ -18,8 +18,26 @@ def _read(name: str) -> str:
 
 def test_torch_lock_pins_validated_cuda_matrix() -> None:
     lock = _read("requirements-torch.lock")
-    assert "torch==2.4.1+cu124" in lock
-    assert "torchvision==0.19.1+cu124" in lock
+    assert "torch==2.9.1+cu128" in lock
+    assert "torchvision==0.24.1+cu128" in lock
+
+
+def test_installer_manifest_torch_index_matches_the_lock_cuda_tag() -> None:
+    # install_pear.ps1 resolves requirements-torch.lock against the manifest's
+    # torchIndexUrl; a mismatched CUDA tag makes every clean install fail.
+    build = _read("build_installer.ps1")
+    assert "torchIndexUrl = 'https://download.pytorch.org/whl/cu128'" in build
+
+
+def test_runtime_setup_pins_the_same_torch_matrix_as_the_lock() -> None:
+    # The release runner builds PyTorch3D against the runtime this script
+    # creates; a drifted pin here ships a payload the runner never validated.
+    setup = (Path(__file__).parents[1] / "tools" / "install" / "setup_pear_runtime.ps1").read_text(
+        encoding="utf-8"
+    )
+    assert '"torch==2.9.1"' in setup
+    assert '"torchvision==0.24.1"' in setup
+    assert "https://download.pytorch.org/whl/cu128" in setup
 
 
 def test_pypi_lock_pins_every_line_exactly() -> None:
