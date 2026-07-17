@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
 from posecap_addon.support import (
     MAX_LOG_BYTES,
     MAX_LOG_FILES,
@@ -184,6 +185,74 @@ def test_support_bundle_survives_a_log_vanishing_mid_collection(
         assert "logs/bravo.log" not in names
         report = archive.read("diagnostics.txt").decode("utf-8")
         assert "Log files omitted from this bundle: 1" in report
+
+
+def test_same_second_bundle_requests_receive_distinct_names(tmp_path: Path) -> None:
+    logs = tmp_path / "logs"
+    logs.mkdir()
+    moment = datetime(2026, 7, 13, 12, 30, tzinfo=UTC)
+
+    first = create_support_bundle(
+        destination_directory=tmp_path / "Downloads",
+        logs_directory=logs,
+        diagnostics="first request\n",
+        timestamp=moment,
+    )
+    second = create_support_bundle(
+        destination_directory=tmp_path / "Downloads",
+        logs_directory=logs,
+        diagnostics="second request\n",
+        timestamp=moment,
+    )
+
+    assert first.name == "PoseCap-Support-20260713-123000.zip"
+    assert second.name == "PoseCap-Support-20260713-123000-1.zip"
+    assert first.is_file()
+    assert second.is_file()
+
+
+def test_an_existing_bundle_is_never_overwritten(tmp_path: Path) -> None:
+    logs = tmp_path / "logs"
+    logs.mkdir()
+    downloads = tmp_path / "Downloads"
+    downloads.mkdir()
+    existing = downloads / "PoseCap-Support-20260713-123000.zip"
+    existing.write_bytes(b"earlier capture evidence")
+
+    bundle = create_support_bundle(
+        destination_directory=downloads,
+        logs_directory=logs,
+        diagnostics="new request\n",
+        timestamp=datetime(2026, 7, 13, 12, 30, tzinfo=UTC),
+    )
+
+    assert bundle != existing
+    assert existing.read_bytes() == b"earlier capture evidence"
+    with zipfile.ZipFile(bundle) as archive:
+        assert archive.read("diagnostics.txt") == b"new request\n"
+
+
+def test_a_failed_bundle_attempt_leaves_no_broken_bundle_behind(
+    tmp_path: Path, monkeypatch
+) -> None:
+    logs = tmp_path / "logs"
+    logs.mkdir()
+    downloads = tmp_path / "Downloads"
+
+    def failing_writestr(archive: zipfile.ZipFile, arcname: str, data: str) -> None:
+        raise OSError("disk full")
+
+    monkeypatch.setattr(zipfile.ZipFile, "writestr", failing_writestr)
+
+    with pytest.raises(OSError):
+        create_support_bundle(
+            destination_directory=downloads,
+            logs_directory=logs,
+            diagnostics="doomed request\n",
+            timestamp=datetime(2026, 7, 13, 12, 30, tzinfo=UTC),
+        )
+
+    assert list(downloads.glob("*.zip")) == []
 
 
 def test_diagnostics_report_readiness_without_secrets(tmp_path: Path) -> None:

@@ -136,14 +136,35 @@ def create_support_bundle(
     diagnostics: str,
     timestamp: datetime | None = None,
 ) -> Path:
-    """Create a local zip containing diagnostics and bounded PoseCap logs."""
+    """Create a local zip with diagnostics and bounded logs, never overwriting one."""
     created_at = timestamp or datetime.now(UTC)
     destination_directory.mkdir(parents=True, exist_ok=True)
-    output = destination_directory / f"PoseCap-Support-{created_at:%Y%m%d-%H%M%S}.zip"
-    with zipfile.ZipFile(output, "w", compression=zipfile.ZIP_DEFLATED) as archive:
-        omitted_files = _archive_logs(archive, logs_directory)
-        archive.writestr("diagnostics.txt", diagnostics + _omission_note(omitted_files))
-    return output
+    base_name = f"PoseCap-Support-{created_at:%Y%m%d-%H%M%S}"
+    attempt = 0
+    while True:
+        output = _candidate_bundle_path(destination_directory, base_name, attempt)
+        attempt += 1
+        try:
+            # Exclusive create makes the no-overwrite guarantee atomic; a name
+            # collision is an expected retry condition here, not a failure.
+            archive = zipfile.ZipFile(output, "x", compression=zipfile.ZIP_DEFLATED)
+        except FileExistsError:
+            continue
+        try:
+            with archive:
+                omitted_files = _archive_logs(archive, logs_directory)
+                archive.writestr("diagnostics.txt", diagnostics + _omission_note(omitted_files))
+        except Exception:
+            output.unlink(missing_ok=True)
+            raise
+        return output
+
+
+def _candidate_bundle_path(directory: Path, base_name: str, attempt: int) -> Path:
+    """Suffix same-second retries so every capture attempt keeps its own file."""
+    if attempt == 0:
+        return directory / f"{base_name}.zip"
+    return directory / f"{base_name}-{attempt}.zip"
 
 
 def _omission_note(omitted_files: int) -> str:
