@@ -176,6 +176,53 @@ records the cu124 matrix as accepted and needs a superseding amendment once
 the 2.9.1 qualification build passes; `doc/benchmarks.md` entries stay as the
 dated cu124 ledger and a fresh baseline row lands with the new matrix.
 
+### 2026-07-17 — review fix package applied (four fresh-context reviews)
+
+Consolidated findings from the two-axis reviews of the pin-bump branch,
+applied on `fix/0032-blackwell-torch-matrix`:
+
+- The binding-doc contradiction (accepted ADR-0007 still recording cu124
+  while the pins ship cu128) is resolved the decision-record way:
+  `doc/adr/0016-blackwell-cu128-runtime-matrix.md` drafted as proposed —
+  acceptance gated on the qualification build and the two-generation
+  validation — and ADR-0007 carries a factual pointer note to it. ADR-0007
+  is not marked superseded until qualification passes.
+- `tools/install/setup_pear_runtime.ps1` keeps the ADR-0007 matrix
+  reproducible: wheel-matrix option `12.4` restored (cu124 index +
+  2.4.1/0.19.1 pins in per-matrix maps) for rollback and triage; `12.8` is
+  the default.
+- `packaging/installer/install_pear.ps1` progress label no longer hardcodes
+  a CUDA version ("Install PyTorch CUDA wheels"); a drift test now rejects
+  any CUDA-version literal in that script.
+- `tests/test_packaging_config.py` cross-file guards now derive the expected
+  versions and CUDA tag from `requirements-torch.lock` instead of repeating
+  literals, so a coordinated wrong bump cannot satisfy them; a new guard
+  pins the setup script's toolkit default (`CUDA\v12.8`) to the wheel tag —
+  the exact mismatch axis ADR-0007 had to surface as a warning. The module
+  docstring now reflects the ADR-0016-proposed status.
+- Fallback visibility: both pin sites (`requirements-torch.lock`,
+  `setup_pear_runtime.ps1`) carry a comment naming the recorded fallback
+  `torch==2.7.1+cu128` and pointing here and to ADR-0016.
+
+Evidence added per review request:
+
+- torchvision pairing: the pytorch/vision README compatibility matrix rows
+  read `2.9 -> 0.24` and `2.7 -> 0.22`, so torch 2.9.1 pairs with
+  torchvision 0.24.1 (patch-aligned) and the 2.7.1 fallback pairs with
+  0.22.1.
+- Wheel presence: the cu128 index (download.pytorch.org/whl/cu128) lists
+  `torch-2.9.1+cu128-cp311-cp311-win_amd64.whl`,
+  `torchvision-0.24.1+cu128-cp311-cp311-win_amd64.whl`, and the fallback
+  `torch-2.7.1+cu128-cp311-cp311-win_amd64.whl` — verified by fetching the
+  index listings during this session.
+- Ultralytics safe-load: NOT independently verified against the package
+  registry in this session. Ultralytics installs unpinned at setup time and
+  its recent releases are understood to wrap checkpoint loads in their own
+  safe-load handling for torch >= 2.6, but the claim rests on general
+  knowledge, not a checked source; the qualification Doctor run plus the
+  real source-to-TCP inference is the gate that actually proves YOLO
+  weights load under torch 2.9.1.
+
 ## Definition of Done
 
 All Acceptance Criteria checked, plus:
