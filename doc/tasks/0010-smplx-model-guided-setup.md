@@ -265,6 +265,22 @@ TDD coverage pins 401/403 separation, exact refused-file visibility, safe
 recovery guidance, persistent panel action, and credential-free logging. The
 existing no-redownload and manual-archive tests continue to prove resumability.
 
+### 2026-07-17 — registry hygiene verification
+
+Verified against the current code and task registry: the implementation
+criteria remain satisfied and shipped
+(`addon/posecap_addon/model_setup.py`, `model_setup_panel.py`, the shared
+manifest in `contracts/src/posecap_contracts/model_assets.py`, and the
+illustrated guide at `doc/guides/smplx-model-setup.md`). Task 0012 (done)
+built the dedicated first-run onboarding over this task's download pipeline
+and explicitly deferred the credentialed end-to-end run to the clean-machine
+release gate. The single open acceptance criterion is unchanged: the HITL
+clean-machine re-test by someone outside the team completing the model step
+without questions. The credential path also remains field-constrained by the
+official endpoint's HTTP 403 refusals (2026-07-13 note), which makes the
+Downloads-watcher fallback the practical route for that re-test. Status
+stays in-progress.
+
 ## Definition of Done
 
 All Acceptance Criteria checked, plus:
