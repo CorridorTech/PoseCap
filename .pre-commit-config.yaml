@@ -1,4 +1,4 @@
-default_install_hook_types: [pre-commit, pre-push]
+default_install_hook_types: [pre-commit, pre-push, commit-msg]
 
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
@@ -70,3 +70,8 @@ repos:
         language: system
         pass_filenames: false
         stages: [pre-push]
+      - id: commit-subject
+        name: commit subject is a valid PR title
+        entry: uv run python tools/check_commit_subject.py
+        language: system
+        stages: [commit-msg]
