@@ -1,6 +1,6 @@
 # Task 0008: Advanced options — CK2P-style progressive disclosure
 
-**Status:** done
+**Status:** in-progress
 **Created:** 2026-07-10
 **Owner:** alexandremendoncaalvaro
 **Execution:** agent + HITL (UI review)
@@ -63,7 +63,7 @@ probe tolerance).
       add if missing).
 - [x] TDD per behavior (panel draw, prop registration, Start Stream command
       assembly) following tests/addon/test_ui_state.py patterns.
-- [x] HITL pass: screenshot of collapsed vs expanded panel for Ale.
+- [ ] HITL pass: screenshot of collapsed vs expanded panel for Ale.
 
 ## Notes
 
@@ -185,6 +185,16 @@ GUI release qualification with a retained screen recording (task 0026 Notes,
 Blender. Regression follow-ups on the converter continue in tasks 0033/0034;
 they do not reopen this task's scope. Status flipped to done.
 
+### 2026-07-17 — closure reverted (review correction)
+
+The fresh-context review found that the previous entry misattributed its
+evidence: task 0012's screenshots capture the Getting Started checklist and
+the Set Up Body Models wizard dialog, not the live-stream panel's Advanced
+section, and the task 0026 qualification recording does not show the
+Advanced section either. The screenshot plan item therefore remains open — a
+collapsed-versus-expanded Advanced-section screenshot for the maintainer is
+still to be produced. Status returned to in-progress.
+
 ## Definition of Done
 
 All Acceptance Criteria checked, plus:
@@ -192,4 +202,4 @@ All Acceptance Criteria checked, plus:
 - [x] Local tests pass (or N/A documented in Notes)
 - [x] Code review completed (human or fresh-context reviewer per WORKFLOW §10)
 - [x] No orphan `TODO`/`FIXME` introduced
-- [x] Status updated to `done` and Notes log closes the task
+- [ ] Status updated to `done` and Notes log closes the task
