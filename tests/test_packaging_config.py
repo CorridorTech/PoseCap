@@ -24,7 +24,9 @@ def test_every_version_site_matches_the_workspace_root() -> None:
     """
     root = tomllib.loads((_REPO / "pyproject.toml").read_text(encoding="utf-8"))
     version = root["project"]["version"]
-    for member in ("core", "contracts", "engine"):
+    members = root["tool"]["uv"]["workspace"]["members"]
+    assert members, "workspace member list must not be empty"
+    for member in members:
         member_toml = tomllib.loads((_REPO / member / "pyproject.toml").read_text(encoding="utf-8"))
         assert member_toml["project"]["version"] == version, member
     manifest = tomllib.loads(
@@ -151,6 +153,18 @@ def test_iss_template_tokens_match_renderer() -> None:
     assert tokens == rendered_tokens, (
         f"token drift: template={sorted(tokens)} renderer={sorted(rendered_tokens)}"
     )
+
+
+def test_installer_preselects_pear_when_an_nvidia_driver_is_present() -> None:
+    # Maintainer decision (2026-07-17): PEAR must not hide behind an unchecked
+    # box for users who can run it. The wizard detects an installed NVIDIA
+    # driver (nvapi64.dll in System32) and adds PEAR to the initial selection;
+    # machines without the driver keep the MediaPipe-only recommendation and
+    # the user can always change the boxes either way.
+    template = _read("installer/posecap.iss.template")
+    assert "function NvidiaDriverPresent: Boolean;" in template
+    assert "nvapi64.dll" in template
+    assert "WizardSelectComponents(WizardSelectedComponents(False) + ',pear')" in template
 
 
 def test_installer_uses_one_fixed_per_user_location() -> None:

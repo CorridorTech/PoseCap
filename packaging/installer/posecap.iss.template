@@ -2,7 +2,8 @@
 ;
 ; The setup exe contains Base only. Each selected Pose Backend downloads its own
 ; immutable bootstrap under an isolated backend directory. MediaPipe Lite is the
-; account-free CPU recommendation; PEAR remains an optional NVIDIA CUDA backend.
+; account-free CPU recommendation; PEAR is preselected too when an NVIDIA
+; driver is present on the machine (the user can uncheck either backend).
 ;
 ; SMPL-X body models are licensed (MPI/Meshcapade) and are neither bundled nor
 ; downloaded -- ADR-0006.
@@ -97,11 +98,21 @@ begin
     Result := -1;
 end;
 
+function NvidiaDriverPresent: Boolean;
+begin
+  { nvapi64.dll ships with every NVIDIA display driver; its presence is the
+    compatibility signal for defaulting the CUDA backend on. Machines without
+    it keep the CPU-only recommendation - the user can change the boxes. }
+  Result := FileExists(ExpandConstant('{sys}\nvapi64.dll'));
+end;
+
 procedure InitializeWizard;
 begin
   BlenderProbeDone := False;
   BlenderFound := False;
   ProbeFilesExtracted := False;
+  if NvidiaDriverPresent then
+    WizardSelectComponents(WizardSelectedComponents(False) + ',pear');
   BlenderPage := CreateInputFilePage(
     wpSelectComponents,
     'Locate Blender',
