@@ -69,6 +69,7 @@ jobs:
         # broke main): retry, fall back to winget, and fail THIS step loudly
         # if ffprobe still is not runnable — never let the gap surface later
         # as a confusing test assertion.
+        shell: pwsh
         run: |
           if (Get-Command ffprobe -ErrorAction SilentlyContinue) {
             ffprobe -version | Select-Object -First 1
