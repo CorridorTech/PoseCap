@@ -28,7 +28,7 @@ bump is a re-pin plus requalification, not new infrastructure.
 
 Verifiable conditions. Each as a checkbox so progress is point-editable.
 
-- [ ] A grounded matrix decision is recorded: target stable Torch line with
+- [x] A grounded matrix decision is recorded: target stable Torch line with
       `sm_120` kernels (candidate: the newest stable verified against
       PyTorch3D), cu12x index URL, and the PyTorch3D version/build that
       compiles against it — with the single-matrix-for-all-GPUs versus
@@ -49,7 +49,7 @@ Verifiable conditions. Each as a checkbox so progress is point-editable.
 Concrete sequential steps. Each as a checkbox. Reference file paths where
 applicable.
 
-- [ ] Ground (`ad-ground`) the exact pins: newest stable Torch with `sm_120`
+- [x] Ground (`ad-ground`) the exact pins: newest stable Torch with `sm_120`
       wheels compatible with PyTorch3D source builds (start at Torch 2.7.0 /
       cu128, check newer stable lines), plus torchvision and the PyTorch3D
       revision; verify cu128 wheels retain pre-Blackwell architectures so one
@@ -98,6 +98,83 @@ floor rises to R570+ and Pascal/GTX 10xx drop off — release notes must say
 both. Full citations in the research record (PyPI/pytorch releases,
 dev-discuss cu128 deprecation RFCs #172663/#178665, v2.9.1 build scripts,
 pytorch3d #1970/v0.7.9, pytorch/vision matrix).
+
+### 2026-07-17 — pins bumped and the four recorded risks gated
+
+Pin bump landed on `fix/0032-blackwell-torch-matrix` per the grounded matrix
+(`torch==2.9.1+cu128` + `torchvision==0.24.1+cu128` + PyTorch3D `v0.7.9`):
+
+- `packaging/requirements-torch.lock` — `torch==2.9.1+cu128`,
+  `torchvision==0.24.1+cu128`. torchvision resolved to the exact `0.24.1`
+  patch (the patch-aligned pair of torch 2.9.1); both wheels verified present
+  on the cu128 index for cp311/win_amd64, as is the fallback
+  `torch-2.7.1+cu128` wheel.
+- `packaging/build_installer.ps1` — `torchIndexUrl` now
+  `https://download.pytorch.org/whl/cu128`; THIRD_PARTY_NOTICES wheel line
+  updated to cu128.
+- `tools/install/setup_pear_runtime.ps1` — wheel matrix parameter is `12.8`
+  (sole `ValidateSet` value; both the primary and fallback matrices are
+  cu128), torch/torchvision pins bumped to `2.9.1`/`0.24.1`. `-Pytorch3DRef`
+  already pinned `v0.7.9`, which is exactly the matrix decision — no change.
+- `tests/test_packaging_config.py` — the matrix contract test was moved to the
+  new pins red-green, and extended with two drift guards: the installer
+  manifest `torchIndexUrl` must carry the lock's CUDA tag, and the release
+  runner script must pin the same torch/torchvision versions and index. The
+  installer path is covered end to end: `install_pear.ps1` resolves
+  `requirements-torch.lock` against the manifest's `torchIndexUrl`.
+
+Risk 2 (`torch.load` default flip in 2.6) — audited, no change needed:
+
+- Repo-wide grep: the only `torch.load` is
+  `engine/src/posecap_engine/pear_adapter.py:301`, already explicit
+  `weights_only=True` on a plain tensor state dict (`backbone`/`head`) —
+  unaffected by the default flip; `tests/engine/test_pear_adapter.py` asserts
+  the flag. No `weights_only=False` anywhere (GUIDELINES §12 clean).
+- Upstream PEAR (pinned `9773319`, audited read-only at the local checkout):
+  the PoseCap inference path (`Ehm_Pipeline(configs/infer.yaml)` + forward)
+  executes no upstream `torch.load` at all — the adapter loads the HF
+  weights itself. The upstream loads without an explicit `weights_only`
+  (`models/backbones/vit.py:340`, `models/pipeline/pipeline.py:562`,
+  `utils/helper.py:171`, `dataset/webdata_loader*.py`) sit on training or
+  standalone-app paths never imported by the adapter; `vit.py:340`
+  (`_init_backbone`) is additionally dead code on any path — it reads
+  `self.cfg`, which `ViT.__init__` never assigns, and no caller invokes it.
+- YOLO weights load through Ultralytics' own loader (installed unpinned at
+  setup time; current releases handle the torch >= 2.6 safe-load default
+  internally). The qualification Doctor run is the runtime gate.
+- No `add_safe_globals` allowlist needed.
+
+Risk 3 (conv3d+AMP regression in 2.9.0) — audited, not applicable: zero
+`conv3d`/`Conv3d` in the repo and in upstream PEAR. The only AMP reference is
+`models/vitdet/cascade_mask_rcnn_vitdet_h_75ep.py` (a vitdet training config
+off the inference path). PEAR live inference runs full precision under
+`torch.no_grad()` with `set_float32_matmul_precision("high")` — no autocast.
+No benchmark required; the 10% frame-time regression rule (GUIDELINES §5)
+still applies at qualification via the standard FPS instrumentation.
+
+Risk 4 (release-note input, recorded here per plan — release notes are not
+written by this task): the cu128 wheel line raises the NVIDIA driver floor to
+R570+, and torch 2.9.1 kernels start at `sm_70` — Pascal/GTX 10xx (sm_6x)
+drops off. Both statements must appear in the release notes of the release
+that ships this matrix.
+
+Doctor architecture check: no code change needed for truthful sm_120
+reporting — `engine/src/posecap_engine/doctor.py` derives supported
+architectures dynamically from `torch.cuda.get_arch_list()` and compares
+against `torch.cuda.get_device_capability()`; with the cu128 wheel the arch
+list includes `sm_120` and the check passes on Blackwell without a false
+"unsupported". `tests/engine/test_doctor.py` fake version strings
+(`2.4.1+cu124`) are arbitrary echo fixtures, not pins — left untouched.
+
+Config-only seams (lockfile content, index URLs, PowerShell pins) are covered
+by the extended contract tests above; there is no further testable Python
+seam for this change — the real gates are the maintainer-run qualification
+build and the two-generation validation, which stay unchecked.
+
+Follow-up for the qualification/ship step (maintainer-gated): ADR-0007 still
+records the cu124 matrix as accepted and needs a superseding amendment once
+the 2.9.1 qualification build passes; `doc/benchmarks.md` entries stay as the
+dated cu124 ledger and a fresh baseline row lands with the new matrix.
 
 ## Definition of Done
 
