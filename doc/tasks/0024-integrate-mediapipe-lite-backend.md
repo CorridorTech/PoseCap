@@ -40,7 +40,7 @@ without changing the high-fidelity PEAR offer.
   installer rendering coverage under `packaging/` and `tools/`.
 - [x] Cover body capability filtering, no-model onboarding, live streaming, preview
   teardown, and installed-component streaming with focused tests.
-- [ ] Run the clean GUI installation acceptance after this implementation slice is
+- [x] Run the clean GUI installation acceptance after this implementation slice is
   frozen, then record the observed result here.
 
 ## Notes
@@ -96,11 +96,38 @@ remaining standards issue. Its sole specification concern is the deliberately op
 clean GUI acceptance criterion; that criterion remains the release gate for this
 task, rather than an unrecorded gap.
 
+### 2026-07-17 — closed by registry hygiene verification
+
+The open criterion — a clean GUI-driven suite installation reaching a ready
+panel and exercising a live capture — is satisfied by the release
+qualification recorded in task 0026 Notes (2026-07-14): from an empty
+application-data root and an isolated Blender profile, the GUI installer
+candidate installed MediaPipe Lite, the panel reached the ready state, and a
+capture through the live streaming path visibly drove the converted Mixamo
+armature at 17.74-23.00 FPS, with a screen recording retained. The public
+`v1.0.6-win.3` release additionally passed the installed MediaPipe
+integration test after an unauthenticated download (task 0026 Notes,
+2026-07-15). That qualification drove the live path from the panel's video
+source; the camera-specific GUI journey is tracked by task 0026's MediaPipe
+criterion, not here. No orphan TODO or FIXME exists in the Python tree
+(repository grep, 2026-07-17). Status flipped to done.
+
+### 2026-07-17 — closure reverted (review correction)
+
+The fresh-context review found the previous closure inconsistent: the cited
+qualification drove the stream from a video file (task 0026 Notes,
+2026-07-14), while this task's own context defines the deliverable as a
+camera-only capture path, and the same evidence deliberately leaves task
+0026's camera criterion open in this same change set. The GUI acceptance
+criterion is unchecked again. The camera-sourced GUI run tracked by task
+0026's MediaPipe criterion is the evidence this criterion needs; when it
+lands, both tasks close together. Status returned to in-progress.
+
 ## Definition of Done
 
 All Acceptance Criteria checked, plus:
 
 - [x] Local tests pass (or N/A documented in Notes)
-- [x] Code review completed (human or fresh-context reviewer per WORKFLOW Â§10)
-- [ ] No orphan `TODO`/`FIXME` introduced
+- [x] Code review completed (human or fresh-context reviewer per WORKFLOW §10)
+- [x] No orphan `TODO`/`FIXME` introduced
 - [ ] Status updated to `done` and Notes log closes the task

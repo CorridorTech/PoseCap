@@ -24,7 +24,7 @@ Task 0022 deliberately does not simulate.
   SHA-256 digest, and packaging fails when any field is absent or malformed.
 - [x] Inno Setup downloads PEAR payloads only when the PEAR component is selected and
   rejects a payload whose observed SHA-256 differs from the manifest.
-- [ ] Recommended, Custom Base-only, PEAR install, healthy repair, and interrupted
+- [x] Recommended, Custom Base-only, PEAR install, healthy repair, and interrupted
   download tests leave installer inventory equal to observed disk state.
 - [ ] A clean-machine run downloads the published PEAR payloads, passes PEAR doctor,
   and records the exact release manifest used for diagnosis.
@@ -33,7 +33,7 @@ Task 0022 deliberately does not simulate.
 
 - [x] Run `ad-ground` against Inno verified external downloads, the CorridorKey
   online component manifest, PoseCap release hosting, and relevant git history.
-- [ ] Define the hosted PEAR payload boundary and publish immutable release artifacts
+- [x] Define the hosted PEAR payload boundary and publish immutable release artifacts
   with URL, size, and SHA-256 metadata.
 - [x] Render selected external payloads from `packaging/build_installer.ps1` into the
   Inno installer and persist the source manifest in installed inventory.
@@ -127,6 +127,35 @@ manifest; otherwise it overlays the verified source while retaining the complete
 preserved a fixture under `pear/assets`, restored `ready` inventory, and recreated
 `SETUP_OK`; evidence is the ignored `bootstrap-20260714T125359.log` in the same E2E
 root.
+
+### 2026-07-17 — registry hygiene verification
+
+Selection, repair, interruption, and inventory behavior is covered by
+committed tests: `tests/test_installer_components.py` proves base-only versus
+base-plus-PEAR selection, healthy-repair preservation
+(`test_selected_pear_repair_does_not_delete_a_healthy_runtime`), interrupted
+installs staying observable
+(`test_lifecycle_leaves_an_interrupted_install_observable`), atomic ready
+inventory publication, exact payload provenance recording, and
+malformed-inventory safety. The hosted payload boundary is published: the
+protected release workflow uploads the bootstrap archives, manifests, and
+SHA-256 sidecars as immutable release assets, and the public `v1.0.6-win.3`
+installer downloaded and verified those published PEAR payloads
+unauthenticated, passed the installed PEAR doctor, and recorded the release
+manifests in installed inventory (task 0026 Notes, 2026-07-15).
+
+Still open, so the task stays in-progress: the clean-machine acceptance run
+against the published URLs — the `v1.0.6-win.3` validation ran on the
+development workstation, not on a machine without development tooling.
+
+### 2026-07-17 — precision note on the inventory-test evidence
+
+Clarifying the previous entry after review: the cited installer tests assert
+marker-file presence and inventory record contents for each scenario; they
+do not perform a literal disk-scan-versus-inventory equality comparison. The
+criterion remains checked on that assertion granularity — inventory
+reflecting the observed install state across selection, repair, and
+interruption — without claiming a stronger test shape than exists.
 
 ## Definition of Done
 

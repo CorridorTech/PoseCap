@@ -18,7 +18,7 @@ for MediaPipe Lite and PEAR before it is presented as tutorial-ready.
 
 ## Acceptance Criteria
 
-- [ ] One versioned installer candidate containing Base, MediaPipe Lite, and PEAR is
+- [x] One versioned installer candidate containing Base, MediaPipe Lite, and PEAR is
   built from a green source revision; its SHA-256 and selected component manifests
   are recorded before GUI qualification begins.
 - [ ] From a clean PoseCap and Blender-extension state, the GUI installer selects
@@ -463,6 +463,23 @@ releases and their attestations, its conclusions live in this Notes log and PRs
 scene behind PR #60, the Inno RedirectionGuard reproduction scripts and logs, and
 the tag `allowed_signers` file) were preserved in the repository workspace under
 `.agentic/archive/release-validation-salvage/`.
+
+### 2026-07-17 — registry hygiene verification
+
+Criterion 1 is satisfied: qualification ran against frozen, recorded
+candidates — the local `win12` executable (SHA-256 `7587100C…`, 2026-07-14
+note) before the GUI journey, and the published `v1.0.6-win.3` installer
+(SHA-256 `cc1fa9c1…`, 2026-07-15 note) with verified manifests and
+attestations.
+
+Still open, so the task stays in-progress: the MediaPipe-only component
+selection journey (the qualified journey selected all three components); the
+live camera capture (the recorded journey streamed a video file); the PEAR
+GUI panel journey (`v1.0.6-win.3` validated PEAR through doctor and a
+source-to-TCP pytest acceptance, not through the Blender panel); the
+finger-pose journey; the backend-switching isolation journey; and the
+consolidated per-journey evidence report. RTX 50-series PEAR support is
+tracked separately as task 0032.
 
 ## Definition of Done
 

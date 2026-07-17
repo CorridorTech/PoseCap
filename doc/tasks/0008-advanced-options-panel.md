@@ -171,6 +171,30 @@ is therefore the HITL operator validation on a real Mixamo download (documented
 here, passing on X+Y bot). Flagged for a future synthetic-armature e2e test if
 one can be built without a licensed asset.
 
+### 2026-07-17 — closed by registry hygiene verification
+
+All acceptance criteria were already checked and the shipped surfaces remain
+present in the code: the collapsed Advanced section with smoothing, engine,
+and per-limb settings (`addon/posecap_addon/live_stream_panel.py`,
+`_draw_advanced_section`) and the one-click converter operator
+`posecap.convert_character` (`addon/posecap_addon/character_setup_panel.py`).
+The one open plan item — a panel screenshot pass for the maintainer — is
+satisfied in substance: the maintainer personally drove the panel through the
+GUI release qualification with a retained screen recording (task 0026 Notes,
+2026-07-14), and the task 0012 visual HITL captured panel screenshots in real
+Blender. Regression follow-ups on the converter continue in tasks 0033/0034;
+they do not reopen this task's scope. Status flipped to done.
+
+### 2026-07-17 — closure reverted (review correction)
+
+The fresh-context review found that the previous entry misattributed its
+evidence: task 0012's screenshots capture the Getting Started checklist and
+the Set Up Body Models wizard dialog, not the live-stream panel's Advanced
+section, and the task 0026 qualification recording does not show the
+Advanced section either. The screenshot plan item therefore remains open — a
+collapsed-versus-expanded Advanced-section screenshot for the maintainer is
+still to be produced. Status returned to in-progress.
+
 ## Definition of Done
 
 All Acceptance Criteria checked, plus:

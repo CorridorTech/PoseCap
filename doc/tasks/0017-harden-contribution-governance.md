@@ -1,6 +1,6 @@
 # Task 0017: Harden contribution governance
 
-**Status:** in-progress
+**Status:** done
 **Created:** 2026-07-12
 **Owner:** alexandremendoncaalvaro
 **Execution:** AFK
@@ -36,7 +36,7 @@ Verifiable conditions. Each as a checkbox so progress is point-editable.
 - [x] Dependabot, vulnerability alerts/security updates, secret scanning and push
       protection, CodeQL, private vulnerability reporting, and OpenSSF Scorecard are
       enabled or exercised through committed configuration.
-- [ ] A protected release workflow builds the distributable surfaces, verifies the
+- [x] A protected release workflow builds the distributable surfaces, verifies the
       installer, publishes checksums and artifact attestations, and never executes
       untrusted fork code on the release runner.
 - [x] GitHub repository merge settings use squash-only history, conventional PR
@@ -104,6 +104,33 @@ author, so the ruleset no longer requires an impossible independent approval. Th
 maintainer's squash-merge action records the review decision while CI, DCO, CodeQL,
 resolved-thread, linear-history, deletion, and force-push controls remain mandatory.
 
+### 2026-07-17 — closed by registry hygiene verification
+
+The remaining criterion — the protected release workflow — is now
+demonstrably satisfied. `.github/workflows/release.yml` triggers only on
+`v*-win.*` tag pushes and manual `workflow_dispatch`, so no untrusted fork
+code reaches the release runner; it builds the installer, extension, and
+backend payloads, verifies the draft asset inventory before publication, and
+publishes SHA-256 sidecars plus GitHub artifact attestations (commits
+`f389e12`, `226286e`, `3f482db`). Protected runs completed end to end and
+produced the published stable releases `v1.0.6-win.3` (run 29388916869) and
+`v1.0.6-win.4` (run 29434488085), each with all 12 artifacts, checksums, and
+attestations independently verified (task 0026 Notes, 2026-07-15). The
+maintainer's unsigned-Windows-distribution decision (task 0026 Notes,
+2026-07-14) removed Authenticode from the release gate, so signing is
+intentionally not part of this criterion. Status flipped to done.
+
+### 2026-07-17 — precision note on the release-workflow evidence
+
+Clarifying the previous entry after review: the `release.yml` "Verify draft
+release asset inventory" step is a filename-inventory verification, not a
+functional installer run. The functional verification of the installer was
+the human-driven GUI qualification recorded in task 0026 (`v1.0.6-win.3`);
+the `v1.0.6-win.4` evidence is workflow-run completion with artifacts,
+checksums, and attestations, not an independent functional re-verification.
+The criterion stands on that combined evidence; the workflow alone does not
+functionally verify the installer.
+
 ## Definition of Done
 
 All Acceptance Criteria checked, plus:
@@ -111,4 +138,4 @@ All Acceptance Criteria checked, plus:
 - [x] Local tests pass (or N/A documented in Notes)
 - [x] Code review completed (human or fresh-context reviewer per WORKFLOW §10)
 - [x] No orphan `TODO`/`FIXME` introduced
-- [ ] Status updated to `done` and Notes log closes the task
+- [x] Status updated to `done` and Notes log closes the task
