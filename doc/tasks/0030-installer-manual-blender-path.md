@@ -1,6 +1,6 @@
 # Task 0030: Offer a manual Blender path in the installer
 
-**Status:** in-progress
+**Status:** done
 **Created:** 2026-07-16
 **Owner:** alexandremendoncaalvaro
 **Execution:** AFK
@@ -94,11 +94,21 @@ paths survive the wizard-to-PowerShell round trip; and the
 override-outranks-discovered precedence claim is now pinned by a test with
 both a valid override and a discovered Blender present.
 
+### 2026-07-17 — task closed
+
+Merged to `main` via PR #78 (squash, green `CI required`). Review chain:
+two-axis fresh-context review, fixes applied, then a verification pass by the
+spec reviewer confirming every fix with no new defects; the one refuted
+blocker (`ExtractTemporaryFile` under solid compression) is documented above
+with its empirical evidence. Ships to end users with the next installer
+build; issue #48 stays open until the release-candidate clean-machine
+validation recorded there is performed.
+
 ## Definition of Done
 
 All Acceptance Criteria checked, plus:
 
-- [ ] Local tests pass (or N/A documented in Notes)
-- [ ] Code review completed (human or fresh-context reviewer per WORKFLOW §10)
-- [ ] No orphan `TODO`/`FIXME` introduced
-- [ ] Status updated to `done` and Notes log closes the task
+- [x] Local tests pass (or N/A documented in Notes)
+- [x] Code review completed (human or fresh-context reviewer per WORKFLOW §10)
+- [x] No orphan `TODO`/`FIXME` introduced
+- [x] Status updated to `done` and Notes log closes the task
