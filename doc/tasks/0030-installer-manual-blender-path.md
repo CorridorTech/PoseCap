@@ -75,6 +75,25 @@ flowchart LR
     O --> S[Shared discovery seam: install, verify, uninstall]
 ```
 
+### 2026-07-16 — fresh-context review findings resolved
+
+Two-axis review raised one shared blocker and four concerns. The blocker
+(`ExtractTemporaryFile` allegedly requires `dontcopy`-flagged `[Files]`
+entries and would crash every wizard run under `SolidCompression=yes`) was
+refuted empirically, not argued: a minimal installer compiled with ISCC 6
+using this template's exact flags (solid LZMA2, script staged only via a
+wildcard entry, no `dontcopy`) extracted and read the file inside
+`InitializeWizard` — including under `/VERYSILENT`. The template stays as
+designed. The real findings, all fixed: a zero-byte `blender_override.txt`
+crashed discovery (`Get-Content -Raw` returns null in PowerShell 5.1 —
+null-guarded, pinned by test); `Get-BlenderVersion` threw on an empty-string
+path (guarded); the wizard probe now passes `-InstallDir` so a returning
+user with a still-valid override is not asked to browse again; the override
+file is written as UTF-8 with BOM (`SaveStringsToUTF8File`) so non-ASCII
+paths survive the wizard-to-PowerShell round trip; and the
+override-outranks-discovered precedence claim is now pinned by a test with
+both a valid override and a discovered Blender present.
+
 ## Definition of Done
 
 All Acceptance Criteria checked, plus:
