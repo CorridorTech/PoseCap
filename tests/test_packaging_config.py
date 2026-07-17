@@ -165,6 +165,14 @@ def test_installer_preselects_pear_when_an_nvidia_driver_is_present() -> None:
     assert "function NvidiaDriverPresent: Boolean;" in template
     assert "nvapi64.dll" in template
     assert "WizardSelectComponents(WizardSelectedComponents(False) + ',pear')" in template
+    # Keep the Types-combo label honest after the programmatic preselection.
+    assert "WizardForm.TypesCombo.ItemIndex := WizardForm.TypesCombo.Items.Count - 1" in template
+    # The label fix points at the LAST [Types] entry, which must be the custom
+    # one, or it would select the wrong setup type.
+    type_names = re.findall(r'^Name: "(\w+)".*$', template, re.MULTILINE)
+    types_order = [name for name in type_names if name in ("recommended", "custom")]
+    assert types_order[-1] == "custom", types_order
+    assert re.search(r'Name: "custom";[^\n]*Flags: iscustom', template)
 
 
 def test_installer_uses_one_fixed_per_user_location() -> None:
