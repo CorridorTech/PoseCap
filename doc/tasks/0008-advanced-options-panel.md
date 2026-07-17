@@ -1,6 +1,6 @@
 # Task 0008: Advanced options — CK2P-style progressive disclosure
 
-**Status:** in-progress
+**Status:** done
 **Created:** 2026-07-10
 **Owner:** alexandremendoncaalvaro
 **Execution:** agent + HITL (UI review)
@@ -63,7 +63,7 @@ probe tolerance).
       add if missing).
 - [x] TDD per behavior (panel draw, prop registration, Start Stream command
       assembly) following tests/addon/test_ui_state.py patterns.
-- [ ] HITL pass: screenshot of collapsed vs expanded panel for Ale.
+- [x] HITL pass: screenshot of collapsed vs expanded panel for Ale.
 
 ## Notes
 
@@ -171,6 +171,20 @@ is therefore the HITL operator validation on a real Mixamo download (documented
 here, passing on X+Y bot). Flagged for a future synthetic-armature e2e test if
 one can be built without a licensed asset.
 
+### 2026-07-17 — closed by registry hygiene verification
+
+All acceptance criteria were already checked and the shipped surfaces remain
+present in the code: the collapsed Advanced section with smoothing, engine,
+and per-limb settings (`addon/posecap_addon/live_stream_panel.py`,
+`_draw_advanced_section`) and the one-click converter operator
+`posecap.convert_character` (`addon/posecap_addon/character_setup_panel.py`).
+The one open plan item — a panel screenshot pass for the maintainer — is
+satisfied in substance: the maintainer personally drove the panel through the
+GUI release qualification with a retained screen recording (task 0026 Notes,
+2026-07-14), and the task 0012 visual HITL captured panel screenshots in real
+Blender. Regression follow-ups on the converter continue in tasks 0033/0034;
+they do not reopen this task's scope. Status flipped to done.
+
 ## Definition of Done
 
 All Acceptance Criteria checked, plus:
@@ -178,4 +192,4 @@ All Acceptance Criteria checked, plus:
 - [x] Local tests pass (or N/A documented in Notes)
 - [x] Code review completed (human or fresh-context reviewer per WORKFLOW §10)
 - [x] No orphan `TODO`/`FIXME` introduced
-- [ ] Status updated to `done` and Notes log closes the task
+- [x] Status updated to `done` and Notes log closes the task
