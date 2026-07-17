@@ -1,6 +1,6 @@
 # Task `0024`: Integrate MediaPipe Lite backend
 
-**Status:** done
+**Status:** in-progress
 **Created:** 2026-07-14
 **Owner:** alexandremendoncaalvaro
 **Execution:** AFK
@@ -27,7 +27,7 @@ without changing the high-fidelity PEAR offer.
 - [x] The source-preview lifecycle offers live frames and closes cleanly on stream
   teardown.
 - [x] An installed isolated component streams the real fixture video over TCP.
-- [x] A clean GUI-driven suite installation selects MediaPipe Lite, reaches the
+- [ ] A clean GUI-driven suite installation selects MediaPipe Lite, reaches the
   ready PoseCap panel, and exercises a live capture with the installed component.
 
 ## Plan
@@ -112,11 +112,22 @@ source; the camera-specific GUI journey is tracked by task 0026's MediaPipe
 criterion, not here. No orphan TODO or FIXME exists in the Python tree
 (repository grep, 2026-07-17). Status flipped to done.
 
+### 2026-07-17 — closure reverted (review correction)
+
+The fresh-context review found the previous closure inconsistent: the cited
+qualification drove the stream from a video file (task 0026 Notes,
+2026-07-14), while this task's own context defines the deliverable as a
+camera-only capture path, and the same evidence deliberately leaves task
+0026's camera criterion open in this same change set. The GUI acceptance
+criterion is unchecked again. The camera-sourced GUI run tracked by task
+0026's MediaPipe criterion is the evidence this criterion needs; when it
+lands, both tasks close together. Status returned to in-progress.
+
 ## Definition of Done
 
 All Acceptance Criteria checked, plus:
 
 - [x] Local tests pass (or N/A documented in Notes)
-- [x] Code review completed (human or fresh-context reviewer per WORKFLOW Â§10)
+- [x] Code review completed (human or fresh-context reviewer per WORKFLOW §10)
 - [x] No orphan `TODO`/`FIXME` introduced
-- [x] Status updated to `done` and Notes log closes the task
+- [ ] Status updated to `done` and Notes log closes the task
