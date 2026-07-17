@@ -153,6 +153,12 @@ jobs:
           Get-Content -LiteralPath .\$setupName.sha256
           gh attestation verify .\$setupName --repo CorridorTech/PoseCap
           ``````
+
+          > [!IMPORTANT]
+          > **GPU support changed in this release.** The PEAR (GPU pose) backend uses a new CUDA runtime.
+          > - **RTX 50-series (Blackwell) is now supported.** These GPUs could not run the PEAR backend on earlier releases.
+          > - **NVIDIA driver R570 or newer is required** for the PEAR backend.
+          > - **GeForce GTX 10-series (Pascal) and older GPUs are no longer supported** by the PEAR backend; the MediaPipe (CPU) backend still runs on any machine.
           "@
           gh release create $env:GITHUB_REF_NAME @assets --verify-tag --generate-notes --notes $releaseNotice --draft --title $env:GITHUB_REF_NAME
       - name: Verify draft release asset inventory
