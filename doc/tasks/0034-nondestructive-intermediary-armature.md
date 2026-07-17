@@ -1,10 +1,10 @@
 # Task 0034: Drive characters through a non-destructive intermediary armature
 
-**Status:** proposed
+**Status:** in-progress
 **Created:** 2026-07-17
 **Owner:** alexandremendoncaalvaro
 **Execution:** HITL
-**Spec ref:**
+**Spec ref:** doc/specs/0005-non-destructive-character-binding.md
 **Board ref:**
 
 ## Context
@@ -60,7 +60,7 @@ Verifiable conditions. Each as a checkbox so progress is point-editable.
 Concrete sequential steps. Each as a checkbox. Reference file paths where
 applicable.
 
-- [ ] Ground (`ad-ground` / `ad-grill`): how comparable tools bind mocap to
+- [x] Ground (`ad-ground` / `ad-grill`): how comparable tools bind mocap to
       arbitrary characters non-destructively (Rokoko retargeter, Auto-Rig
       Pro remap, Blender constraint-based retargeting addons), and what the
       existing `character_setup.py` machinery (SMPL-X armature creation,
@@ -84,6 +84,35 @@ makes this direction "very important". Relationship recorded on both sides:
 structural fix that would make that failure class impossible. The 0033
 diagnosis decides how much repair the destructive path deserves in the
 meantime.
+
+### 2026-07-17 — ground closed; spec and ADR drafted
+
+Ground (four sources, line-level reading of cloned repos): Rokoko Studio
+Live's LIVE path uses no constraints — per-bone rotation offsets cached at
+bind ("Set as T-Pose"), composed per frame in Python, written directly to
+pose bones; its offline retarget and Expy Kit use hidden ghost bones with
+matched rests plus world-space Copy Rotation constraints and a
+visual-keying bake; Auto-Rig Pro redefines the source rest (hidden via
+"Preserve") and bakes. Every tool keeps the user's bone names and rest
+pose untouched; PoseCap's destructive conversion is the outlier. Rokoko's
+one wart — disabling `use_inherit_rotation` on the user's armature instead
+of doing parent-relative math — is a persistent asset mutation and is
+explicitly not copied.
+
+Drafted `doc/specs/0005-non-destructive-character-binding.md` (draft) and
+`doc/adr/0014-bind-via-compensated-pose-writes.md` (proposed): binding map
+computed once at bind in `core/` (change-of-basis per bone, rest-delta
+compensation for non-T binds), user's own pose bones driven by their
+original names, verification as pure math, unbind clears pose channels.
+Matches the existing 30 FPS direct-write pipeline; recording keeps inline
+keyframes on the user's action (no bake). Constraint bind kept as an
+optional later UX layer, not the driving mechanism.
+
+Maintainer decisions pending (HITL): accept spec 0005 and ADR-0014, and
+the fate of the destructive conversion path (recommendation: keep as
+shipped fallback while the binding field-proves for one release, then
+retire; recorded as an open question in spec 0005, decided with the
+maintainer per this task's plan).
 
 ## Definition of Done
 
