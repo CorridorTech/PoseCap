@@ -51,8 +51,10 @@ work, and keeps "undo the conversion" as the only recovery path.
 - **Scenario 4:** teardown
   - Given a bound character (including a mid-stream or failed state)
   - When the user removes the binding
-  - Then the asset is byte-identical to before setup (verifiable by
-    comparing armature data before bind and after unbind)
+  - Then the armature structure — bone names, rest matrices, rolls,
+    vertex-group names — is byte-identical to before setup (verifiable by
+    comparing armature data before bind and after unbind); recorded
+    animation, if any, persists as a normal action per Scenario 3
 
 - **Scenario 5:** binding fails
   - Given a character PoseCap cannot bind (unrecognized skeleton, missing
@@ -79,16 +81,18 @@ work, and keeps "undo the conversion" as the only recovery path.
   a Blender session reload.
 - Recording writes keyframes to the user's armature so takes remain after
   unbinding.
-- The existing destructive conversion remains available per the accepted
-  ADR that records its fate (see Related).
+- The existing destructive conversion path remains shipped and unchanged
+  until a separate, maintainer-accepted ADR records its fate (deferred;
+  see Open Questions).
 
 ### Non-functional
 
 - Frame budget unchanged: 30 FPS pose application, <100 ms
   capture-to-viewport (PRD budget); binding adds no per-frame scene
   objects or constraint dependencies on the hot path.
-- Binding math lives in `core/` (stdlib + numpy), unit-testable without
-  Blender, per the hexagonal dependency rule (GUIDELINES §1).
+- Binding math lives in `core/` (stdlib + numpy + `contracts/`),
+  unit-testable without Blender, per the hexagonal dependency rule
+  (GUIDELINES §1).
 - Failure messages are user-grade (GUIDELINES §2.2): what happened, what
   to do next, no tracebacks.
 
@@ -103,9 +107,10 @@ aspirational. Per-criterion progress tracking lives in per-Spec tasks.
 - The task 0033 reproduction (custom Mixamo, arms drooped, centimeter
   scale) and the task 0008 matrix families capture correctly through the
   binding, pinned by the same probe expectations the converter uses today.
-- Steady-state frame time through the binding is within 10% of the
-  converted-armature baseline (GUIDELINES §5 regression rule), measured by
-  the existing frame-time instrumentation.
+- Steady-state frame time through the binding is within 10% of a
+  converted-armature baseline recorded while the destructive path still
+  ships (GUIDELINES §5 regression rule), measured by the existing
+  frame-time instrumentation.
 - A recorded take plays back on the user's armature after unbinding with
   no PoseCap datablocks remaining in the file.
 
@@ -124,6 +129,9 @@ aspirational. Per-criterion progress tracking lives in per-Spec tasks.
   gotcha), stream degrades gracefully.
 - A character already converted by the destructive path: binds like any
   SMPL-X-named armature (identity mapping, zero rest delta).
+- A character damaged by a past failed destructive conversion: the binding
+  cannot repair it; the recovery story is re-importing the source asset
+  and binding the fresh import.
 
 ## Out of Scope
 
@@ -131,15 +139,17 @@ aspirational. Per-criterion progress tracking lives in per-Spec tasks.
   (custom and Rigify targets are PRD "Later"; this spec creates the seam,
   not the feature).
 - World position (pelvis-locked per doc/workflows.md).
-- Migration tooling for assets already damaged by past failed conversions.
-- Removing the destructive conversion path (its fate is an ADR decision,
-  recorded separately).
+- Automated repair tooling for assets already damaged by past failed
+  conversions (the recorded recovery is re-import plus bind; see Edge
+  Cases).
+- Deciding or removing the destructive conversion path (deferred to its
+  own future ADR; see Open Questions).
 
 ## Open Questions
 
 - Fate of the destructive conversion path (kept as fallback, hidden, or
-  removed after a field-proving period) — maintainer decision, recorded in
-  the binding-architecture ADR.
+  removed after a field-proving period) — maintainer decision, to be
+  recorded in its own future ADR; ADR-0014 deliberately does not make it.
 - Whether the binding surfaces to the user as a visible PoseCap-owned
   intermediary armature (Dean's literal phrasing) or stays an invisible
   mapping layer — UX decision; the architecture ADR records the driving
@@ -147,9 +157,13 @@ aspirational. Per-criterion progress tracking lives in per-Spec tasks.
 
 ## Related
 
-- ADRs: doc/adr/0014-bind-via-compensated-pose-writes.md (proposed with
-  this spec)
-- Tasks: doc/tasks/0034-nondestructive-intermediary-armature.md (parent);
-  implementation tasks appended as they are created
-- Depends on: doc/specs/0001-live-webcam-pose-streaming.md (stream
-  contract); task 0033's fix defines the destructive path this replaces
+- ADRs: [ADR-0014](../adr/0014-bind-via-compensated-pose-writes.md)
+  (proposed with this spec)
+- Tasks:
+  [task 0034](../tasks/0034-nondestructive-intermediary-armature.md)
+  (parent); implementation tasks appended as they are created
+- Depends on:
+  [spec 0001](0001-live-webcam-pose-streaming.md) (stream contract);
+  [task 0033](../tasks/0033-custom-mixamo-conversion-probe-failure.md)
+  (in review) hardens the destructive path whose failure class motivated
+  this spec

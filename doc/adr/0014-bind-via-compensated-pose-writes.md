@@ -53,10 +53,17 @@ Concretely:
   into that bone's local frame, including the rest-pose delta for non-T
   binds.
 * Per frame, `plan_pose_application` output is composed through the
-  binding map in `core/`; the existing pose writer writes the compensated
-  quaternions to the user's bones by their original names. Pose channels
-  and inline keyframes are the only writes that ever touch the asset —
-  both are user-visible animation state, not asset structure.
+  binding map in `core/`. The composition step rewrites the plan for the
+  bound armature: each `BoneRotation`'s SMPL-X joint name is replaced by
+  the target's original bone name, and its quaternion by the compensated
+  one, before the plan reaches the pose writer — the writer keeps its
+  current shape (look up by name, write `rotation_quaternion`) and never
+  needs SMPL-X-named bones on the asset. The map also carries a per-bone
+  neutral quaternion (the compensated SMPL-X identity, which is not the
+  bone-local identity on non-T binds): clears during capture write the
+  neutral; unbind writes the true identity. Pose channels and inline
+  keyframes are the only writes that ever touch the asset — both are
+  user-visible animation state, not asset structure.
 * Binding verification runs as pure math on the binding map (the probe
   expectations become computable predictions), plus a pose-channel probe
   that is cleared afterward; no edit-mode changes, no modifier changes.
@@ -90,8 +97,9 @@ Concretely:
   restore or cleanly degrade (spec 0005 edge case), which the
   implementation tasks must design for explicitly.
 * The fate of the destructive conversion path is a separate maintainer
-  decision this ADR does not make; until it is recorded, the path remains
-  shipped and field-viable (task 0033's fix).
+  decision this ADR does not make; it will be recorded in its own ADR.
+  Until then the path remains shipped, hardened by the task 0033 fix
+  currently in review.
 
 ## Alternatives Considered
 

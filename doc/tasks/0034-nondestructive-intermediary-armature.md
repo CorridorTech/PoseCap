@@ -4,7 +4,7 @@
 **Created:** 2026-07-17
 **Owner:** alexandremendoncaalvaro
 **Execution:** HITL
-**Spec ref:** doc/specs/0005-non-destructive-character-binding.md
+**Spec ref:** [spec 0005](../specs/0005-non-destructive-character-binding.md)
 **Board ref:**
 
 ## Context
@@ -87,32 +87,25 @@ meantime.
 
 ### 2026-07-17 — ground closed; spec and ADR drafted
 
-Ground (four sources, line-level reading of cloned repos): Rokoko Studio
-Live's LIVE path uses no constraints — per-bone rotation offsets cached at
-bind ("Set as T-Pose"), composed per frame in Python, written directly to
-pose bones; its offline retarget and Expy Kit use hidden ghost bones with
-matched rests plus world-space Copy Rotation constraints and a
-visual-keying bake; Auto-Rig Pro redefines the source rest (hidden via
-"Preserve") and bakes. Every tool keeps the user's bone names and rest
-pose untouched; PoseCap's destructive conversion is the outlier. Rokoko's
-one wart — disabling `use_inherit_rotation` on the user's armature instead
-of doing parent-relative math — is a persistent asset mutation and is
-explicitly not copied.
+Ground closed (four sources: official Blender docs, line-level reading of
+the Rokoko / Expy Kit / Keemap repos plus Auto-Rig Pro documentation,
+in-repo pose-application seams, git history of the conversion path). The
+synthesis and the shape selection live in
+[ADR-0014](../adr/0014-bind-via-compensated-pose-writes.md); the feature
+contract is [spec 0005](../specs/0005-non-destructive-character-binding.md)
+(draft).
 
-Drafted `doc/specs/0005-non-destructive-character-binding.md` (draft) and
-`doc/adr/0014-bind-via-compensated-pose-writes.md` (proposed): binding map
-computed once at bind in `core/` (change-of-basis per bone, rest-delta
-compensation for non-T binds), user's own pose bones driven by their
-original names, verification as pure math, unbind clears pose channels.
-Matches the existing 30 FPS direct-write pipeline; recording keeps inline
-keyframes on the user's action (no bake). Constraint bind kept as an
-optional later UX layer, not the driving mechanism.
+Note on the title: the selected design creates no intermediary armature
+object — the binding is a computed map driving the user's own bones, per
+ADR-0014's Decision; Dean's literal ghost-armature shape is recorded there
+as the rejected alternative (kept possible as a later UX layer). The
+outcome he asked for (non-destructive, failure costs nothing) is the
+spec's contract.
 
 Maintainer decisions pending (HITL): accept spec 0005 and ADR-0014, and
 the fate of the destructive conversion path (recommendation: keep as
 shipped fallback while the binding field-proves for one release, then
-retire; recorded as an open question in spec 0005, decided with the
-maintainer per this task's plan).
+retire; open question in spec 0005, to be recorded in its own ADR).
 
 ## Definition of Done
 
