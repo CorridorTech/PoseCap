@@ -1,6 +1,6 @@
 # ADR-0015: Retire the destructive conversion after one field-proving release
 
-**Status:** proposed
+**Status:** accepted
 **Date:** 2026-07-17
 **Deciders:** alexandremendoncaalvaro (maintainer)
 

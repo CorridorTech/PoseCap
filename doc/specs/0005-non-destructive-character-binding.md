@@ -152,8 +152,8 @@ aspirational. Per-criterion progress tracking lives in per-Spec tasks.
   recorded in its own future ADR; ADR-0014 deliberately does not make it.
   Resolved: the maintainer accepted
   [ADR-0015](../adr/0015-retire-destructive-conversion-after-field-proving.md)
-  — the destructive path ships as the explicit fallback for one
-  field-proving release cycle, then is retired.
+  — the destructive path ships as the explicit fallback in the binding's
+  first tagged release, then is retired in the next tagged release.
 - Whether the binding surfaces to the user as a visible PoseCap-owned
   intermediary armature (Dean's literal phrasing) or stays an invisible
   mapping layer — UX decision; the architecture ADR records the driving
