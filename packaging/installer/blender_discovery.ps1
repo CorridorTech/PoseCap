@@ -53,7 +53,10 @@ function Get-SteamLibraryRoots {
 }
 
 function Get-BlenderVersion {
-    param([Parameter(Mandatory = $true)] [string]$Path)
+    # Not Mandatory: the parameter binder would reject an empty string with a
+    # terminating error before the body runs; an empty path must instead
+    # return $null like every other non-Blender input.
+    param([string]$Path = "")
     if ([string]::IsNullOrWhiteSpace($Path)) { return $null }
     if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return $null }
     try {
