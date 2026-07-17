@@ -81,6 +81,16 @@ addressed, standards findings were minor and resolved by the deviation
 comment (retry loop stays unbounded by design — each attempt increments the
 suffix against a finite local directory).
 
+### 2026-07-17 — independent review applied
+
+The authoritative two-axis review (coordinator session, 2026-07-17) returned
+no blockers on this task; this independent review is the one the Definition
+of Done review box stands on. Its note was applied: the exclusive-create
+retry comment in `support.py` now cites GUIDELINES 2.2 explicitly as a
+deliberate, documented deviation, so the rule exception is visible in the
+source. Gates re-run green after the review package (pytest 543 passed,
+3 skipped; ruff, format, pyright Windows and Linux, lint-imports clean).
+
 ## Definition of Done
 
 All Acceptance Criteria checked, plus:

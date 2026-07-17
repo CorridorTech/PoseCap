@@ -145,8 +145,9 @@ def create_support_bundle(
         output = _candidate_bundle_path(destination_directory, base_name, attempt)
         attempt += 1
         try:
-            # Exclusive create makes the no-overwrite guarantee atomic; a name
-            # collision is an expected retry condition here, not a failure.
+            # Deliberate deviation from GUIDELINES 2.2 (exceptions are not
+            # control flow): exclusive create is the only atomic no-overwrite
+            # guarantee, so the expected name collision arrives as an exception.
             archive = zipfile.ZipFile(output, "x", compression=zipfile.ZIP_DEFLATED)
         except FileExistsError:
             continue
