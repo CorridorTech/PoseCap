@@ -1,6 +1,6 @@
 # Task 0029: Decouple PEAR backend registration from install-time health
 
-**Status:** in-progress
+**Status:** done
 **Created:** 2026-07-16
 **Owner:** alexandremendoncaalvaro
 **Execution:** AFK
@@ -47,7 +47,7 @@ Verifiable conditions. Each as a checkbox so progress is point-editable.
       without saying so.
 - [x] Regression tests pin the new contract at the level the installer tests
       already exercise (`tests/test_installer_components.py`).
-- [ ] Issue #49 is updated with the outcome and the interim manual
+- [x] Issue #49 is updated with the outcome and the interim manual
       registration steps for the reporter.
 
 ## Decision — shape A (register on component presence)
@@ -108,11 +108,20 @@ flowchart LR
     F -.-> S[Manifest kept: backend selectable after user fix]
 ```
 
+### 2026-07-16 — task closed
+
+Fix merged to `main` via PR #76 (squash, green `CI required`, two-axis
+fresh-context review with no blockers). Issue #49 answered with the outcome
+and the repair caveat; the interim manual `backend.json` steps were already
+in the thread. The fix reaches end users with the next installer build
+(win.N bump, release is HITL); RTX 50 support itself stays tracked in issue
+#49, which remains open by design.
+
 ## Definition of Done
 
 All Acceptance Criteria checked, plus:
 
-- [ ] Local tests pass (or N/A documented in Notes)
-- [ ] Code review completed (human or fresh-context reviewer per WORKFLOW §10)
-- [ ] No orphan `TODO`/`FIXME` introduced
-- [ ] Status updated to `done` and Notes log closes the task
+- [x] Local tests pass (or N/A documented in Notes)
+- [x] Code review completed (human or fresh-context reviewer per WORKFLOW §10)
+- [x] No orphan `TODO`/`FIXME` introduced
+- [x] Status updated to `done` and Notes log closes the task
