@@ -1,6 +1,6 @@
 # Task 0015: Generate unique support bundle names
 
-**Status:** proposed
+**Status:** done
 **Created:** 2026-07-13
 **Owner:** alexandremendoncaalvaro
 **Execution:** AFK
@@ -17,17 +17,17 @@ must preserve each capture attempt until the user chooses what to share.
 
 Verifiable conditions. Each as a checkbox so progress is point-editable.
 
-- [ ] Two bundles requested with the same timestamp receive distinct filenames.
-- [ ] An existing bundle is never overwritten by a new bundle request.
-- [ ] The behavior is covered by `tests/addon/test_support.py`.
+- [x] Two bundles requested with the same timestamp receive distinct filenames.
+- [x] An existing bundle is never overwritten by a new bundle request.
+- [x] The behavior is covered by `tests/addon/test_support.py`.
 
 ## Plan
 
 Concrete sequential steps. Each as a checkbox. Reference file paths where applicable.
 
-- [ ] Add collision-safe output creation in `addon/posecap_addon/support.py`.
-- [ ] Add behavior tests for equal-timestamp bundle requests.
-- [ ] Run the addon tests and full quality gate; record the outcome in Notes.
+- [x] Add collision-safe output creation in `addon/posecap_addon/support.py`.
+- [x] Add behavior tests for equal-timestamp bundle requests.
+- [x] Run the addon tests and full quality gate; record the outcome in Notes.
 
 ## Notes
 
@@ -52,11 +52,50 @@ with retry); the injectable `timestamp` parameter already used by
 tests/addon/test_support.py:65-85 keeps the tests deterministic; the exact-
 name assertion at test_support.py:78 stays valid for the no-collision case.
 
+### 2026-07-17 — implemented
+
+`create_support_bundle` now opens the archive with exclusive create
+(`ZipFile(output, "x")`) and retries with a numeric suffix
+(`PoseCap-Support-YYYYMMDD-HHMMSS-1.zip`, `-2`, ...) on `FileExistsError`,
+making the no-overwrite guarantee atomic at the OS level (also across
+processes). The exception-as-retry shape is a deliberate, commented deviation
+from GUIDELINES §2.2: a pre-check would reintroduce the check-then-create
+race the task exists to fix.
+
+TDD evidence (red proven against the pre-fix code via `git stash`, both new
+tests failed there and pass now):
+
+- `test_same_second_bundle_requests_receive_distinct_names` — pins the exact
+  `-1` suffix and both files surviving.
+- `test_an_existing_bundle_is_never_overwritten` — a pre-existing ZIP at the
+  canonical name keeps its bytes; the new bundle lands beside it.
+- `test_a_failed_bundle_attempt_leaves_no_broken_bundle_behind` —
+  fresh-context review finding: a mid-write failure (for example disk full)
+  left a broken ZIP squatting the canonical name; the partial file is now
+  removed and the error propagates to the operator's user-facing report.
+
+Gates: ruff check, ruff format --check, pyright Windows and Linux,
+lint-imports, pytest (541 passed, 3 skipped) all green locally. Two-axis
+fresh-context review run per WORKFLOW §10; the cleanup finding above was
+addressed, standards findings were minor and resolved by the deviation
+comment (retry loop stays unbounded by design — each attempt increments the
+suffix against a finite local directory).
+
+### 2026-07-17 — independent review applied
+
+The authoritative two-axis review (coordinator session, 2026-07-17) returned
+no blockers on this task; this independent review is the one the Definition
+of Done review box stands on. Its note was applied: the exclusive-create
+retry comment in `support.py` now cites GUIDELINES 2.2 explicitly as a
+deliberate, documented deviation, so the rule exception is visible in the
+source. Gates re-run green after the review package (pytest 543 passed,
+3 skipped; ruff, format, pyright Windows and Linux, lint-imports clean).
+
 ## Definition of Done
 
 All Acceptance Criteria checked, plus:
 
-- [ ] Local tests pass (or N/A documented in Notes)
-- [ ] Code review completed (human or fresh-context reviewer per WORKFLOW Â§10)
-- [ ] No orphan `TODO`/`FIXME` introduced
-- [ ] Status updated to `done` and Notes log closes the task
+- [x] Local tests pass (or N/A documented in Notes)
+- [x] Code review completed (human or fresh-context reviewer per WORKFLOW Â§10)
+- [x] No orphan `TODO`/`FIXME` introduced
+- [x] Status updated to `done` and Notes log closes the task
