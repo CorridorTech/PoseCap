@@ -273,6 +273,8 @@ def test_setup_operator_asks_for_pear_root_when_unset(monkeypatch) -> None:
     # Hide any installed runtime so the installer fallback can't resolve a root
     # and this asserts the genuine "nothing configured" guidance.
     monkeypatch.delenv("LOCALAPPDATA", raising=False)
+    monkeypatch.delenv("XDG_DATA_HOME", raising=False)
+    monkeypatch.delenv("HOME", raising=False)
     monkeypatch.delenv("POSECAP_PEAR_ROOT", raising=False)
     wm_group = _wm_group(email="a@b.c", password="pw")
     bpy_module = _fake_bpy_module(wm_group)
@@ -312,6 +314,8 @@ def test_wizard_cancel_reports_the_error_to_blender(monkeypatch) -> None:
     # The wizard is a popup that closes on execute(): a hidden status label is
     # invisible, so a validation failure must reach Blender's info log/report.
     monkeypatch.delenv("LOCALAPPDATA", raising=False)
+    monkeypatch.delenv("XDG_DATA_HOME", raising=False)
+    monkeypatch.delenv("HOME", raising=False)
     monkeypatch.delenv("POSECAP_PEAR_ROOT", raising=False)
     wm_group = _wm_group(email="a@b.c", password="pw")
     bpy_module = _fake_bpy_module(wm_group)

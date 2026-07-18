@@ -41,8 +41,29 @@ def test_addon_version_falls_back_for_a_manual_extension_install(
     package.mkdir()
     (tmp_path / "blender_manifest.toml").write_text('version = "2.3.4"\n', encoding="utf-8")
     monkeypatch.delenv("LOCALAPPDATA", raising=False)
+    monkeypatch.delenv("XDG_DATA_HOME", raising=False)
+    monkeypatch.delenv("HOME", raising=False)
 
     assert addon_version(package / "support.py") == "2.3.4"
+
+
+def test_addon_version_reads_the_installer_build_label_on_linux(
+    tmp_path: Path, monkeypatch
+) -> None:
+    package = tmp_path / "posecap_addon"
+    package.mkdir()
+    (tmp_path / "blender_manifest.toml").write_text('version = "2.3.4"\n', encoding="utf-8")
+    data_home = tmp_path / "data-home"
+    install_root = data_home / "PoseCap"
+    install_root.mkdir(parents=True)
+    (install_root / "installer_manifest.json").write_text(
+        '{"version": "2.3.4-linux.7"}\n',
+        encoding="utf-8",
+    )
+    monkeypatch.delenv("LOCALAPPDATA", raising=False)
+    monkeypatch.setenv("XDG_DATA_HOME", str(data_home))
+
+    assert addon_version(package / "support.py") == "2.3.4-linux.7"
 
 
 def test_default_installation_paths_use_the_fixed_per_user_layout() -> None:
@@ -57,6 +78,38 @@ def test_default_installation_paths_use_the_fixed_per_user_layout() -> None:
     assert paths.logs == Path("C:/Users/Ale/AppData/Local/PoseCap/logs")
 
 
+def test_default_installation_paths_use_xdg_data_home_on_linux() -> None:
+    paths = default_installation_paths({"XDG_DATA_HOME": "/home/ale/.local/share"})
+
+    assert paths is not None
+    assert paths.pear_root == Path("/home/ale/.local/share/PoseCap/pear")
+    assert paths.engine_executable == Path(
+        "/home/ale/.local/share/PoseCap/runtime/venv/bin/posecap-engine"
+    )
+    assert paths.backend_registry == Path("/home/ale/.local/share/PoseCap/backends")
+    assert paths.logs == Path("/home/ale/.local/share/PoseCap/logs")
+
+
+def test_default_installation_paths_fall_back_to_home_on_linux() -> None:
+    paths = default_installation_paths({"HOME": "/home/ale"})
+
+    assert paths is not None
+    assert paths.root == Path("/home/ale/.local/share/PoseCap")
+
+
+def test_default_installation_paths_prefer_localappdata_when_both_are_set() -> None:
+    paths = default_installation_paths(
+        {"LOCALAPPDATA": "C:/Users/Ale/AppData/Local", "HOME": "/home/ale"}
+    )
+
+    assert paths is not None
+    assert paths.root == Path("C:/Users/Ale/AppData/Local/PoseCap")
+
+
+def test_default_installation_paths_return_none_without_a_platform_data_dir() -> None:
+    assert default_installation_paths({}) is None
+
+
 def test_logs_follow_a_custom_pear_installation() -> None:
     preferences = SimpleNamespace(
         pear_root="D:/Apps/PoseCap/pear",
@@ -64,6 +117,15 @@ def test_logs_follow_a_custom_pear_installation() -> None:
     )
 
     assert resolve_logs_directory(preferences, {}) == Path("D:/Apps/PoseCap/logs")
+
+
+def test_logs_follow_a_custom_pear_installation_on_linux() -> None:
+    preferences = SimpleNamespace(
+        pear_root="/opt/PoseCap/pear",
+        engine_executable="/opt/PoseCap/runtime/venv/bin/posecap-engine",
+    )
+
+    assert resolve_logs_directory(preferences, {}) == Path("/opt/PoseCap/logs")
 
 
 def test_support_bundle_contains_diagnostics_and_logs(tmp_path: Path) -> None:
