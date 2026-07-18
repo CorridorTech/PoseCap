@@ -14,7 +14,9 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
+import tempfile
 import zipfile
 from pathlib import Path
 from typing import Any
@@ -213,25 +215,32 @@ def _fetch_pear_source(source_archive: Path, pear_dir: Path, expected_revision: 
     if not source_archive.is_file():
         raise PearInstallError(f"verified PEAR source archive not found at {source_archive}")
 
-    with zipfile.ZipFile(source_archive) as archive:
-        top_level_dirs = {name.split("/", 1)[0] for name in archive.namelist() if name}
-        if len(top_level_dirs) != 1:
-            raise PearInstallError("PEAR archive did not contain exactly one top-level directory")
-        inner_name = next(iter(top_level_dirs))
-        for required in _REQUIRED_PEAR_PATHS:
-            if not any(name.startswith(f"{inner_name}/{required}") for name in archive.namelist()):
-                raise PearInstallError(f"PEAR archive is missing expected path '{required}'")
-        pear_dir.parent.mkdir(parents=True, exist_ok=True)
-        archive.extractall(pear_dir.parent)
-    extracted = pear_dir.parent / inner_name
-    if pear_dir.exists() and extracted != pear_dir:
-        for entry in extracted.iterdir():
-            target = pear_dir / entry.name
-            target.unlink(missing_ok=True) if target.is_file() else None
-            entry.rename(target)
-        extracted.rmdir()
-    elif extracted != pear_dir:
-        extracted.rename(pear_dir)
+    extraction_root = Path(tempfile.mkdtemp(prefix="posecap-pear-extract-"))
+    try:
+        with zipfile.ZipFile(source_archive) as archive:
+            top_level_dirs = {name.split("/", 1)[0] for name in archive.namelist() if name}
+            if len(top_level_dirs) != 1:
+                raise PearInstallError(
+                    "PEAR archive did not contain exactly one top-level directory"
+                )
+            inner_name = next(iter(top_level_dirs))
+            for required in _REQUIRED_PEAR_PATHS:
+                if not any(
+                    name.startswith(f"{inner_name}/{required}") for name in archive.namelist()
+                ):
+                    raise PearInstallError(f"PEAR archive is missing expected path '{required}'")
+            archive.extractall(extraction_root)
+        extracted = extraction_root / inner_name
+        # dirs_exist_ok=True merges into an already-populated pear_dir (e.g. a
+        # prior checkout, or the user's own licensed model assets under
+        # assets/) instead of failing or clobbering it -- a plain rename()
+        # over an existing non-empty directory raises ENOTEMPTY, and the
+        # licensed assets must never be deleted just because they aren't part
+        # of the fresh PEAR source archive.
+        pear_dir.mkdir(parents=True, exist_ok=True)
+        shutil.copytree(extracted, pear_dir, dirs_exist_ok=True)
+    finally:
+        shutil.rmtree(extraction_root, ignore_errors=True)
 
     for required in _REQUIRED_PEAR_PATHS:
         if not (pear_dir / required).exists():

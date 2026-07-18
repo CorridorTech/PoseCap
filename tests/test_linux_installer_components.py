@@ -21,7 +21,7 @@ from linux_installer import component_lifecycle
 from linux_installer.blender_discovery import find_compatible_blenders
 from linux_installer.install_base import BaseInstallError, install_base
 from linux_installer.install_mediapipe import MediaPipeInstallError, install_mediapipe
-from linux_installer.install_pear import PearInstallError, install_pear
+from linux_installer.install_pear import PearInstallError, _fetch_pear_source, install_pear
 from linux_installer.nvidia_detect import nvidia_driver_present
 from posecap_contracts import decode_pose_backend_manifest
 
@@ -583,6 +583,41 @@ def _pear_install_dir(tmp_path: Path, *, wheel_count: int = 4) -> Path:
     )
     _fake_pear_source_archive(install_dir / "payloads" / "pear" / "pear-source.zip")
     return install_dir
+
+
+def test_fetch_pear_source_merges_into_an_existing_checkout_with_licensed_assets(
+    tmp_path: Path,
+) -> None:
+    # Real bug found in the field: a prior checkout (e.g. from an earlier
+    # manual setup) already has a non-empty assets/ directory holding the
+    # user's own downloaded licensed SMPL-X/FLAME/MANO files. A GitHub
+    # archive zip extracts to "PEAR-<revision>/", a different top-level name
+    # than "pear/" -- the old code tried to `rename()` the fresh assets/
+    # directory over the existing non-empty one and crashed with ENOTEMPTY.
+    pear_dir = tmp_path / "pear"
+    pear_dir.mkdir()
+    licensed_asset = pear_dir / "assets" / "SMPL" / "SMPL_NEUTRAL.pkl"
+    licensed_asset.parent.mkdir(parents=True)
+    licensed_asset.write_bytes(b"the user's own licensed model, never touch this")
+    # A pre-existing (older) source file that a fresh checkout should update.
+    (pear_dir / "configs").mkdir()
+    (pear_dir / "configs" / "infer.yaml").write_text("config: old\n")
+
+    source_archive = tmp_path / "pear-source.zip"
+    _fake_pear_source_archive(
+        source_archive, revision_hint="PEAR-977331937ea8c3d08ae0254d8831d640d46a5cf6"
+    )
+
+    _fetch_pear_source(
+        source_archive, pear_dir, "977331937ea8c3d08ae0254d8831d640d46a5cf6"
+    )  # must not raise
+
+    assert licensed_asset.read_bytes() == b"the user's own licensed model, never touch this"
+    assert (pear_dir / "configs" / "infer.yaml").read_text() == "config: true\n"
+    assert (pear_dir / "models" / "__init__.py").is_file()
+    assert (
+        pear_dir / ".posecap-source-revision"
+    ).read_text() == "977331937ea8c3d08ae0254d8831d640d46a5cf6"
 
 
 def test_install_pear_raises_without_an_nvidia_driver(
