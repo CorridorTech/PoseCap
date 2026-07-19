@@ -1,0 +1,462 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Markerless Mocap, Compared — PoseCap</title>
+<meta name="description" content="A sourced, adversarially fact-checked comparison of markerless webcam motion-capture tools for Blender — pricing, real-time capability, local vs cloud processing, and Blender integration. Published by the PoseCap project, including where PoseCap falls short.">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#0C0C08">
+<link rel="canonical" href="https://corridortech.github.io/PoseCap/">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Markerless Mocap, Compared — PoseCap">
+<meta property="og:description" content="Sourced comparison of webcam motion-capture tools for Blender: what the free tiers really buy, what runs in real time, and what stays on your machine.">
+<meta property="og:url" content="https://corridortech.github.io/PoseCap/">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>%F0%9F%93%8A</text></svg>">
+<style>
+  html,body{margin:0;padding:0;background:#0C0C08;color:#F6F3E4}
+  img{max-width:100%}
+</style>
+</head>
+<body>
+<style>
+  :root{
+    color-scheme: dark;
+    --ground:#0C0C08; --surface:#15140D; --surface-2:#1D1B12; --surface-3:#26241896;
+    --line:#302D20; --line-bright:#4A4530;
+    --ink:#F6F3E4; --ink-dim:#A5A18C; --ink-faint:#6E6A57;
+    --accent:#FFF203; --accent-ink:#0C0C08; --accent-glow:rgba(255,242,3,.14);
+    --win:#8FD08A; --partial:#E8B84B; --lose:#E06A44;
+    --maxw:1060px;
+    --mono:"Consolas",ui-monospace,"SF Mono",Menlo,monospace;
+    --body:"Open Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    --display:"Arial Black","Helvetica Neue",var(--body);
+  }
+  *{box-sizing:border-box}
+  .fr{background:var(--ground);color:var(--ink);font-family:var(--body);font-size:17px;line-height:1.62;-webkit-font-smoothing:antialiased;padding:0 0 90px;overflow-x:hidden}
+  .fr ::selection{background:var(--accent);color:var(--accent-ink)}
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:0 24px}
+  .fr h1,.fr h2,.fr h3{font-family:var(--display);font-weight:900;text-wrap:balance;margin:0}
+  .fr p{margin:0 0 1em}
+  .fr a{color:var(--accent);text-decoration:none;border-bottom:1px solid var(--accent-glow)}
+  .fr a:hover{border-bottom-color:var(--accent)}
+  .fr a:focus-visible,.fr button:focus-visible,.fr summary:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:2px}
+  .eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.22em;text-transform:uppercase;color:var(--accent);margin:0 0 18px}
+  .muted{color:var(--ink-dim)} .faint{color:var(--ink-faint)} .mono{font-family:var(--mono)}
+
+  .hero{position:relative;border-bottom:1px solid var(--line);padding:56px 0 40px;overflow:hidden}
+  .hero::before{content:"";position:absolute;inset:0;background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);background-size:52px 52px;opacity:.35;-webkit-mask-image:radial-gradient(120% 90% at 78% -10%,#000 0%,transparent 62%);mask-image:radial-gradient(120% 90% at 78% -10%,#000 0%,transparent 62%);pointer-events:none}
+  .hero .wrap{position:relative}
+  .rec{display:inline-flex;align-items:center;gap:9px;font-family:var(--mono);font-size:12px;letter-spacing:.16em;color:var(--ink-dim);margin-bottom:26px}
+  .rec .dot{width:9px;height:9px;border-radius:50%;background:var(--accent)}
+  h1.title{font-size:clamp(40px,7.6vw,84px);line-height:.94;letter-spacing:-.02em;text-transform:uppercase}
+  h1.title .y{color:var(--accent)}
+  .kicker{font-size:clamp(18px,2.4vw,23px);color:var(--ink-dim);font-weight:600;margin:22px 0 0;max-width:34ch}
+  .thesis{font-size:clamp(18px,2.4vw,24px);line-height:1.42;margin:28px 0 0;max-width:38ch;font-weight:700}
+  .thesis .y{color:var(--accent)}
+
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-top:40px}
+  .stat{background:var(--surface);padding:22px 20px}
+  .stat .n{font-family:var(--display);font-weight:900;font-size:clamp(28px,4.4vw,46px);line-height:1;letter-spacing:-.03em}
+  .stat .n.y{color:var(--accent)}
+  .stat .l{font-family:var(--mono);font-size:10.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--ink-dim);margin-top:12px;line-height:1.35}
+  @media(max-width:760px){.stats{grid-template-columns:repeat(2,1fr)}}
+
+  .notice{margin-top:26px;border:1px solid var(--line-bright);background:var(--surface);padding:16px 18px;border-radius:10px;font-size:14.5px;color:var(--ink-dim)}
+  .notice b{color:var(--ink)}
+
+  section{padding:60px 0 8px}
+  .sec-h{font-size:clamp(25px,3.8vw,38px);line-height:1.04;letter-spacing:-.02em;text-transform:uppercase;margin-bottom:6px}
+  .sec-sub{color:var(--ink-dim);font-size:17px;max-width:62ch;margin-bottom:28px}
+
+  .filters{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:8px}
+  .fbtn{font-family:var(--mono);font-size:12.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink);background:var(--surface-2);border:1px solid var(--line-bright);padding:9px 15px;border-radius:999px;cursor:pointer;transition:all .16s;display:inline-flex;align-items:center;gap:8px}
+  .fbtn .tick{width:15px;height:15px;border-radius:4px;border:1.5px solid var(--ink-faint);display:inline-grid;place-items:center;font-size:11px;color:var(--accent-ink);transition:all .16s}
+  .fbtn[aria-pressed="true"]{border-color:var(--accent);color:var(--accent);background:var(--accent-glow)}
+  .fbtn[aria-pressed="true"] .tick{background:var(--accent);border-color:var(--accent)}
+  .fbtn[aria-pressed="true"] .tick::after{content:"✓"}
+  .mcount{font-family:var(--mono);font-size:13px;color:var(--ink-dim);margin:16px 0 20px;min-height:1.4em}
+  .mcount b{color:var(--accent);font-size:15px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(232px,1fr));gap:12px}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px;transition:opacity .22s,border-color .22s}
+  .card.hero{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent);background:linear-gradient(180deg,var(--accent-glow),var(--surface) 55%)}
+  .card.dim{opacity:.24;filter:grayscale(.5)}
+  .card.dead .cname{text-decoration:line-through;text-decoration-color:var(--lose);color:var(--ink-dim)}
+  .cname{font-family:var(--display);font-weight:900;font-size:17px;display:flex;align-items:center;gap:8px}
+  .badge{font-family:var(--mono);font-size:9px;letter-spacing:.1em;padding:2px 6px;border-radius:4px;text-transform:uppercase}
+  .badge.win{background:var(--accent);color:var(--accent-ink)}
+  .badge.dead{background:rgba(224,106,68,.16);color:var(--lose);border:1px solid rgba(224,106,68,.4)}
+  .axes{display:grid;grid-template-columns:1fr 1fr;gap:6px 10px;margin-top:13px}
+  .ax{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ink-dim)}
+  .ax .g{width:16px;height:16px;border-radius:50%;display:grid;place-items:center;font-size:10px;font-weight:700;flex:none}
+  .g.yes{background:rgba(143,208,138,.16);color:var(--win)}
+  .g.partial{background:rgba(232,184,75,.16);color:var(--partial)}
+  .g.no{background:rgba(224,106,68,.12);color:var(--lose)}
+
+  .chart{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:26px 24px 20px}
+  .bar-row{display:grid;grid-template-columns:150px 1fr;gap:16px;align-items:center;margin:0 0 13px}
+  .bar-row .bl{font-size:13.5px;text-align:right;font-weight:600}
+  .bar-track{position:relative;height:30px;background:var(--surface-2);border-radius:6px;overflow:hidden}
+  .bar-fill{height:100%;border-radius:6px;background:var(--ink-faint);width:0;transition:width 1.1s cubic-bezier(.2,.8,.2,1)}
+  .bar-fill.y{background:linear-gradient(90deg,#C9BE00,var(--accent))}
+  .bar-val{position:absolute;top:50%;transform:translateY(-50%);left:12px;font-family:var(--mono);font-size:12px;white-space:nowrap}
+  .bar-val.inside{color:var(--accent-ink);font-weight:700}
+  @media(max-width:620px){.bar-row{grid-template-columns:104px 1fr;gap:10px}.bar-row .bl{font-size:12px}}
+
+  .wl{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  @media(max-width:820px){.wl{grid-template-columns:1fr}}
+  .col{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:24px 22px}
+  .col h3{font-size:16px;text-transform:uppercase;letter-spacing:.03em;margin-bottom:16px}
+  .col.win h3{color:var(--win)} .col.lose h3{color:var(--partial)}
+  .item{padding:13px 0;border-top:1px solid var(--line)}
+  .item:first-of-type{border-top:0}
+  .item .t{font-weight:700;font-size:15px;margin-bottom:3px}
+  .item .d{color:var(--ink-dim);font-size:13.5px}
+
+  .guide{display:grid;gap:12px}
+  .grow{display:grid;grid-template-columns:1fr auto;gap:18px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px 20px}
+  @media(max-width:680px){.grow{grid-template-columns:1fr;gap:8px}}
+  .gneed{font-size:15px}
+  .gneed b{color:var(--ink)}
+  .gpick{font-family:var(--display);font-weight:900;font-size:15px;color:var(--accent);white-space:nowrap}
+  .gpick.other{color:var(--ink)}
+
+  .podium{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:22px}
+  @media(max-width:680px){.podium{grid-template-columns:1fr}}
+  .art{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:18px;position:relative;overflow:hidden}
+  .art .rk{font-family:var(--display);font-weight:900;font-size:52px;line-height:.8;color:var(--surface-3);position:absolute;top:10px;right:14px}
+  .art.one{border-color:var(--accent)} .art.one .rk{color:var(--accent-glow)}
+  .art .an{font-family:var(--display);font-weight:900;font-size:18px;text-transform:uppercase;position:relative}
+  .art.one .an{color:var(--accent)}
+  .art .ad{color:var(--ink-dim);font-size:13px;margin-top:8px;position:relative}
+  .flow{display:flex;flex-wrap:wrap;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:20px;margin-top:4px}
+  .fnode{flex:1;min-width:150px;padding:6px 14px;position:relative}
+  .fnode:not(:last-child)::after{content:"→";position:absolute;right:-6px;top:50%;transform:translateY(-50%);color:var(--accent);font-size:18px}
+  @media(max-width:680px){.fnode:not(:last-child)::after{content:"↓";right:auto;left:20px;top:auto;bottom:-14px;transform:none}.fnode{min-width:100%}}
+  .fnode .fl{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-faint);margin-bottom:5px}
+  .fnode .ft{font-weight:700;font-size:14px}
+
+  details{background:var(--surface);border:1px solid var(--line);border-radius:12px;margin:12px 0;overflow:hidden}
+  details[open]{border-color:var(--line-bright)}
+  summary{cursor:pointer;padding:16px 20px;font-family:var(--mono);font-size:12.5px;letter-spacing:.08em;text-transform:uppercase;display:flex;align-items:center;gap:12px;list-style:none;user-select:none}
+  summary::-webkit-details-marker{display:none}
+  summary .chev{margin-left:auto;transition:transform .2s;color:var(--accent)}
+  details[open] summary .chev{transform:rotate(90deg)}
+  summary .sk{color:var(--accent)}
+  .dbody{padding:4px 22px 22px;font-size:14.5px;color:var(--ink-dim);border-top:1px solid var(--line)}
+  .dbody h4{font-family:var(--body);font-size:14px;color:var(--ink);margin:18px 0 6px;text-transform:uppercase;letter-spacing:.04em}
+  .dbody b,.dbody strong{color:var(--ink)}
+  .dbody ul{margin:0 0 .6em;padding-left:20px} .dbody li{margin:0 0 6px}
+  .dbody code{font-family:var(--mono);font-size:12.5px;background:var(--surface-2);padding:1px 6px;border-radius:4px;color:var(--accent)}
+  .refuted{border-left:3px solid var(--lose);padding-left:14px;margin:6px 0}
+
+  .tw{overflow-x:auto;margin:6px 0 4px}
+  table.cmp{border-collapse:collapse;width:100%;font-size:13px;min-width:600px}
+  table.cmp th,table.cmp td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+  table.cmp th{font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-dim)}
+  table.cmp td:first-child{font-weight:700;color:var(--ink);white-space:nowrap}
+  .v-yes{color:var(--win)}.v-no{color:var(--lose)}.v-part{color:var(--partial)}
+
+  .disc{background:var(--surface);border:1px solid var(--line-bright);border-radius:14px;padding:26px 24px;margin-top:20px}
+  .disc h3{font-size:15px;text-transform:uppercase;letter-spacing:.05em;color:var(--accent);margin-bottom:14px}
+  .disc ol{margin:0;padding-left:20px;color:var(--ink-dim);font-size:14.5px}
+  .disc li{margin-bottom:10px}
+  .disc b{color:var(--ink)}
+
+  .foot{margin-top:60px;padding-top:24px;border-top:1px solid var(--line);font-family:var(--mono);font-size:11.5px;color:var(--ink-faint);letter-spacing:.04em;display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px}
+  @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+
+<div class="fr">
+
+  <header class="hero">
+    <div class="wrap">
+      <div class="rec"><span class="dot"></span> OPEN COMPARISON · DATA AS OF 2026-07-17</div>
+      <h1 class="title">Markerless mocap,<br><span class="y">compared</span></h1>
+      <p class="kicker">A sourced, adversarially fact-checked comparison of webcam motion-capture tools for Blender — including where PoseCap falls short.</p>
+      <p class="thesis">Most tools meter capture by the second and process in the cloud. <span class="y">PoseCap doesn't.</span> That's the trade — and it costs something.</p>
+
+      <div class="stats">
+        <div class="stat"><div class="n" data-count="13">13</div><div class="l">Tools<br>compared</div></div>
+        <div class="stat"><div class="n" data-count="75">75</div><div class="l">Claims verified<br>3-voter panel</div></div>
+        <div class="stat"><div class="n y" data-count="8">8</div><div class="l">Claims killed<br>in verification</div></div>
+        <div class="stat"><div class="n" data-count="3">3</div><div class="l">Research<br>passes</div></div>
+      </div>
+
+      <div class="notice"><b>What this is.</b> An independent comparison published by the PoseCap project. PoseCap is one of the tools compared, so treat our framing accordingly — we've published the method, the sources, and the claims our own fact-checking <em>killed</em>, so you can check the work rather than trust it. Facts here come from vendors' own pricing pages, docs and repositories on <b>2026-07-17</b>.</div>
+    </div>
+  </header>
+
+  <section class="wrap">
+    <p class="eyebrow">01 — The four axes</p>
+    <h2 class="sec-h">Filter by what you need</h2>
+    <p class="sec-sub">These four properties separate the field more than any feature list. Toggle what matters to you and see which tools survive. Green = yes, amber = partial, red = no.</p>
+    <div class="filters" id="filters">
+      <button class="fbtn" data-axis="free" aria-pressed="true"><span class="tick"></span>Free &amp; unlimited</button>
+      <button class="fbtn" data-axis="rt" aria-pressed="true"><span class="tick"></span>Real-time</button>
+      <button class="fbtn" data-axis="local" aria-pressed="true"><span class="tick"></span>Runs on your machine</button>
+      <button class="fbtn" data-axis="addon" aria-pressed="true"><span class="tick"></span>Native Blender addon</button>
+    </div>
+    <p class="mcount" id="mcount"></p>
+    <div class="grid" id="mgrid"></div>
+  </section>
+
+  <section class="wrap">
+    <p class="eyebrow">02 — What "free" buys</p>
+    <h2 class="sec-h">Read the meter</h2>
+    <p class="sec-sub">Most free tiers are trials measured in seconds. Verified against each vendor's official pricing page on 2026-07-17 — figures change, so confirm before you commit.</p>
+    <div class="chart" id="freechart">
+      <div class="bar-row"><div class="bl">PoseCap</div><div class="bar-track"><div class="bar-fill y" data-w="100"><span class="bar-val inside">∞ &nbsp;unmetered, runs locally</span></div></div></div>
+      <div class="bar-row"><div class="bl">Plask</div><div class="bar-track"><div class="bar-fill" data-w="26"><span class="bar-val">15s / day</span></div></div></div>
+      <div class="bar-row"><div class="bl">DeepMotion</div><div class="bar-track"><div class="bar-fill" data-w="14"><span class="bar-val">60s / month · non-commercial</span></div></div></div>
+      <div class="bar-row"><div class="bl">QuickMagic</div><div class="bar-track"><div class="bar-fill" data-w="12"><span class="bar-val">~50s / month</span></div></div></div>
+      <div class="bar-row"><div class="bl">Rokoko Vision</div><div class="bar-track"><div class="bar-fill" data-w="7"><span class="bar-val">30s / month</span></div></div></div>
+      <div class="bar-row"><div class="bl">Remocapp</div><div class="bar-track"><div class="bar-fill" data-w="7"><span class="bar-val">30s / capture (trial)</span></div></div></div>
+      <div class="bar-row"><div class="bl">Move One</div><div class="bar-track"><div class="bar-fill" data-w="5"><span class="bar-val">30 one-time credits (~30s)</span></div></div></div>
+    </div>
+    <p class="faint mono" style="font-size:11.5px;margin-top:12px">Bars illustrate the disparity; units differ per tool as labeled. Paid tiers of every listed tool offer far more — this chart is only about the free entry point.</p>
+  </section>
+
+  <section class="wrap">
+    <p class="eyebrow">03 — Straight answer</p>
+    <h2 class="sec-h">Which one should you use?</h2>
+    <p class="sec-sub">Honest routing. Several of these point away from PoseCap, because for those needs another tool is genuinely the better choice today.</p>
+    <div class="guide">
+      <div class="grow"><div class="gneed">You want the <b>best possible single-camera accuracy</b> and can pay per second</div><div class="gpick other">Move.ai</div></div>
+      <div class="grow"><div class="gneed">You need <b>multi-person</b> capture, or <b>hands + face</b> as a mature product feature</div><div class="gpick other">DeepMotion · Move.ai</div></div>
+      <div class="grow"><div class="gneed">You want <b>retargeting to any rig</b> (Mixamo, UE5, HumanIK) out of the box</div><div class="gpick other">Rokoko · DeepMotion</div></div>
+      <div class="grow"><div class="gneed">You want <b>live capture</b> and don't mind a subscription and an account</div><div class="gpick other">Remocapp · Rokoko Studio Live</div></div>
+      <div class="grow"><div class="gneed">You want <b>research-grade multi-camera</b> capture, free and open-source, and can rig 3+ cameras</div><div class="gpick other">FreeMoCap</div></div>
+      <div class="grow"><div class="gneed">You want capture that is <b>free, unmetered, real-time, and never leaves your machine</b>, inside Blender</div><div class="gpick">PoseCap</div></div>
+    </div>
+  </section>
+
+  <section class="wrap">
+    <p class="eyebrow">04 — Full disclosure</p>
+    <h2 class="sec-h">What PoseCap does &amp; doesn't do</h2>
+    <p class="sec-sub">Written so you can rule it out quickly if it's wrong for you. These are current product facts, not promises.</p>
+    <div class="wl">
+      <div class="col win">
+        <h3>◤ What it does</h3>
+        <div class="item"><div class="t">Real-time webcam capture inside Blender</div><div class="d">Pose applies to your armature live, without a file round-trip through an external service.</div></div>
+        <div class="item"><div class="t">100% local — nothing is uploaded</div><div class="d">No account, no cloud, no footage leaving your machine. Relevant if you work on unreleased or client material.</div></div>
+        <div class="item"><div class="t">Free and unmetered</div><div class="d">Open-source. No per-second billing, no capture cap.</div></div>
+        <div class="item"><div class="t">GUI installer, no command line</div><div class="d">Built for animators and editors, not developers.</div></div>
+      </div>
+      <div class="col lose">
+        <h3>◣ What it does not do (yet)</h3>
+        <div class="item"><div class="t">No cleanup layer</div><div class="d">Pose is applied as captured. Several paid tools ship jitter smoothing and foot-locking; PoseCap does not yet, so expect to clean up takes.</div></div>
+        <div class="item"><div class="t">Retargeting is SMPL-X-only</div><div class="d">No out-of-the-box Mixamo / UE5 / arbitrary-rig retargeting today.</div></div>
+        <div class="item"><div class="t">Body only, one person</div><div class="d">Face capture is out of scope for now; hands are in progress; multi-person is not supported.</div></div>
+        <div class="item"><div class="t">Hardware and platform limits</div><div class="d">The accelerated PEAR backend needs an NVIDIA CUDA GPU; a MediaPipe CPU backend widens that. Windows-first.</div></div>
+        <div class="item"><div class="t">No published accuracy benchmark</div><div class="d">We have not yet published measured accuracy or jitter figures for PoseCap, so we make no quality claim against the tools above.</div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="wrap">
+    <p class="eyebrow">05 — Know the limits</p>
+    <h2 class="sec-h">Every single-camera tool fights the same physics</h2>
+    <p class="sec-sub">Useful to know before you judge any of these tools — including this one. These artifacts are documented in peer-reviewed computer-vision literature and acknowledged in vendors' own documentation and release notes.</p>
+    <div class="podium">
+      <div class="art one"><div class="rk">1</div><div class="an">Temporal jitter</div><div class="ad">Shakiness on limbs that should be still. Multiple vendors ship dedicated smoothing filters — evidence the artifact is real across the field.</div></div>
+      <div class="art"><div class="rk">2</div><div class="an">Foot sliding</div><div class="ad">Feet drift instead of planting. The most frequently patched artifact in vendor release notes, and usually correctable in cleanup.</div></div>
+      <div class="art"><div class="rk">3</div><div class="an">Occlusion &amp; depth</div><div class="ad">Crossed limbs, turning away from camera, depth drift. Every vendor's docs advise against occlusion for this reason.</div></div>
+    </div>
+    <div class="flow">
+      <div class="fnode"><div class="fl">Root cause</div><div class="ft">One camera → depth ambiguity + self-occlusion</div></div>
+      <div class="fnode"><div class="fl">Shows up as</div><div class="ft">Jitter · foot slide · depth drift · leaning</div></div>
+      <div class="fnode"><div class="fl">Published finding</div><div class="ft">Kinematics-only pipelines can't remove it (PhysCap, SIGGRAPH Asia 2020)</div></div>
+      <div class="fnode"><div class="fl">Why it matters</div><div class="ft">Multi-camera setups exist precisely to escape this ceiling</div></div>
+    </div>
+  </section>
+
+  <section class="wrap">
+    <p class="eyebrow">06 — Show the work</p>
+    <h2 class="sec-h">Method, sources &amp; disclaimers</h2>
+    <p class="sec-sub">A comparison published by a participant is only worth the audit trail behind it. Here's ours.</p>
+
+    <details>
+      <summary><span class="sk">▸</span> How this was researched <span class="chev">›</span></summary>
+      <div class="dbody">
+        <div class="flow" style="border:0;padding:14px 0">
+          <div class="fnode"><div class="fl">Search</div><div class="ft">5 angles per pass</div></div>
+          <div class="fnode"><div class="fl">Fetch</div><div class="ft">~20 primary sources</div></div>
+          <div class="fnode"><div class="fl">Extract</div><div class="ft">~100 falsifiable claims</div></div>
+          <div class="fnode"><div class="fl">Verify</div><div class="ft">3 independent skeptics per claim</div></div>
+          <div class="fnode"><div class="fl">Publish</div><div class="ft">only survivors</div></div>
+        </div>
+        <p>Three research passes were run using AI agents with web access. Each extracted claim was checked by three independent verifier agents instructed to <b>refute</b> it against primary sources; a claim needed at least two of three to survive. Prices and feature facts were fetched live from official vendor pages on <b>2026-07-17</b>.</p>
+        <p><b>This method has limits.</b> It is automated research, not hands-on benchmarking. No tool here was tested side by side by us on identical footage. Treat this as a well-sourced map of what vendors publish, not as measured performance.</p>
+      </div>
+    </details>
+
+    <details>
+      <summary><span class="sk">▸</span> Claims our own fact-check killed <span class="chev">›</span></summary>
+      <div class="dbody">
+        <p>Published for transparency — several of these would have made the comparison more flattering to PoseCap. They failed verification, so they are not used above:</p>
+        <div class="refuted"><b>“Foot sliding is the #1 complaint.”</b> Refuted. Jitter is at least co-equal and leads ordered lists in sources.</div>
+        <div class="refuted"><b>“Move.ai has no free tier.”</b> Refuted as overstated — Move One includes 30 one-time credits (offline, single-camera).</div>
+        <div class="refuted"><b>“MocapNET runs real-time on CPU with no GPU at 70 fps.”</b> Refuted; its reported ~30 Hz figure depends on MediaPipe and is a single-machine self-report.</div>
+        <div class="refuted"><b>“Cascadeur isn't a motion-capture tool.”</b> Refuted — it does offer offline, file-based video mocap; it simply isn't real-time webcam capture.</div>
+        <div class="refuted"><b>“QuickMagic has no Blender path.”</b> Refuted — a Blender/BVH path exists; we did not verify its exact shape.</div>
+        <p class="faint">We also dropped a subjective “output quality ranking” of competitors entirely: it rested on impressions and secondary reviews rather than measurements, so publishing it would have been unfair to the tools ranked low.</p>
+      </div>
+    </details>
+
+    <details>
+      <summary><span class="sk">▸</span> Per-tool facts (2026-07-17) <span class="chev">›</span></summary>
+      <div class="dbody">
+        <div class="tw">
+          <table class="cmp">
+            <thead><tr><th>Tool</th><th>Free tier</th><th>Real-time?</th><th>Blender path</th><th>Processing</th></tr></thead>
+            <tbody>
+              <tr><td>Rokoko Vision 3.0</td><td>30s/mo</td><td class="v-no">No — video upload</td><td>FBX/BVH round-trip</td><td>Cloud + account</td></tr>
+              <tr><td>Rokoko Studio Live</td><td class="v-no">Requires hardware or Plus</td><td class="v-yes">Yes — from Rokoko Studio</td><td>Native addon (GPL)</td><td>Local app; their hardware</td></tr>
+              <tr><td>DeepMotion Animate 3D</td><td>60s/mo, non-commercial</td><td class="v-no">No (real-time via paid API)</td><td>FBX/BVH/GLB export</td><td>Cloud + account</td></tr>
+              <tr><td>Plask Motion</td><td>15s/day</td><td class="v-no">No</td><td class="v-no">Export only</td><td>Cloud + account</td></tr>
+              <tr><td>QuickMagic</td><td>~50s/mo</td><td class="v-no">No</td><td class="v-part">Blender/BVH path exists</td><td>Cloud + account</td></tr>
+              <tr><td>Move One</td><td class="v-part">30 one-time credits</td><td class="v-no">No; 60s per clip cap</td><td>FBX export</td><td>Cloud + account</td></tr>
+              <tr><td>Move Live</td><td class="v-no">None</td><td class="v-yes">Yes</td><td>—</td><td>4–8 cameras, Ubuntu, RTX A6000</td></tr>
+              <tr><td>Remocapp</td><td>30s/capture (trial)</td><td class="v-yes">Yes — live webcam</td><td>Live to Blender</td><td>Their app + account</td></tr>
+              <tr><td>PoseCap</td><td class="v-yes">Unmetered, open-source</td><td class="v-yes">Yes — live webcam</td><td class="v-yes">Native addon</td><td class="v-yes">100% local</td></tr>
+              <tr><td>BlendArMocap</td><td class="v-yes">Free, GPL-3.0</td><td class="v-part">Yes, historically</td><td>Native addon</td><td class="v-no">Local — unmaintained since 2023</td></tr>
+              <tr><td>FreeMoCap</td><td class="v-yes">Free, AGPL-3.0</td><td class="v-no">Not yet (per its FAQ)</td><td class="v-part">Addon imports processed data</td><td>Local · 3+ cameras advised</td></tr>
+              <tr><td>Autodesk Flow Studio</td><td class="v-part">Freemium, watermarked</td><td class="v-no">No — cloud batch</td><td class="v-part">Addon validates/exports</td><td>Cloud + account</td></tr>
+              <tr><td>MocapNET</td><td class="v-part">Free, non-commercial licence</td><td class="v-yes">~30 Hz reported</td><td class="v-no">BVH export</td><td>Local · commercial use not permitted</td></tr>
+              <tr><td>Cascadeur</td><td class="v-part">Free tier</td><td class="v-no">No — offline video mocap</td><td>Live Link out</td><td>Local · AI-assisted keyframing</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </details>
+
+    <details>
+      <summary><span class="sk">▸</span> Sources <span class="chev">›</span></summary>
+      <div class="dbody">
+        <ul>
+          <li>rokoko.com/pricing · rokoko.com/products/vision · github.com/Rokoko/rokoko-studio-live-blender</li>
+          <li>deepmotion.com/pricing-animate3d · deepmotion.com/release-updates</li>
+          <li>plask.ai/en-US/pricing · quickmagic.ai/Pricing</li>
+          <li>docs.move.ai · developers.move.ai/docs/pricing · remocapp.com/pricing</li>
+          <li>github.com/freemocap/freemocap · docs.freemocap.org</li>
+          <li>github.com/cgtinker/BlendArMocap · github.com/FORTH-ModelBasedTracker/MocapNET</li>
+          <li>help.wonderdynamics.com · investors.autodesk.com · cascadeur.com/help</li>
+          <li>PhysCap, Shimada et al., SIGGRAPH Asia 2020 — arxiv.org/pdf/2008.08880</li>
+        </ul>
+      </div>
+    </details>
+
+    <div class="disc">
+      <h3>⚠ Disclaimers — please read</h3>
+      <ol>
+        <li><b>Published by a participant.</b> This comparison is produced by the PoseCap project, which is one of the compared tools. We have tried to be even-handed and to publish our method and our killed claims, but we are not a neutral third party.</li>
+        <li><b>Point-in-time data.</b> All pricing and feature information was gathered on <b>2026-07-17</b>. Vendors change plans, limits and capabilities without notice. <b>Verify with the vendor before making any purchasing decision.</b></li>
+        <li><b>Not measured performance.</b> No hands-on benchmark was run. Nothing here should be read as a test result or an accuracy claim about any tool, including PoseCap.</li>
+        <li><b>Sourced from public information.</b> Statements about other tools are drawn from those vendors' own public pages, documentation and repositories, plus published research, and reflect our reading of them. Errors are possible — <a href="https://github.com/CorridorTech/PoseCap/issues/new" rel="noopener">open an issue and we'll correct them</a>.</li>
+        <li><b>No affiliation or endorsement.</b> PoseCap is not affiliated with, sponsored by, or endorsed by any other product named here. All product names, logos and trademarks are the property of their respective owners and are used for identification and comparison only.</li>
+        <li><b>Research was AI-assisted.</b> Claims were gathered by automated agents and cross-checked by independent verifier agents against primary sources. This reduces error but does not eliminate it.</li>
+      </ol>
+    </div>
+
+    <div class="foot">
+      <span>POSECAP · OPEN COMPARISON</span>
+      <span>DATA AS OF 2026-07-17 · CORRECTIONS WELCOME</span>
+    </div>
+  </section>
+</div>
+
+<script>
+(function(){
+  var root = document.currentScript.previousElementSibling;
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+
+  function countUp(el){
+    var target = +el.getAttribute('data-count'); if(isNaN(target)) return;
+    if(reduce){ el.textContent = target; return; }
+    var dur = 1000, start = null;
+    function tick(ts){
+      if(!start) start = ts;
+      var p = Math.min((ts-start)/dur,1), e = 1-Math.pow(1-p,3);
+      el.textContent = Math.round(target*e);
+      if(p<1) requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+  }
+  function growBars(chart){
+    chart.querySelectorAll('.bar-fill').forEach(function(f){ f.style.width = f.getAttribute('data-w')+'%'; });
+  }
+  var io = ('IntersectionObserver' in window) ? new IntersectionObserver(function(entries){
+    entries.forEach(function(en){
+      if(!en.isIntersecting) return;
+      var t = en.target;
+      if(t.classList.contains('n')) countUp(t);
+      if(t.id==='freechart') growBars(t);
+      io.unobserve(t);
+    });
+  },{threshold:.4}) : null;
+  root.querySelectorAll('.stat .n').forEach(function(el){ io ? io.observe(el) : countUp(el); });
+  var fc = root.querySelector('#freechart'); if(fc){ io ? io.observe(fc) : growBars(fc); }
+
+  var tools = [
+    {n:'PoseCap', free:'yes', rt:'yes', local:'yes', addon:'yes', hero:true},
+    {n:'BlendArMocap', free:'yes', rt:'yes', local:'yes', addon:'yes', dead:true},
+    {n:'Remocapp', free:'no', rt:'yes', local:'no', addon:'yes'},
+    {n:'Rokoko Studio Live', free:'no', rt:'yes', local:'partial', addon:'yes'},
+    {n:'Move Live', free:'no', rt:'yes', local:'partial', addon:'no'},
+    {n:'MocapNET', free:'partial', rt:'yes', local:'yes', addon:'no'},
+    {n:'FreeMoCap', free:'yes', rt:'no', local:'yes', addon:'partial'},
+    {n:'Rokoko Vision', free:'no', rt:'no', local:'no', addon:'no'},
+    {n:'DeepMotion', free:'no', rt:'no', local:'no', addon:'no'},
+    {n:'Plask', free:'no', rt:'no', local:'no', addon:'no'},
+    {n:'QuickMagic', free:'no', rt:'no', local:'no', addon:'partial'},
+    {n:'Move One', free:'partial', rt:'no', local:'no', addon:'no'},
+    {n:'Autodesk Flow', free:'partial', rt:'no', local:'no', addon:'no'},
+    {n:'Cascadeur', free:'partial', rt:'no', local:'yes', addon:'no'}
+  ];
+  var axisLabel = {free:'Free', rt:'Real-time', local:'Local', addon:'Addon'};
+  var glyph = {yes:'✓', partial:'~', no:'✕'};
+  var grid = root.querySelector('#mgrid'), countEl = root.querySelector('#mcount');
+  var active = {free:true, rt:true, local:true, addon:true};
+
+  tools.forEach(function(t){
+    var c = document.createElement('div');
+    c.className = 'card' + (t.hero?' hero':'') + (t.dead?' dead':'');
+    var badge = t.hero ? '<span class="badge win">All 4</span>' : (t.dead ? '<span class="badge dead">Unmaintained</span>' : '');
+    var axes = ['free','rt','local','addon'].map(function(a){
+      return '<div class="ax"><span class="g '+t[a]+'">'+glyph[t[a]]+'</span>'+axisLabel[a]+'</div>';
+    }).join('');
+    c.innerHTML = '<div class="cname">'+t.n+badge+'</div><div class="axes">'+axes+'</div>';
+    t._el = c; grid.appendChild(c);
+  });
+
+  function apply(){
+    var anyActive = Object.keys(active).some(function(a){return active[a];});
+    var live = [];
+    tools.forEach(function(t){
+      var ok = true;
+      for(var a in active){ if(active[a] && t[a] !== 'yes'){ ok = false; break; } }
+      t._el.classList.toggle('dim', !ok);
+      if(ok) live.push(t);
+    });
+    if(!anyActive){ countEl.innerHTML = 'No filters applied — showing all <b>'+tools.length+'</b> tools.'; return; }
+    var dead = live.filter(function(t){return t.dead;}).length;
+    var alive = live.length - dead;
+    var deadNote = dead ? ' &nbsp;(+'+dead+' that qualifies but is <span style="color:var(--lose)">unmaintained</span>)' : '';
+    countEl.innerHTML = '<b>'+alive+'</b> of '+tools.length+' tools match every selected axis.'+deadNote;
+  }
+  apply();
+  root.querySelectorAll('#filters .fbtn').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var ax = btn.getAttribute('data-axis'), now = btn.getAttribute('aria-pressed')==='true';
+      btn.setAttribute('aria-pressed', String(!now));
+      active[ax] = !now;
+      apply();
+    });
+  });
+})();
+</script>
+
+</body>
+</html>
