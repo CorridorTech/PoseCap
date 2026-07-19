@@ -63,6 +63,7 @@ Binding decisions live in [`doc/adr/`](doc/adr/). Do not reinvent, and do not re
 * `assets/` — local test media; licensed model assets are never committed
 * `doc/product/`, `doc/specs/`, `doc/tasks/`, `doc/adr/` — product scope, feature specs, task files, decision records
 * `doc/guides/`, `doc/reference/`, `doc/workflows.md` — user guides, external reference notes, product flow diagrams; agent workflow rules live in `AGENTS.md` and `GUIDELINES.md`
+* `docs/` — **the published GitHub Pages site, not project documentation.** Note the one-letter split: `doc/` is the internal Markdown record (read it, edit it); `docs/` is a built public web page (`docs/index.html`) served to end users. Do not put project docs in `docs/`, and do not link internal analysis from it — anything here is world-readable.
 * `.agents/skills/`, `.claude/` — agentic-docs skill installs for Codex and Claude Code
 * Upstream PEAR research code stays out of this repo — the bridge imports it from a pinned external location (ADR-0005); shared-package vendoring strategy in ADR-0004.
 
