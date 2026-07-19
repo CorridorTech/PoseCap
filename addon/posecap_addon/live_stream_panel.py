@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 from typing import Any
 
-from .backend_registry import discover_installed_pose_backends
+from .backend_registry import discover_installed_pose_backends, preferred_pose_backend
 from .panel_text import DEFAULT_WRAP_CHARS, draw_wrapped_label
 from .stream_properties import LiveStreamSettings, selected_backend_id
 from .ui_state import LifecycleState, lifecycle_controls
@@ -131,7 +131,10 @@ def _draw_pose_backend_selector(column: Any, settings: LiveStreamSettings) -> No
     column.prop(settings, "pose_backend_id", text="Pose Backend")
     catalog = discover_installed_pose_backends(dict(os.environ))
     if len(catalog.ready) > 1 and selected_backend_id(settings) is None:
-        column.label(text="Choose a Pose Backend before starting capture.", icon="INFO")
+        # Automatic resolves on its own (task 0038); name the pick so the
+        # choice is visible rather than hidden behind the word "Automatic".
+        automatic = preferred_pose_backend(catalog)
+        column.label(text=f"Automatic uses {automatic.display_name}.", icon="INFO")
     for issue in catalog.issues:
         column.label(text=f"Unavailable Pose Backend: {issue.reason}", icon="ERROR")
 

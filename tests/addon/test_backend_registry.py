@@ -6,13 +6,21 @@ from pathlib import Path
 import pytest
 from posecap_addon import (
     BackendSelectionError,
+    PoseBackendCatalog,
     discover_installed_pose_backends,
     discover_pose_backends,
+    preferred_pose_backend,
     resolve_installed_pose_backend,
 )
 
 
-def _write_backend_manifest(registry: Path, backend_id: str, executable: Path) -> Path:
+def _write_backend_manifest(
+    registry: Path,
+    backend_id: str,
+    executable: Path,
+    *,
+    accelerators: tuple[str, ...] = ("nvidia-cuda",),
+) -> Path:
     backend_dir = registry / backend_id
     backend_dir.mkdir(parents=True)
     manifest_path = backend_dir / "backend.json"
@@ -27,7 +35,7 @@ def _write_backend_manifest(registry: Path, backend_id: str, executable: Path) -
                 "capabilities": ["body", "hands", "face"],
                 "compatibility": {
                     "operating_systems": ["windows", "linux"],
-                    "accelerators": ["nvidia-cuda"],
+                    "accelerators": list(accelerators),
                     "account": "MPI account required for model downloads",
                     "license": "MPI model terms apply",
                 },
@@ -67,23 +75,84 @@ def test_single_valid_pear_manifest_is_discovered_and_auto_selected(tmp_path: Pa
     assert catalog.ready[0].manifest.compatibility.license == "MPI model terms apply"
 
 
-def test_multiple_ready_backends_require_and_honor_the_persisted_selection(tmp_path: Path) -> None:
+def test_automatic_prefers_the_accelerated_backend_and_yields_to_an_explicit_choice(
+    tmp_path: Path,
+) -> None:
+    """Task 0038: Automatic picks for the user instead of refusing to choose.
+
+    The panel offers "Automatic" as the default entry, so with the recommended
+    full install (PEAR + MediaPipe) it must resolve — to the accelerated
+    backend, matching the installer's own PEAR-when-NVIDIA preselection (#93).
+    An explicit choice still outranks the policy.
+    """
     pear_executable = tmp_path / "posecap-engine.exe"
     mediapipe_executable = tmp_path / "posecap-mediapipe.exe"
     pear_executable.touch()
     mediapipe_executable.touch()
     registry = tmp_path / "PoseCap" / "backends"
     _write_backend_manifest(registry, "pear", pear_executable)
-    _write_backend_manifest(registry, "mediapipe", mediapipe_executable)
+    _write_backend_manifest(registry, "mediapipe", mediapipe_executable, accelerators=("cpu",))
     environ = {"LOCALAPPDATA": str(tmp_path)}
 
-    with pytest.raises(BackendSelectionError, match="select one"):
-        resolve_installed_pose_backend(environ)
+    automatic = resolve_installed_pose_backend(environ)
+
+    assert automatic is not None
+    assert automatic.id == "pear"
 
     selected = resolve_installed_pose_backend(environ, selected_id="mediapipe")
 
     assert selected is not None
     assert selected.id == "mediapipe"
+
+
+def test_automatic_falls_back_to_the_cpu_backend_when_no_accelerated_one_is_ready(
+    tmp_path: Path,
+) -> None:
+    """Only CPU backends installed: Automatic still resolves, it does not refuse."""
+    mediapipe_executable = tmp_path / "posecap-mediapipe.exe"
+    fallback_executable = tmp_path / "posecap-fallback.exe"
+    mediapipe_executable.touch()
+    fallback_executable.touch()
+    registry = tmp_path / "PoseCap" / "backends"
+    _write_backend_manifest(registry, "mediapipe", mediapipe_executable, accelerators=("cpu",))
+    _write_backend_manifest(registry, "fallback", fallback_executable, accelerators=("cpu",))
+
+    automatic = resolve_installed_pose_backend({"LOCALAPPDATA": str(tmp_path)})
+
+    assert automatic is not None
+    assert automatic.id == "fallback"
+
+
+def test_preferred_pose_backend_refuses_an_empty_catalogue_with_a_domain_error() -> None:
+    """The public policy must not leak a bare ValueError from ``max``."""
+    empty = PoseBackendCatalog(ready=(), issues=(), selected_id=None)
+
+    with pytest.raises(BackendSelectionError, match="No Pose Backend is ready"):
+        preferred_pose_backend(empty)
+
+
+@pytest.mark.parametrize("installation_order", permutations(("pear", "mediapipe", "mhr")))
+def test_automatic_is_deterministic_regardless_of_installation_order(
+    tmp_path: Path, installation_order: tuple[str, str, str]
+) -> None:
+    """The accelerated pick must not depend on which backend was installed first."""
+    registry = tmp_path / "PoseCap" / "backends"
+    accelerators = {
+        "pear": ("nvidia-cuda",),
+        "mediapipe": ("cpu",),
+        "mhr": ("cpu",),
+    }
+    for backend_id in installation_order:
+        executable = tmp_path / f"posecap-{backend_id}.exe"
+        executable.touch()
+        _write_backend_manifest(
+            registry, backend_id, executable, accelerators=accelerators[backend_id]
+        )
+
+    automatic = resolve_installed_pose_backend({"LOCALAPPDATA": str(tmp_path)})
+
+    assert automatic is not None
+    assert automatic.id == "pear"
 
 
 @pytest.mark.parametrize("installation_order", permutations(("pear", "mediapipe", "mhr")))
