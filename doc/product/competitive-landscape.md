@@ -11,6 +11,15 @@ Owner: alexandremendoncaalvaro
 > plainly and turned into an actionable item. Every "win" below is tested against
 > one question: *does this matter to a non-technical animator, or is it just
 > technically true?*
+>
+> **Reading this from outside the project?** This is an internal engineering
+> working document, kept in the open. It is written to be useful to us, which
+> means it is blunt about PoseCap's own gaps and unpolished about everything else.
+> It deliberately draws **no comparative quality ranking** between competing
+> products — we have no measurements to support one. For the reader-facing
+> comparison, see [`docs/index.html`](../../docs/index.html) (published at
+> <https://corridortech.github.io/PoseCap/>), which carries the full disclaimers.
+> Facts here are point-in-time (2026-07-17); vendors change plans without notice.
 
 ## Method & provenance
 
@@ -223,11 +232,17 @@ native-live-addon). **No tool hits all four.**
 is **not** foot sliding. The top-3 is a coupled cluster: **#1 temporal jitter**
 (strongest evidence), **#2 foot sliding** (most-patched but "easily corrected";
 its primacy claims were refuted in verification), **#3 occlusion / monocular
-depth ambiguity** (the physics root cause). Best single-cam quality reputation:
-**Move.ai** (which itself concedes multi-cam Pro is where accuracy lives).
-Most-panned budget tier: **DeepMotion + Plask**. Worst on raw jitter:
-MediaPipe-based tools — including the family of PoseCap's own CPU fallback, which
-is a warning, not a comfort. **Roadmap:** de-jitter first, foot/depth alongside.
+depth ambiguity** (the physics root cause).
+
+On *relative* quality between tools we deliberately draw no conclusion: the
+evidence available was impressions and secondary reviews, not measurements, so
+ranking named competitors on quality would be unfair to those ranked low and
+unsupportable if challenged. Two sourced, self-reported facts are worth keeping
+because they are stated by the vendors themselves: Move.ai positions multi-camera
+Move Pro — not its single-camera model — as where accuracy lives; and
+MediaPipe-based tooling is reported (BlendArMocap #121) to suffer badly from raw
+jitter, which is a **warning about PoseCap's own CPU fallback family**, not a
+point scored against anyone. **Roadmap:** de-jitter first, foot/depth alongside.
 Aligns with what PoseCap already knows — world position is pelvis-locked *because*
 monocular can't recover depth (PRD).
 
