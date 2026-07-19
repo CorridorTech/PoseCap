@@ -1,8 +1,8 @@
 """Guards for the installer packaging inputs (task 0006).
 
 The installer's determinism rests on these files: the lockfiles must pin one
-exact runtime matrix (ADR-0007 validated cu124; the cu128 re-pin is proposed
-in ADR-0016, qualification pending) and the Inno template must keep every
+exact runtime matrix (ADR-0016 accepted the cu128 matrix, superseding
+ADR-0007's cu124) and the Inno template must keep every
 token the renderer replaces. A drifted pin here means a clean machine installs
 something no workstation ever validated.
 """

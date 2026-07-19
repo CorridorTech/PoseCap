@@ -255,7 +255,7 @@ def _recording_and_detector_properties(bpy_module: Any) -> dict[str, Any]:
             description="Person-detector size: speed versus detection quality",
             items=(
                 ("yolov8n", "Fastest", "Smallest detector; lowest quality"),
-                ("yolov8s", "Balanced (30 FPS)", "Default; reaches the 30 FPS budget"),
+                ("yolov8s", "Balanced", "Default; balances speed against quality"),
                 ("yolov8m", "High Quality", "Bigger detector; slower"),
                 ("yolov8x", "Max Quality", "Largest detector; slowest"),
             ),
