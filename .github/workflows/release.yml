@@ -159,6 +159,7 @@ jobs:
           > - **RTX 50-series (Blackwell) is now supported.** These GPUs could not run the PEAR backend on earlier releases.
           > - **NVIDIA driver R570 or newer is required** for the PEAR backend.
           > - **GeForce GTX 10-series (Pascal) and older GPUs are no longer supported** by the PEAR backend; the MediaPipe (CPU) backend still runs on any machine.
+          > - **Pre-Blackwell cards lose live throughput.** Measured on a quiesced RTX 3080, interleaved A/B, warmup discarded, 6 measured pairs: 20.5 NET FPS on the new runtime against 30.25 on the previous one -- roughly a 32% drop. RTX 50 support was the reason for the change; RTX 30/40 owners should weigh it before upgrading.
           "@
           gh release create $env:GITHUB_REF_NAME @assets --verify-tag --generate-notes --notes $releaseNotice --draft --title $env:GITHUB_REF_NAME
       - name: Verify draft release asset inventory
