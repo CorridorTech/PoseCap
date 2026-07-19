@@ -20,7 +20,7 @@ the v2.9.1 build scripts pin `TORCH_CUDA_ARCH_LIST` to
 PyTorch is sunsetting CUDA 12.8 (the cu128 default is replaced by cu130 in
 2.11 and leaves the build matrix in 2.12), making 2.9.1 the last patched line
 distributing cu128 wheels. Accepted 2026-07-19 on field evidence. The qualification build shipped as
-`v1.0.7-win.10`, and the two-generation gate is met: on Blackwell the issue #49
+`v1.0.7-win.10`. Blackwell is validated on the published build: the issue #49
 reporter retested the published build on an RTX 5090 and reported it "worked out
 of the box", independently corroborated by a community Linux installer
 contribution that reused this same matrix unmodified on a Linux RTX 5090; on
@@ -41,8 +41,10 @@ this ADR supersedes ADR-0007.
 ## Consequences
 
 * RTX 50 users regain PEAR with the same installer flow; RTX 30/40 users
-  stay on natively compiled kernels — the regression gate in task 0032
-  covers both generations.
+  stay on natively compiled kernels. Blackwell is validated on the published
+  build; the pre-Blackwell arm is validated only on a development runtime, and
+  task 0032 still carries the packaged-payload run on an RTX 30/40 machine as
+  an open criterion.
 * The NVIDIA driver floor rises to R570+, and Pascal/GTX 10xx (`sm_6x`)
   drops off (2.9.1 kernels start at `sm_70`); the release notes of the
   release that ships this matrix must state both.

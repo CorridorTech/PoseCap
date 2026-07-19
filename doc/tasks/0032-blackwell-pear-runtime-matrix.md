@@ -39,7 +39,7 @@ Verifiable conditions. Each as a checkbox so progress is point-editable.
 - [x] The same payload passes Doctor and a real PEAR live stream on an RTX 50
       GPU (Blackwell validation — coordinate the retest with the issue #49
       reporter if no RTX 50 hardware is available in-house).
-- [x] Doctor reports the architecture-compatibility check truthfully for both
+- [ ] Doctor reports the architecture-compatibility check truthfully for both
       generations (no false "unsupported" on Blackwell, no false success).
 - [x] Issue #49 is answered with the qualified matrix and the release that
       carries it; the issue's remaining-before-close checklist is updated.
@@ -57,8 +57,9 @@ applicable.
 - [x] Update the pins (`requirements-torch.lock`, `torchIndexUrl` in
       `packaging/build_installer.ps1`, PyTorch3D reference in
       `tools/install/setup_pear_runtime.ps1`) and rebuild the PEAR payload.
-- [x] Qualification build (workflow_dispatch) and the two-generation
-      validation runs; record evidence in Notes.
+- [ ] Qualification build (workflow_dispatch) and the two-generation
+      validation runs; record evidence in Notes. Build done and Blackwell
+      validated; the pre-Blackwell packaged-payload run is outstanding.
 - [ ] Ship with the next release; answer issue #49.
 
 ## Notes
@@ -322,16 +323,9 @@ it from the block above into the first cu128 release draft before publishing.
 Exact FPS figures stay in `doc/benchmarks.md` (2026-07-17 cold-GPU A/B entry),
 not the user-facing note.
 
-## Definition of Done
+### 2026-07-19 — qualification outcome: ADR-0016 accepted, ADR-0007 superseded
 
-All Acceptance Criteria checked, plus:
-
-- [ ] Local tests pass (or N/A documented in Notes)
-- [ ] Code review completed (human or fresh-context reviewer per WORKFLOW §10)
-- [ ] No orphan `TODO`/`FIXME` introduced
-- [ ] Status updated to `done` and Notes log closes the task
-
-- 2026-07-19: Qualification outcome recorded; ADR-0016 accepted, ADR-0007
+Qualification outcome recorded; ADR-0016 accepted, ADR-0007
   superseded. Evidence, in the order it arrived:
   - `v1.0.7-win.10` built and published as a pre-release. Its PEAR payload was
     verified to carry the decided pins — `requirements-torch.lock` pinning
@@ -349,9 +343,21 @@ All Acceptance Criteria checked, plus:
   - The addon shipped in this build also passes the real-Blender headless e2e
     suite (register/unregister, socket streaming, Mixamo conversion) on
     Blender 5.0.
-- 2026-07-19: Deliberately still open — the pre-Blackwell criterion above is
+
+### 2026-07-19 — what is still open, and why
+
+Deliberately still open — — the pre-Blackwell criterion above is
   NOT checked. The Ampere evidence is a development-runtime A/B, not a run of
   the packaged `win.10` payload on an RTX 30/40 machine. The pending end-to-end
   release qualification covers exactly that, so this task closes when a build
   carrying this matrix is promoted to stable `Latest`. `Latest` is still
   `v1.0.6-win.4` (cu124) until then.
+
+## Definition of Done
+
+All Acceptance Criteria checked, plus:
+
+- [ ] Local tests pass (or N/A documented in Notes)
+- [ ] Code review completed (human or fresh-context reviewer per WORKFLOW §10)
+- [ ] No orphan `TODO`/`FIXME` introduced
+- [ ] Status updated to `done` and Notes log closes the task
