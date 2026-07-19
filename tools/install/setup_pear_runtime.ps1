@@ -90,9 +90,9 @@ function Assert-Directory {
     throw $FailureMessage
 }
 
-# 12.8 is the Blackwell matrix proposed in ADR-0016 (qualification pending);
+# 12.8 is the Blackwell matrix accepted in ADR-0016, superseding ADR-0007;
 # 12.4 keeps the ADR-0007 validated matrix reproducible for rollback and
-# triage until supersession. Recorded fallback if the PyTorch3D source build
+# triage on the superseded matrix. Recorded fallback if the PyTorch3D build
 # fails against torch 2.9.1: torch==2.7.1+cu128 with torchvision==0.22.1
 # (task 0032 Notes / ADR-0016).
 $TorchIndexes = @{
