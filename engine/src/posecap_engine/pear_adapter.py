@@ -47,7 +47,8 @@ class PearLiveConfig:
     yolo_threshold: float = 0.3
     crop_ratio: float = 1.75
     # yolov8s: person detection at ~1/3 the cost of yolov8x with identical
-    # detection rate on the fixture set — the swap that reaches 30 FPS.
+    # detection rate on the fixture set — the swap that bought back most of
+    # the frame budget (see doc/benchmarks.md for the measured numbers).
     yolo_model: str = "yolov8s"
     # Replay a finite video source from the start on EOF instead of ending the
     # stream. Ignored for a live camera, which never reaches EOF.

@@ -73,7 +73,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--yolo-model",
         default="yolov8s",
         choices=["yolov8n", "yolov8s", "yolov8m", "yolov8x"],
-        help="person detector size; yolov8s reaches 30 FPS, yolov8x was the old default",
+        help="person detector size; yolov8s is the balanced default, yolov8x was the old default",
     )
     live.add_argument("--parent-pid", type=int)
     live.add_argument("--log-file", type=Path)
