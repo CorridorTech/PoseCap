@@ -11,6 +11,9 @@ from posecap_contracts import (
 
 from .support import default_installation_paths
 
+_CPU_ACCELERATOR = "cpu"
+"""The one accelerator value that means "no dedicated hardware" (task 0038)."""
+
 
 class BackendSelectionError(ValueError):
     """The installed registry exists but has no unambiguous ready backend."""
@@ -52,7 +55,12 @@ def discover_installed_pose_backends(environ: dict[str, str]) -> PoseBackendCata
 def resolve_installed_pose_backend(
     environ: dict[str, str], *, selected_id: str | None = None
 ) -> PoseBackendManifest | None:
-    """Resolve the persisted selection, or the sole ready backend automatically."""
+    """Resolve the explicit selection, or pick automatically for the user.
+
+    Automatic (no explicit selection) never refuses: with several ready
+    backends it prefers accelerated hardware, mirroring the installer's
+    PEAR-when-NVIDIA preselection (task 0038, spec 0002 amended).
+    """
     installed = default_installation_paths(environ)
     if installed is None or not installed.backend_registry.is_dir():
         return None
@@ -66,12 +74,33 @@ def resolve_installed_pose_backend(
         requested_id = selected_id.strip() if selected_id is not None else ""
         if requested_id:
             return _match_requested_backend(catalog, requested_id)
-        raise BackendSelectionError(
-            "Multiple Pose Backends are ready; select one in the PoseCap panel before capture"
-        )
+        return preferred_pose_backend(catalog)
     details = "; ".join(f"{issue.manifest_path}: {issue.reason}" for issue in catalog.issues)
     suffix = f": {details}" if details else ""
     raise BackendSelectionError(f"No Pose Backend is ready{suffix}")
+
+
+def _is_accelerated(manifest: PoseBackendManifest) -> bool:
+    """Whether the backend declares hardware acceleration rather than plain CPU.
+
+    Read from the manifest's own compatibility facts, so a backend declaring a
+    new accelerator ranks above CPU without this resolver learning its name.
+    """
+    return any(
+        accelerator.casefold() != _CPU_ACCELERATOR
+        for accelerator in manifest.compatibility.accelerators
+    )
+
+
+def preferred_pose_backend(catalog: PoseBackendCatalog) -> PoseBackendManifest:
+    """The automatic pick: accelerated first, discovery order breaking ties.
+
+    Public because the panel names the pick for the user rather than leaving
+    "Automatic" opaque; callers must pass a catalog with at least one ready
+    backend. ``discover_pose_backends`` returns ``ready`` in sorted
+    manifest-path order, so equal ranks resolve the same way on every machine.
+    """
+    return max(catalog.ready, key=lambda backend: _is_accelerated(backend.manifest)).manifest
 
 
 def _match_requested_backend(catalog: PoseBackendCatalog, requested_id: str) -> PoseBackendManifest:

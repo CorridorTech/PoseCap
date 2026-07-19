@@ -88,7 +88,7 @@ def pose_backend_items(_self: Any, _context: Any) -> list[tuple[str, str, str]]:
         (
             _AUTOMATIC_BACKEND_ID,
             "Automatic",
-            "Use the sole ready installed backend, or the legacy development setup",
+            "Use the best installed backend for this machine: GPU capture when available",
         )
     ]
     for backend in catalog.ready:
@@ -142,7 +142,7 @@ def _stream_state_properties(bpy_module: Any) -> dict[str, Any]:
         ),
         "pose_backend_id": bpy_module.props.EnumProperty(
             name="Pose Backend",
-            description="Installed capture backend; choose explicitly when several are ready",
+            description="Installed capture backend; Automatic prefers GPU capture",
             items=pose_backend_items,
         ),
     }
