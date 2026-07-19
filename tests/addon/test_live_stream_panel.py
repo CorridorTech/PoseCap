@@ -3,7 +3,6 @@
 import json
 from pathlib import Path
 
-import posecap_addon.live_stream_panel as live_stream_panel
 import pytest
 from posecap_addon import draw_live_stream_panel
 from posecap_addon.ui_state import LifecycleState
@@ -113,7 +112,7 @@ def _two_ready_backends(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None
     registry = tmp_path / "PoseCap" / "backends"
     _write_backend(registry, "pear", "PEAR (NVIDIA CUDA)", "nvidia-cuda")
     _write_backend(registry, "mediapipe", "MediaPipe Lite (CPU)", "cpu")
-    monkeypatch.setattr(live_stream_panel.os, "environ", {"LOCALAPPDATA": str(tmp_path)})
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
 
 
 def test_panel_names_the_automatic_pick_instead_of_demanding_a_choice(

@@ -84,12 +84,23 @@ Append-only.
   registers; and the new panel hint gained tests
   (`tests/addon/test_live_stream_panel.py`) after the Spec reviewer found the
   AC shipping unverified.
-- 2026-07-19: Accepted follow-up, not done here — `capture_readiness.py` has no
-  test module, so the animator-facing promise ("Start Stream is clickable on a
-  full install with no explicit backend choice") is pinned only through the
-  resolver's own tests. The integration is a thin delegation to
-  `resolve_selected_backend`, so the risk is low, but a capture-readiness test
-  module would close it properly.
+- 2026-07-19: Correction to the note below, after an adversarial review. Calling
+  the `capture_readiness.py` integration "a thin delegation, risk is low" was
+  wrong, and it is exactly the sentence that would stop a reviewer looking
+  there. Two real consequences were missed:
+  - On a full install with no explicit choice, `body_models_ready_for_selected_backend`
+    flips from `True` to `False`. The resolver no longer raises, so it returns
+    PEAR, whose installer-written manifest omits `requires_body_models` (the
+    contract defaults it to `True`). Onboarding therefore moves from "body
+    models ready" to "body models required". This is arguably more honest —
+    `can_start_stream` was already `False` in that state, so the checklist and
+    the button now agree instead of contradicting — but it is a user-visible
+    change that shipped unrecorded and untested.
+  - The `except BackendSelectionError` branch in that module carried a distinct
+    rule (`any(not requires_body_models)`) that is now unreachable in the
+    multi-ready case. Dead code introduced silently.
+  `capture_readiness.py` still has no test module; that gap is now a tracked
+  follow-up rather than a dismissed one.
 - 2026-07-19: Not yet exercised in the real Blender GUI. The change lands after
   the `v1.0.7-win.10` build was cut, so it is NOT in that artifact; shipping it
   needs a fresh build, and the maintainer decides whether it rides 1.0.7 or a
