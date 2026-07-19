@@ -1,6 +1,6 @@
 # ADR-0016: Re-pin the PEAR runtime to a Blackwell-capable cu128 matrix
 
-**Status:** proposed
+**Status:** accepted
 **Date:** 2026-07-17
 **Deciders:** alexandremendoncaalvaro (maintainer)
 
@@ -19,9 +19,13 @@ the v2.9.1 build scripts pin `TORCH_CUDA_ARCH_LIST` to
 (`sm_86`), RTX 40 (`sm_89` runs `sm_86` binaries), and RTX 50 (`sm_120`).
 PyTorch is sunsetting CUDA 12.8 (the cu128 default is replaced by cu130 in
 2.11 and leaves the build matrix in 2.12), making 2.9.1 the last patched line
-distributing cu128 wheels. This decision is gated: the qualification build
-plus the two-generation validation runs (task 0032 acceptance criteria) must
-pass before it flips to accepted.
+distributing cu128 wheels. Accepted 2026-07-19 on field evidence. The qualification build shipped as
+`v1.0.7-win.10`. Blackwell is validated on the published build: the issue #49
+reporter retested the published build on an RTX 5090 and reported it "worked out
+of the box", independently corroborated by a community Linux installer
+contribution that reused this same matrix unmodified on a Linux RTX 5090; on
+Ampere an interleaved A/B on an RTX 3080 ran real source-to-TCP inference on
+these pins (see `doc/benchmarks.md`, 2026-07-17).
 
 ## Decision
 
@@ -37,8 +41,10 @@ this ADR supersedes ADR-0007.
 ## Consequences
 
 * RTX 50 users regain PEAR with the same installer flow; RTX 30/40 users
-  stay on natively compiled kernels — the regression gate in task 0032
-  covers both generations.
+  stay on natively compiled kernels. Blackwell is validated on the published
+  build; the pre-Blackwell arm is validated only on a development runtime, and
+  task 0032 still carries the packaged-payload run on an RTX 30/40 machine as
+  an open criterion.
 * The NVIDIA driver floor rises to R570+, and Pascal/GTX 10xx (`sm_6x`)
   drops off (2.9.1 kernels start at `sm_70`); the release notes of the
   release that ships this matrix must state both.
@@ -47,9 +53,13 @@ this ADR supersedes ADR-0007.
 * The matrix is stable but terminal on CUDA 12.8: the next bump is a CUDA 13
   migration with a fresh PyTorch3D revalidation, a new decision when it
   comes due.
-* Until qualification passes, ADR-0007 remains the validated record and its
-  cu124 matrix stays reproducible via the runtime setup script's `12.4`
-  wheel-matrix option for rollback and triage.
+* ADR-0007 is superseded by this decision. Its cu124 matrix stays
+  reproducible via the runtime setup script's `12.4` wheel-matrix option, which
+  is the rollback and triage path for anyone the throughput cost hurts.
+* The cost is real and measured, not incidental: pre-Blackwell cards lose about
+  32% of live throughput (RTX 3080: 30.25 -> 20.5 NET FPS). Releases carrying
+  this matrix must state it, along with the R570 driver floor and the loss of
+  Pascal, before a user upgrades.
 
 ## Alternatives Considered
 
