@@ -5,41 +5,47 @@ from pathlib import Path
 
 import posecap_addon.live_stream_panel as live_stream_panel
 import pytest
-from posecap_addon.live_stream_panel import _draw_pose_backend_selector
+from posecap_addon import draw_live_stream_panel
 from posecap_addon.ui_state import LifecycleState
 
 
 class _FakeLayout:
-    def __init__(self, sink: dict[str, list[str]] | None = None) -> None:
-        self._sink: dict[str, list[str]] = sink if sink is not None else {"labels": [], "props": []}
+    """Records what the panel drew, mirroring the double in ``test_ui_state``."""
 
-    def row(self, **_kwargs) -> "_FakeLayout":
-        return _FakeLayout(self._sink)
+    def __init__(self, *, labels: list[str] | None = None) -> None:
+        self.enabled = True
+        self.alert = False
+        self._labels: list[str] = [] if labels is None else labels
 
-    def column(self, **_kwargs) -> "_FakeLayout":
-        return _FakeLayout(self._sink)
+    def row(self, *, align: bool = False) -> "_FakeLayout":
+        del align
+        return _FakeLayout(labels=self._labels)
+
+    def column(self) -> "_FakeLayout":
+        return self.row()
 
     def box(self) -> "_FakeLayout":
-        return _FakeLayout(self._sink)
+        return self.row()
 
     def label(self, *, text: str, icon: str = "NONE") -> None:
         del icon
-        self._sink["labels"].append(text)
+        self._labels.append(text)
 
-    def prop(self, _data: object, name: str, **_kwargs) -> None:
-        self._sink["props"].append(name)
+    def prop(self, _data: object, property_name: str, **_kwargs: object) -> None:
+        del property_name
+
+    def operator(self, operator_id: str, *, text: str = "", icon: str = "NONE") -> None:
+        del operator_id, text, icon
 
     @property
     def labels(self) -> list[str]:
-        return self._sink["labels"]
+        return self._labels
 
 
 class _Settings:
     """Protocol-shaped settings double; only ``pose_backend_id`` varies here.
 
-    Mirrors the double in ``test_ui_state`` rather than importing it, keeping
-    each test module self-contained the way the other panel tests are. The
-    class-level annotations are what let it satisfy the settings protocol:
+    The class-level annotations are what let it satisfy the settings protocol:
     without them ``lifecycle_state`` infers as ``str``, not the literal type.
     """
 
@@ -110,10 +116,10 @@ def _two_ready_backends(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None
     monkeypatch.setattr(live_stream_panel.os, "environ", {"LOCALAPPDATA": str(tmp_path)})
 
 
-def test_selector_names_the_automatic_pick_instead_of_demanding_a_choice(
+def test_panel_names_the_automatic_pick_instead_of_demanding_a_choice(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Task 0038 AC5: the hint must state what Automatic actually does.
+    """Task 0038: the hint must state what Automatic actually does.
 
     With two ready backends and no explicit selection the panel used to say
     "Choose a Pose Backend before starting capture." -- a demand the resolver
@@ -122,19 +128,19 @@ def test_selector_names_the_automatic_pick_instead_of_demanding_a_choice(
     _two_ready_backends(tmp_path, monkeypatch)
     layout = _FakeLayout()
 
-    _draw_pose_backend_selector(layout, _Settings())
+    draw_live_stream_panel(layout, _Settings())
 
     assert "Automatic uses PEAR (NVIDIA CUDA)." in layout.labels
     assert not any("Choose a Pose Backend" in label for label in layout.labels)
 
 
-def test_selector_stays_quiet_once_the_user_picked_a_backend(
+def test_panel_stays_quiet_once_the_user_picked_a_backend(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """An explicit choice needs no automatic-pick hint."""
     _two_ready_backends(tmp_path, monkeypatch)
     layout = _FakeLayout()
 
-    _draw_pose_backend_selector(layout, _Settings(pose_backend_id="mediapipe"))
+    draw_live_stream_panel(layout, _Settings(pose_backend_id="mediapipe"))
 
     assert not any("Automatic uses" in label for label in layout.labels)
