@@ -1,6 +1,6 @@
 # ADR-0007: Use a Python 3.11 cu124 PEAR Windows runtime
 
-**Status:** accepted
+**Status:** superseded by [ADR-0016](0016-blackwell-cu128-runtime-matrix.md)
 **Note:** a cu128 re-pin is proposed in [ADR-0016](0016-blackwell-cu128-runtime-matrix.md), pending qualification (task 0032)
 **Date:** 2026-06-27
 **Deciders:** alexandremendoncaalvaro

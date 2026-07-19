@@ -1,6 +1,6 @@
 # Task 0032: Qualify a Blackwell-capable PEAR runtime matrix
 
-**Status:** proposed
+**Status:** in-progress
 **Created:** 2026-07-17
 **Owner:** alexandremendoncaalvaro
 **Execution:** HITL
@@ -36,12 +36,12 @@ Verifiable conditions. Each as a checkbox so progress is point-editable.
 - [ ] The PEAR payload built from the new matrix passes Doctor and a real
       source-to-TCP inference on a pre-Blackwell qualified GPU (regression:
       the existing RTX 30/40 audience keeps working).
-- [ ] The same payload passes Doctor and a real PEAR live stream on an RTX 50
+- [x] The same payload passes Doctor and a real PEAR live stream on an RTX 50
       GPU (Blackwell validation — coordinate the retest with the issue #49
       reporter if no RTX 50 hardware is available in-house).
-- [ ] Doctor reports the architecture-compatibility check truthfully for both
+- [x] Doctor reports the architecture-compatibility check truthfully for both
       generations (no false "unsupported" on Blackwell, no false success).
-- [ ] Issue #49 is answered with the qualified matrix and the release that
+- [x] Issue #49 is answered with the qualified matrix and the release that
       carries it; the issue's remaining-before-close checklist is updated.
 
 ## Plan
@@ -54,10 +54,10 @@ applicable.
       cu128, check newer stable lines), plus torchvision and the PyTorch3D
       revision; verify cu128 wheels retain pre-Blackwell architectures so one
       matrix serves all supported GPUs.
-- [ ] Update the pins (`requirements-torch.lock`, `torchIndexUrl` in
+- [x] Update the pins (`requirements-torch.lock`, `torchIndexUrl` in
       `packaging/build_installer.ps1`, PyTorch3D reference in
       `tools/install/setup_pear_runtime.ps1`) and rebuild the PEAR payload.
-- [ ] Qualification build (workflow_dispatch) and the two-generation
+- [x] Qualification build (workflow_dispatch) and the two-generation
       validation runs; record evidence in Notes.
 - [ ] Ship with the next release; answer issue #49.
 
@@ -330,3 +330,28 @@ All Acceptance Criteria checked, plus:
 - [ ] Code review completed (human or fresh-context reviewer per WORKFLOW §10)
 - [ ] No orphan `TODO`/`FIXME` introduced
 - [ ] Status updated to `done` and Notes log closes the task
+
+- 2026-07-19: Qualification outcome recorded; ADR-0016 accepted, ADR-0007
+  superseded. Evidence, in the order it arrived:
+  - `v1.0.7-win.10` built and published as a pre-release. Its PEAR payload was
+    verified to carry the decided pins — `requirements-torch.lock` pinning
+    `torch==2.9.1+cu128` and `torchvision==0.24.1+cu128`, plus a prebuilt
+    `pytorch3d-0.7.9-cp311-cp311-win_amd64.whl` — so users install a wheel
+    rather than compiling. All 12 release assets verified by SHA-256.
+  - **Blackwell, in the field:** the issue #49 reporter retested the published
+    build on an RTX 5090 and reported it "worked out of the box with PEAR". The
+    installer path therefore also worked on a real user's machine.
+  - **Blackwell, independently:** a community Linux installer contribution
+    (PR #98, deferred for later review) reused this matrix unmodified and
+    validated it on a Linux RTX 5090.
+  - **Ampere:** the 2026-07-17 interleaved A/B on a quiesced RTX 3080 ran real
+    source-to-TCP inference on these pins, at the measured 32% throughput cost.
+  - The addon shipped in this build also passes the real-Blender headless e2e
+    suite (register/unregister, socket streaming, Mixamo conversion) on
+    Blender 5.0.
+- 2026-07-19: Deliberately still open — the pre-Blackwell criterion above is
+  NOT checked. The Ampere evidence is a development-runtime A/B, not a run of
+  the packaged `win.10` payload on an RTX 30/40 machine. The pending end-to-end
+  release qualification covers exactly that, so this task closes when a build
+  carrying this matrix is promoted to stable `Latest`. `Latest` is still
+  `v1.0.6-win.4` (cu124) until then.
