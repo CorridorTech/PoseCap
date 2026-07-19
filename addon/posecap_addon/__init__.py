@@ -9,6 +9,7 @@ from .backend_registry import (
     ReadyPoseBackend,
     discover_installed_pose_backends,
     discover_pose_backends,
+    preferred_pose_backend,
     resolve_installed_pose_backend,
 )
 from .engine_process import EngineEndpoint, EngineProcess, EngineStartupError, start_engine_stream
@@ -30,6 +31,7 @@ __all__ = [
     "draw_live_stream_panel",
     "discover_installed_pose_backends",
     "discover_pose_backends",
+    "preferred_pose_backend",
     "register",
     "resolve_installed_pose_backend",
     "start_engine_stream",

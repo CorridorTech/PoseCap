@@ -53,16 +53,16 @@ away, and runtime GPU health was already outside spec 0002's readiness model.
 
 ## Acceptance Criteria
 
-- [ ] With several ready backends and no explicit selection, Automatic resolves
+- [x] With several ready backends and no explicit selection, Automatic resolves
       to the accelerated backend rather than raising `BackendSelectionError`.
-- [ ] An explicit user selection still wins over the Automatic policy and is
+- [x] An explicit user selection still wins over the Automatic policy and is
       still honored while it remains ready.
-- [ ] The sole-ready and no-ready paths keep their current behavior, including
+- [x] The sole-ready and no-ready paths keep their current behavior, including
       the diagnostic detail carried by the no-ready error.
-- [ ] Resolution stays deterministic regardless of backend discovery order.
-- [ ] The Automatic entry's description and the panel's "choose one" hint state
+- [x] Resolution stays deterministic regardless of backend discovery order.
+- [x] The Automatic entry's description and the panel's "choose one" hint state
       what actually happens, so the UI stops promising something else.
-- [ ] Spec 0002 records the amended rule rather than being contradicted by code.
+- [x] Spec 0002 records the amended rule rather than being contradicted by code.
 
 ## Notes
 
@@ -73,3 +73,24 @@ Append-only.
   `accelerators: ["nvidia-cuda"]` with `body/hands/face`, MediaPipe declares
   `["cpu"]` with `body` only — the rank signal already exists in the contract
   and needs no new field.
+- 2026-07-19: Implemented and reviewed with fresh context on both axes.
+  Findings closed rather than logged: `preferred_pose_backend` is now exported
+  from `__init__.py` (it was module-public but outside `__all__`, breaking the
+  package's own export precedent and blocking a direct unit test); it now
+  raises `BackendSelectionError` on an empty catalogue instead of letting
+  `max` surface a bare `ValueError` at a user-facing edge; the Automatic copy
+  no longer says "GPU", because the policy is generic (any non-CPU
+  accelerator) and the wording would go stale the day an NPU backend
+  registers; and the new panel hint gained tests
+  (`tests/addon/test_live_stream_panel.py`) after the Spec reviewer found the
+  AC shipping unverified.
+- 2026-07-19: Accepted follow-up, not done here — `capture_readiness.py` has no
+  test module, so the animator-facing promise ("Start Stream is clickable on a
+  full install with no explicit backend choice") is pinned only through the
+  resolver's own tests. The integration is a thin delegation to
+  `resolve_selected_backend`, so the risk is low, but a capture-readiness test
+  module would close it properly.
+- 2026-07-19: Not yet exercised in the real Blender GUI. The change lands after
+  the `v1.0.7-win.10` build was cut, so it is NOT in that artifact; shipping it
+  needs a fresh build, and the maintainer decides whether it rides 1.0.7 or a
+  later release.

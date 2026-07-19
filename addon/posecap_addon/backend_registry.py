@@ -96,10 +96,14 @@ def preferred_pose_backend(catalog: PoseBackendCatalog) -> PoseBackendManifest:
     """The automatic pick: accelerated first, discovery order breaking ties.
 
     Public because the panel names the pick for the user rather than leaving
-    "Automatic" opaque; callers must pass a catalog with at least one ready
-    backend. ``discover_pose_backends`` returns ``ready`` in sorted
+    "Automatic" opaque. ``discover_pose_backends`` returns ``ready`` in sorted
     manifest-path order, so equal ranks resolve the same way on every machine.
+
+    An empty catalogue raises this module's own error rather than letting
+    ``max`` surface a bare ``ValueError`` at a user-facing edge.
     """
+    if not catalog.ready:
+        raise BackendSelectionError("No Pose Backend is ready")
     return max(catalog.ready, key=lambda backend: _is_accelerated(backend.manifest)).manifest
 
 

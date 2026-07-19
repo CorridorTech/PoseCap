@@ -6,8 +6,10 @@ from pathlib import Path
 import pytest
 from posecap_addon import (
     BackendSelectionError,
+    PoseBackendCatalog,
     discover_installed_pose_backends,
     discover_pose_backends,
+    preferred_pose_backend,
     resolve_installed_pose_backend,
 )
 
@@ -119,6 +121,14 @@ def test_automatic_falls_back_to_the_cpu_backend_when_no_accelerated_one_is_read
 
     assert automatic is not None
     assert automatic.id == "fallback"
+
+
+def test_preferred_pose_backend_refuses_an_empty_catalogue_with_a_domain_error() -> None:
+    """The public policy must not leak a bare ValueError from ``max``."""
+    empty = PoseBackendCatalog(ready=(), issues=(), selected_id=None)
+
+    with pytest.raises(BackendSelectionError, match="No Pose Backend is ready"):
+        preferred_pose_backend(empty)
 
 
 @pytest.mark.parametrize("installation_order", permutations(("pear", "mediapipe", "mhr")))
