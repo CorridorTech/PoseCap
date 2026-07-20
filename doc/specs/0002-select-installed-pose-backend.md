@@ -58,6 +58,14 @@ PRD; the scientific integration of MediaPipe and MHR remains separate follow-up 
   and case-insensitive filesystems.
 - With one ready backend, PoseCap must select it automatically; with multiple ready
   backends, PoseCap must persist and reuse the user's selection while it remains ready.
+
+  Amended 2026-07-19 (task 0038, maintainer decision): the automatic option must
+  also resolve when several backends are ready, preferring the one declaring
+  hardware acceleration over a CPU-only backend, and the panel must name the
+  backend it picked. The original rule left "Automatic" unable to resolve on the
+  recommended full install, so the default path demanded a technical choice from
+  an animator — the PRD forbids that. An explicit selection still outranks the
+  automatic preference and is still persisted and reused while it stays ready.
 - Starting a stream must launch only the selected backend through the existing process
   boundary and consume the existing startup event and TCP JSON stream.
 - The current PEAR backend must be the first registered backend and must preserve its

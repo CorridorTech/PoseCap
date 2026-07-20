@@ -270,3 +270,23 @@ def test_ci_rejects_broken_repository_documentation_links() -> None:
             "stages": ["pre-push"],
         }
     ]
+
+
+def test_release_notice_discloses_every_gpu_support_change() -> None:
+    """The cu128 matrix changed who can run PEAR, and at what speed.
+
+    ADR-0016 makes the disclosure an obligation: releases carrying this matrix
+    must state the driver floor, the dropped architectures, and the throughput
+    cost before a user upgrades. The v1.0.7-win.10 notes shipped without the
+    throughput line because the bullet was pasted by hand, so pin all four here
+    -- a release notice that quietly loses one is the failure this prevents.
+    """
+    workflow = (REPO_ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
+    required = (
+        "RTX 50-series (Blackwell) is now supported",
+        "NVIDIA driver R570 or newer is required",
+        "GeForce GTX 10-series (Pascal) and older GPUs are no longer supported",
+        "Pre-Blackwell cards lose live throughput",
+    )
+    missing = [phrase for phrase in required if phrase not in workflow]
+    assert not missing, f"release notice lost required GPU disclosure: {missing}"

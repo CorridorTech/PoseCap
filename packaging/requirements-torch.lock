@@ -1,4 +1,4 @@
-# Blackwell matrix proposed in ADR-0016 (qualification pending). Recorded
+# Blackwell matrix accepted in ADR-0016, superseding ADR-0007. Recorded
 # fallback if the PyTorch3D source build fails against torch 2.9.1:
 # torch==2.7.1+cu128 with torchvision==0.22.1 (task 0032 Notes / ADR-0016).
 torch==2.9.1+cu128

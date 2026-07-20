@@ -88,7 +88,7 @@ def pose_backend_items(_self: Any, _context: Any) -> list[tuple[str, str, str]]:
         (
             _AUTOMATIC_BACKEND_ID,
             "Automatic",
-            "Use the sole ready installed backend, or the legacy development setup",
+            "Let PoseCap pick the best installed backend for this machine",
         )
     ]
     for backend in catalog.ready:
@@ -142,7 +142,7 @@ def _stream_state_properties(bpy_module: Any) -> dict[str, Any]:
         ),
         "pose_backend_id": bpy_module.props.EnumProperty(
             name="Pose Backend",
-            description="Installed capture backend; choose explicitly when several are ready",
+            description="Installed capture backend; Automatic prefers accelerated capture",
             items=pose_backend_items,
         ),
     }
@@ -255,7 +255,7 @@ def _recording_and_detector_properties(bpy_module: Any) -> dict[str, Any]:
             description="Person-detector size: speed versus detection quality",
             items=(
                 ("yolov8n", "Fastest", "Smallest detector; lowest quality"),
-                ("yolov8s", "Balanced (30 FPS)", "Default; reaches the 30 FPS budget"),
+                ("yolov8s", "Balanced", "Default; balances speed against quality"),
                 ("yolov8m", "High Quality", "Bigger detector; slower"),
                 ("yolov8x", "Max Quality", "Largest detector; slowest"),
             ),
