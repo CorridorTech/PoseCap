@@ -138,3 +138,69 @@ def test_raises_when_pytorch3d_is_not_in_the_given_site_packages(tmp_path: Path)
             runner=_fake_runner(),
             uv_path=fake_uv,
         )
+
+
+def test_builds_a_linux_pear_payload_with_a_prebuilt_pytorch3d_wheel(tmp_path: Path) -> None:
+    """The normal path: bundle a wheel already built in a pinned environment,
+    with no repack step and no site-packages/compile toolchain involved."""
+    fake_uv = tmp_path / "fake-uv"
+    fake_uv.write_bytes(b"fixture uv binary")
+    prebuilt_wheel = tmp_path / "pytorch3d-0.7.9-cp311-cp311-linux_x86_64.whl"
+    with zipfile.ZipFile(prebuilt_wheel, "w") as wheel:
+        wheel.writestr("pytorch3d/__init__.py", b"fixture")
+    output_dir = tmp_path / "dist"
+
+    build_pear_payload_for_linux(
+        pytorch3d_wheel=prebuilt_wheel,
+        base_url="https://example.test/releases/v1.0.0-linux.1",
+        build_number=1,
+        output_dir=output_dir,
+        staging_dir=tmp_path / "staging",
+        runner=_fake_runner(),
+        uv_path=fake_uv,
+    )
+
+    archives = list(output_dir.glob("posecap-pear-bootstrap-*-linux.1.zip"))
+    assert len(archives) == 1
+    with zipfile.ZipFile(archives[0]) as archive:
+        names = set(archive.namelist())
+    wheel_names = [name for name in names if name.startswith("wheels/")]
+    assert len(wheel_names) == 4  # contracts, core, engine, pytorch3d
+    assert "wheels/pytorch3d-0.7.9-cp311-cp311-linux_x86_64.whl" in wheel_names
+
+
+def test_raises_when_the_given_pytorch3d_wheel_does_not_exist(tmp_path: Path) -> None:
+    fake_uv = tmp_path / "fake-uv"
+    fake_uv.write_bytes(b"fixture uv binary")
+
+    with pytest.raises(PearPayloadBuildError, match="pytorch3d wheel not found"):
+        build_pear_payload_for_linux(
+            pytorch3d_wheel=tmp_path / "missing.whl",
+            base_url="https://example.test/releases/v1.0.0-linux.1",
+            output_dir=tmp_path / "dist",
+            staging_dir=tmp_path / "staging",
+            runner=_fake_runner(),
+            uv_path=fake_uv,
+        )
+
+
+def test_raises_when_neither_pytorch3d_source_is_given(tmp_path: Path) -> None:
+    with pytest.raises(PearPayloadBuildError, match="exactly one of"):
+        build_pear_payload_for_linux(
+            base_url="https://example.test/releases/v1.0.0-linux.1",
+            output_dir=tmp_path / "dist",
+        )
+
+
+def test_raises_when_both_pytorch3d_sources_are_given(tmp_path: Path) -> None:
+    site_packages = _fake_pytorch3d_site_packages(tmp_path / "site-packages")
+    wheel = tmp_path / "pytorch3d-0.7.9-cp311-cp311-linux_x86_64.whl"
+    wheel.write_bytes(b"fixture wheel bytes")
+
+    with pytest.raises(PearPayloadBuildError, match="exactly one of"):
+        build_pear_payload_for_linux(
+            pytorch3d_wheel=wheel,
+            pytorch3d_site_packages=site_packages,
+            base_url="https://example.test/releases/v1.0.0-linux.1",
+            output_dir=tmp_path / "dist",
+        )

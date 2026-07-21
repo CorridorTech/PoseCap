@@ -1,26 +1,37 @@
 """Build the external PEAR bootstrap payload for Linux.
 
 Mirrors packaging/build_pear_payload.ps1's steps -- stage the uv binary,
-build the three PoseCap wheels, repack an already-installed PyTorch3D into a
-wheel (tools/repack_wheel.py, already platform-neutral -- it reads the wheel
-tag from the installed distribution's own metadata), copy the locks, verify
-the pinned PEAR source revision, then hand off to the shared
-tools/build_pear_payload.py packer -- but staging a POSIX `bin/uv` (no .exe)
-and packaging/requirements-pypi-linux.lock instead of the Windows lock file.
-requirements-torch.lock needs no Linux variant: it's already platform-neutral
-and already validated identical on Linux.
+build the three PoseCap wheels, get a PyTorch3D wheel into the payload, copy
+the locks, verify the pinned PEAR source revision, then hand off to the
+shared tools/build_pear_payload.py packer -- but staging a POSIX `bin/uv`
+(no .exe) and packaging/requirements-pypi-linux.lock instead of the Windows
+lock file. requirements-torch.lock needs no Linux variant: it's already
+platform-neutral and already validated identical on Linux.
 
-PyTorch3D has no route into this script that builds it -- prepare a venv
-first (packaging/install_linux.py's _build_pytorch3d_venv does this step for
-the one-command path, mirroring tools/install/setup_pear_runtime.ps1):
+Normal path -- a wheel Corridor's own pinned build already produced:
+    uv run python packaging/build_pear_payload_linux.py \\
+      --pytorch3d-wheel /path/to/pytorch3d-0.7.9-cp311-cp311-linux_x86_64.whl \\
+      --base-url https://github.com/CorridorTech/PoseCap/releases/download/<tag>
+This mirrors the Windows shape (build_pear_payload.ps1's "repack pytorch3d
+wheel" step): PyTorch3D is compiled once, in a pinned environment we control
+(a manylinux-style CUDA 12.8 container -- see the PR #98 review thread), not
+on the machine running this script.
+
+Fallback path -- no wheel available yet, build one locally from source
+against a host CUDA Toolkit (needs a matching CUDA/host-GCC/glibc
+toolchain -- see doc/guides/linux-install.md's manual PEAR steps, and
+packaging/install_linux.py's --build-pytorch3d-from-source flag which drives
+this for the one-command path via _build_pytorch3d_venv, mirroring
+tools/install/setup_pear_runtime.ps1):
     uv pip install --python <venv>/bin/python torch==2.9.1+cu128 torchvision==0.24.1+cu128 \\
       --index-url https://download.pytorch.org/whl/cu128
     git clone --branch v0.7.9 --depth 1 https://github.com/facebookresearch/pytorch3d.git p3d
     CUDA_HOME=/usr/local/cuda-12.8 CUB_HOME=/usr/local/cuda-12.8/include MAX_JOBS=1 \\
       uv pip install --python <venv>/bin/python p3d --no-build-isolation
-then point --pytorch3d-site-packages at that venv's site-packages -- the same
-shape the Windows script requires, and the same build-from-source provenance
-ADR-0016 specifies (not a prebuilt third-party wheel).
+then point --pytorch3d-site-packages at that venv's site-packages; this
+script repacks it into a wheel itself (tools/repack_wheel.py, already
+platform-neutral -- it reads the wheel tag from the installed distribution's
+own metadata).
 
     uv run python packaging/build_pear_payload_linux.py \\
       --pytorch3d-site-packages /path/to/venv/lib/python3.11/site-packages \\
@@ -51,15 +62,25 @@ class PearPayloadBuildError(RuntimeError):
 
 def build_pear_payload_for_linux(
     *,
-    pytorch3d_site_packages: Path,
     base_url: str,
+    pytorch3d_site_packages: Path | None = None,
+    pytorch3d_wheel: Path | None = None,
     build_number: int = 1,
     output_dir: Path | None = None,
     staging_dir: Path | None = None,
     runner: Runner | None = None,
     uv_path: Path | None = None,
 ) -> Path:
-    """Stage and package the Linux PEAR bootstrap; return the output dir."""
+    """Stage and package the Linux PEAR bootstrap; return the output dir.
+
+    Exactly one of pytorch3d_wheel (the normal path -- a wheel already built
+    in a pinned environment) or pytorch3d_site_packages (the from-source
+    fallback -- repack an installed distribution) must be given.
+    """
+    if (pytorch3d_wheel is None) == (pytorch3d_site_packages is None):
+        raise PearPayloadBuildError(
+            "exactly one of pytorch3d_wheel or pytorch3d_site_packages must be given"
+        )
     run = runner or _run_checked
     output_dir = (output_dir or _PACKAGING_DIR / "dist").resolve()
     staging = (staging_dir or _PACKAGING_DIR / "work" / "pear-payload-staging-linux").resolve()
@@ -95,23 +116,30 @@ def build_pear_payload_for_linux(
             ]
         )
 
-    resolved_site_packages = pytorch3d_site_packages.resolve()
-    if not (resolved_site_packages / "pytorch3d").is_dir():
-        raise PearPayloadBuildError(f"pytorch3d package not found in {resolved_site_packages}")
-    run(
-        [
-            str(uv),
-            "run",
-            "python",
-            str(_REPO_ROOT / "tools" / "repack_wheel.py"),
-            "--site-packages",
-            str(resolved_site_packages),
-            "--distribution",
-            "pytorch3d",
-            "--output-dir",
-            str(staging / "wheels"),
-        ]
-    )
+    if pytorch3d_wheel is not None:
+        resolved_wheel = pytorch3d_wheel.resolve()
+        if not resolved_wheel.is_file():
+            raise PearPayloadBuildError(f"pytorch3d wheel not found at {resolved_wheel}")
+        shutil.copyfile(resolved_wheel, staging / "wheels" / resolved_wheel.name)
+    else:
+        assert pytorch3d_site_packages is not None  # guaranteed by the exclusivity check above
+        resolved_site_packages = pytorch3d_site_packages.resolve()
+        if not (resolved_site_packages / "pytorch3d").is_dir():
+            raise PearPayloadBuildError(f"pytorch3d package not found in {resolved_site_packages}")
+        run(
+            [
+                str(uv),
+                "run",
+                "python",
+                str(_REPO_ROOT / "tools" / "repack_wheel.py"),
+                "--site-packages",
+                str(resolved_site_packages),
+                "--distribution",
+                "pytorch3d",
+                "--output-dir",
+                str(staging / "wheels"),
+            ]
+        )
     stray_gitignore = staging / "wheels" / ".gitignore"
     stray_gitignore.unlink(missing_ok=True)
 
@@ -185,7 +213,15 @@ def _run_checked(command: Sequence[str]) -> None:
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--pytorch3d-site-packages", type=Path, required=True)
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument(
+        "--pytorch3d-wheel", type=Path, help="prebuilt wheel -- the normal path (see module doc)"
+    )
+    group.add_argument(
+        "--pytorch3d-site-packages",
+        type=Path,
+        help="installed distribution to repack -- the from-source fallback (see module doc)",
+    )
     parser.add_argument("--build-number", type=int, default=1)
     parser.add_argument("--base-url", required=True)
     parser.add_argument("--output-dir", type=Path, default=None)
@@ -196,6 +232,7 @@ def main(argv: list[str] | None = None) -> int:
     args = _build_parser().parse_args(argv)
     try:
         output_dir = build_pear_payload_for_linux(
+            pytorch3d_wheel=args.pytorch3d_wheel,
             pytorch3d_site_packages=args.pytorch3d_site_packages,
             base_url=args.base_url,
             build_number=args.build_number,

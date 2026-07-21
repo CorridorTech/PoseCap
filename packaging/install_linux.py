@@ -17,6 +17,14 @@ can provide on its own.
 Components default to MediaPipe Lite always, plus PEAR too when a healthy
 NVIDIA driver is detected -- the same default bootstrap_install.py itself
 uses.
+
+PEAR needs a PyTorch3D wheel. The normal path is --pytorch3d-wheel pointing
+at one already built in Corridor's own pinned environment (mirrors Windows,
+where the user's installer only ever installs a bundled wheel -- see
+_stage_pear). Without a wheel available yet, pass
+--build-pytorch3d-from-source to compile one locally as a fallback; this
+needs a host CUDA/GCC/glibc toolchain compatible with CUDA 12.8 and is not
+the path a normal user should need.
 """
 
 from __future__ import annotations
@@ -56,6 +64,8 @@ def install_linux(
     base_url: str = _DEFAULT_BASE_URL,
     build_number: int = 1,
     cuda_home: Path | None = None,
+    pytorch3d_wheel: Path | None = None,
+    build_pytorch3d_from_source: bool = False,
 ) -> int:
     """Run the full build-and-install pipeline; return a process exit code."""
     selected_components = components or _default_components()
@@ -78,11 +88,14 @@ def install_linux(
                 )
             if "pear" in selected:
                 _step(
-                    "Build and stage the PEAR payload (this downloads the Torch cu128 "
-                    "wheels and builds PyTorch3D from source into a throwaway venv first "
-                    "-- the CUDA compile step alone can take 20+ minutes)",
+                    "Build and stage the PEAR payload",
                     lambda: _stage_pear(
-                        install_dir, base_url, work_dir, cuda_home or _default_cuda_home()
+                        install_dir,
+                        base_url,
+                        work_dir,
+                        cuda_home or _default_cuda_home(),
+                        pytorch3d_wheel,
+                        build_pytorch3d_from_source,
                     ),
                 )
     except InstallLinuxError as error:
@@ -187,20 +200,48 @@ def _stage_mediapipe(install_dir: Path, base_url: str, work_dir: Path) -> None:
     )
 
 
-def _stage_pear(install_dir: Path, base_url: str, work_dir: Path, cuda_home: Path) -> None:
-    venv_dir = work_dir / "pytorch3d-venv"
-    _step(
-        "  Create a throwaway venv and build PyTorch3D from source (ADR-0016)",
-        lambda: _build_pytorch3d_venv(venv_dir, work_dir, cuda_home),
-    )
-
+def _stage_pear(
+    install_dir: Path,
+    base_url: str,
+    work_dir: Path,
+    cuda_home: Path,
+    pytorch3d_wheel: Path | None,
+    build_pytorch3d_from_source: bool,
+) -> None:
+    # Normal path: a wheel already built once, in a pinned environment we
+    # control -- mirrors Windows, where the user's installer only ever
+    # installs a bundled wheel (see PR #98 review thread: the compile
+    # happens on our release runner, never on the end user's machine).
+    # Fallback: build PyTorch3D from source here, against the host's own
+    # CUDA/GCC/glibc toolchain -- not the default path a normal user should
+    # need, kept for people who explicitly opt in (--build-pytorch3d-from-source).
     payload_output = work_dir / "pear-payload"
-    site_packages = next((venv_dir / "lib").glob("python*/site-packages"))
-    build_pear_payload_linux.build_pear_payload_for_linux(
-        pytorch3d_site_packages=site_packages,
-        base_url=base_url,
-        output_dir=payload_output,
-    )
+    if pytorch3d_wheel is not None:
+        build_pear_payload_linux.build_pear_payload_for_linux(
+            base_url=base_url,
+            output_dir=payload_output,
+            pytorch3d_wheel=pytorch3d_wheel,
+        )
+    elif build_pytorch3d_from_source:
+        venv_dir = work_dir / "pytorch3d-venv"
+        _step(
+            "  Create a throwaway venv and build PyTorch3D from source (fallback path)",
+            lambda: _build_pytorch3d_venv(venv_dir, work_dir, cuda_home),
+        )
+        site_packages = next((venv_dir / "lib").glob("python*/site-packages"))
+        build_pear_payload_linux.build_pear_payload_for_linux(
+            base_url=base_url,
+            output_dir=payload_output,
+            pytorch3d_site_packages=site_packages,
+        )
+    else:
+        raise InstallLinuxError(
+            "no PyTorch3D wheel available for the PEAR payload. Pass --pytorch3d-wheel "
+            "pointing at a prebuilt wheel (the normal path, mirroring the wheel Windows "
+            "ships in its payload), or pass --build-pytorch3d-from-source to compile one "
+            "locally as a fallback (needs --cuda-home and a matching host toolchain -- see "
+            "doc/guides/linux-install.md)."
+        )
     archives = list(payload_output.glob("posecap-pear-bootstrap-*.zip"))
     if not archives:
         raise InstallLinuxError("PEAR payload build produced no archive")
@@ -221,15 +262,15 @@ _PYTORCH3D_REPO_URL = "https://github.com/facebookresearch/pytorch3d.git"
 
 
 def _build_pytorch3d_venv(venv_dir: Path, work_dir: Path, cuda_home: Path) -> None:
-    """Build PyTorch3D from source against the pinned Torch matrix (ADR-0016).
+    """Build PyTorch3D from source against the pinned Torch matrix (fallback path).
 
-    ADR-0016 specifies PyTorch3D built from source with CUDA Toolkit v12.8 --
-    mirrors tools/install/setup_pear_runtime.ps1's recipe (git clone the
-    pinned ref, `pip install --no-build-isolation`), not a prebuilt
-    third-party wheel: this is the only artifact in the install pipeline
-    that executes native GPU code, and it needs the same build-from-source
-    provenance as the Windows path rather than an unpinned, unverified
-    index.
+    Mirrors tools/install/setup_pear_runtime.ps1's recipe (git clone the
+    pinned ref, `pip install --no-build-isolation`) -- the same steps
+    Corridor's own pinned release build runs to produce the wheel that
+    ships in the normal (--pytorch3d-wheel) path. Building it here, against
+    whatever CUDA/GCC/glibc toolchain happens to be on this machine, is the
+    documented fallback for people who explicitly opt in
+    (--build-pytorch3d-from-source) -- not what a normal install should hit.
     """
     if not cuda_home.is_dir():
         raise InstallLinuxError(
@@ -368,7 +409,19 @@ def _build_parser() -> argparse.ArgumentParser:
         "--cuda-home",
         type=Path,
         default=_default_cuda_home(),
-        help="CUDA Toolkit 12.8 install used to build PyTorch3D from source for PEAR",
+        help="CUDA Toolkit 12.8 install used by --build-pytorch3d-from-source",
+    )
+    parser.add_argument(
+        "--pytorch3d-wheel",
+        type=Path,
+        default=None,
+        help="prebuilt PyTorch3D wheel to bundle for PEAR -- the normal path",
+    )
+    parser.add_argument(
+        "--build-pytorch3d-from-source",
+        action="store_true",
+        help="fallback: compile PyTorch3D locally against --cuda-home instead of "
+        "bundling --pytorch3d-wheel; needs a matching host toolchain",
     )
     return parser
 
@@ -381,6 +434,8 @@ def main(argv: list[str] | None = None) -> int:
         base_url=args.base_url,
         build_number=args.build_number,
         cuda_home=args.cuda_home,
+        pytorch3d_wheel=args.pytorch3d_wheel,
+        build_pytorch3d_from_source=args.build_pytorch3d_from_source,
     )
 
 
