@@ -78,6 +78,7 @@ jobs:
             "cuda-nvcc-${CUDA_SUFFIX}" \
             "cuda-cudart-devel-${CUDA_SUFFIX}" \
             "cuda-cccl-${CUDA_SUFFIX}" \
+            "cuda-cuobjdump-${CUDA_SUFFIX}" \
             "libcublas-devel-${CUDA_SUFFIX}" \
             "libcurand-devel-${CUDA_SUFFIX}" \
             "libcusparse-devel-${CUDA_SUFFIX}" \
@@ -85,6 +86,10 @@ jobs:
             "libcufft-devel-${CUDA_SUFFIX}"
           # Fail loudly if the pin silently drifted to another toolkit.
           "${CUDA_HOME_DIR}/bin/nvcc" --version | grep -q "release 12.8"
+          # cuobjdump ships separately from nvcc and is what proves the built
+          # artifact's architecture coverage later; assert it here rather than
+          # discovering it is missing after a ~50 minute compile.
+          "${CUDA_HOME_DIR}/bin/cuobjdump" --help > /dev/null
           "${CUDA_HOME_DIR}/bin/nvcc" --version
           # The host compiler must sit inside nvcc's supported range; this base
           # image ships one that does, and we record it rather than assume it.
