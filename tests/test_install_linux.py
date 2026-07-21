@@ -10,6 +10,7 @@ pipeline.
 from __future__ import annotations
 
 import json
+import zipfile
 from pathlib import Path
 
 import install_linux as install_linux_module
@@ -240,3 +241,111 @@ def test_install_linux_returns_error_exit_code_when_a_stage_raises(
     exit_code = install_linux(install_dir=tmp_path, components="base,mediapipe")
 
     assert exit_code == 1
+
+
+# --- PEAR PyTorch3D source dispatch ----------------------------------------
+
+
+def test_stage_pear_raises_when_no_pytorch3d_source_is_given(tmp_path: Path) -> None:
+    with pytest.raises(InstallLinuxError, match="no PyTorch3D wheel available"):
+        install_linux_module._stage_pear(
+            tmp_path, "https://example.test/base", tmp_path, tmp_path / "cuda", None, False
+        )
+
+
+def test_stage_pear_uses_the_given_wheel_without_building_from_source(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    build_calls: list[dict[str, object]] = []
+
+    def fake_build_payload(**kwargs: object) -> Path:
+        build_calls.append(kwargs)
+        output_dir = kwargs["output_dir"]
+        assert isinstance(output_dir, Path)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        archive = output_dir / "posecap-pear-bootstrap-9.9.9-linux.1.zip"
+        with zipfile.ZipFile(archive, "w") as zf:
+            zf.writestr("bin/uv", "fixture")
+        return output_dir
+
+    def fail_if_called(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("must not build PyTorch3D from source when a wheel is given")
+
+    monkeypatch.setattr(
+        install_linux_module.build_pear_payload_linux,
+        "build_pear_payload_for_linux",
+        fake_build_payload,
+    )
+    monkeypatch.setattr(install_linux_module, "_build_pytorch3d_venv", fail_if_called)
+    monkeypatch.setattr(
+        install_linux_module,
+        "_download_and_verify",
+        lambda *a, **k: None,
+    )
+    monkeypatch.setattr(
+        install_linux_module.build_pear_payload_linux,
+        "_pear_source_lock",
+        lambda: {"url": "https://example.test/pear-source.zip", "sha256": "0" * 64},
+    )
+
+    wheel = tmp_path / "pytorch3d-0.7.9-cp311-cp311-linux_x86_64.whl"
+    wheel.write_bytes(b"fixture wheel")
+    install_dir = tmp_path / "install"
+
+    install_linux_module._stage_pear(
+        install_dir, "https://example.test/base", tmp_path, tmp_path / "cuda", wheel, False
+    )
+
+    assert build_calls == [
+        {
+            "base_url": "https://example.test/base",
+            "output_dir": tmp_path / "pear-payload",
+            "pytorch3d_wheel": wheel,
+        }
+    ]
+
+
+def test_stage_pear_builds_from_source_when_requested_and_no_wheel_given(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    venv_builds: list[Path] = []
+
+    def fake_build_venv(venv_dir: Path, _work_dir: Path, _cuda_home: Path) -> None:
+        venv_builds.append(venv_dir)
+        site_packages = venv_dir / "lib" / "python3.11" / "site-packages"
+        site_packages.mkdir(parents=True)
+
+    build_calls: list[dict[str, object]] = []
+
+    def fake_build_payload(**kwargs: object) -> Path:
+        build_calls.append(kwargs)
+        output_dir = kwargs["output_dir"]
+        assert isinstance(output_dir, Path)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        archive = output_dir / "posecap-pear-bootstrap-9.9.9-linux.1.zip"
+        with zipfile.ZipFile(archive, "w") as zf:
+            zf.writestr("bin/uv", "fixture")
+        return output_dir
+
+    monkeypatch.setattr(install_linux_module, "_build_pytorch3d_venv", fake_build_venv)
+    monkeypatch.setattr(
+        install_linux_module.build_pear_payload_linux,
+        "build_pear_payload_for_linux",
+        fake_build_payload,
+    )
+    monkeypatch.setattr(install_linux_module, "_download_and_verify", lambda *a, **k: None)
+    monkeypatch.setattr(
+        install_linux_module.build_pear_payload_linux,
+        "_pear_source_lock",
+        lambda: {"url": "https://example.test/pear-source.zip", "sha256": "0" * 64},
+    )
+
+    install_dir = tmp_path / "install"
+
+    install_linux_module._stage_pear(
+        install_dir, "https://example.test/base", tmp_path, tmp_path / "cuda", None, True
+    )
+
+    assert len(venv_builds) == 1
+    expected_site_packages = venv_builds[0] / "lib" / "python3.11" / "site-packages"
+    assert build_calls[0]["pytorch3d_site_packages"] == expected_site_packages
