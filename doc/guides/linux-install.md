@@ -13,8 +13,8 @@ everything from source and installs it, using the same installer code
 (`packaging/linux_installer/`) the Windows package uses under the hood.
 
 Total time: 15–25 minutes for MediaPipe Lite (mostly unattended downloads);
-add another 20–30 minutes for PEAR, most of it the CUDA runtime and pose-model
-downloads.
+add another 45–75 minutes for PEAR — PyTorch3D is built from source (ADR-0016)
+against your local CUDA Toolkit, and that compile is the bulk of it.
 
 ## What you need
 
@@ -24,10 +24,10 @@ downloads.
 | **Blender** | 4.2 LTS minimum, 5.x supported — install from [blender.org](https://www.blender.org/download/) or your distro's package manager. Auto-detected from common install locations and Steam; set a `blender_override.txt` in your install directory if yours isn't found |
 | **uv** | `curl -LsSf https://astral.sh/uv/install.sh \| sh` if you don't have it |
 | **MediaPipe Lite** | CPU-first body capture. No GPU required |
-| **PEAR** | NVIDIA GPU with a working driver (`nvidia-smi` must succeed). Validated on an RTX 5090 (Blackwell) with driver 610.43.03 — see the [runtime matrix note](#pear-runtime-matrix-note) below for older GPU generations |
+| **PEAR** | NVIDIA GPU with a working driver (`nvidia-smi` must succeed) and CUDA Toolkit 12.8 installed locally (`nvcc`, default `/usr/local/cuda-12.8`; override with `--cuda-home` or `$CUDA_HOME`) — PyTorch3D is compiled from source against it. Validated on an RTX 5090 (Blackwell) with driver 610.43.03 — see the [runtime matrix note](#pear-runtime-matrix-note) below for older GPU generations |
 | **Camera** | Any webcam, including virtual cameras |
 
-Clone this repo (the `feat/linux-support` branch).
+Clone this repo.
 
 ## Quick install
 
@@ -91,9 +91,16 @@ unzip -o /tmp/posecap-mediapipe-payload/posecap-mediapipe-bootstrap-*.zip \
   -d "$INSTALL/payloads/mediapipe"
 chmod +x "$INSTALL/payloads/mediapipe/bin/uv"
 
-# Fetch the pinned Holistic Landmarker model bundle
-curl -sL -o "$INSTALL/backends/mediapipe/models/holistic_landmarker.task" \
+# Fetch the pinned Holistic Landmarker model bundle and verify its hash
+curl -fsL -o "$INSTALL/backends/mediapipe/models/holistic_landmarker.task" \
   "https://storage.googleapis.com/mediapipe-models/holistic_landmarker/holistic_landmarker/float16/1/holistic_landmarker.task"
+python3 -c "
+import hashlib
+expected = 'e2dab61191e2dcd0a15f943d8e3ed1dce13c82dfa597b9dd39f562975a50c3f8'
+actual = hashlib.sha256(open('$INSTALL/backends/mediapipe/models/holistic_landmarker.task', 'rb').read()).hexdigest()
+assert actual == expected, f'hash mismatch: {actual} != {expected}'
+print('MediaPipe model hash OK')
+"
 
 # installer_manifest.json (version must match pyproject.toml)
 python3 -c "import json; open('$INSTALL/installer_manifest.json','w').write(json.dumps({'version': '1.0.7'}))"
@@ -114,21 +121,25 @@ PEAR additionally needs the licensed SMPL-X/FLAME/MANO body models (see
 [Set up the body models](smplx-model-setup.md) — the in-Blender download
 wizard works unchanged on Linux) and an isolated CUDA runtime, built through
 the same installer script as MediaPipe Lite above. The one manual piece is
-PyTorch3D: it has no official Linux wheel, so the payload builder repacks one
-from an already-installed copy rather than building from source.
+PyTorch3D: it has no official Linux wheel, so it's built from source (ADR-0016)
+against a local CUDA Toolkit 12.8 install, then the payload builder repacks it
+into a wheel.
 
 ```bash
 INSTALL="$HOME/.local/share/PoseCap"
 
-# 1. A throwaway venv with the pinned CUDA matrix (ADR-0016), just to get a
-#    real PyTorch3D install the payload builder can repack into a wheel
+# 1. A throwaway venv with the pinned CUDA matrix (ADR-0016), then build
+#    PyTorch3D from source into it -- needs CUDA Toolkit 12.8 on PATH
+#    (nvcc); adjust CUDA_HOME if yours isn't at the default location
 uv venv /tmp/posecap-pytorch3d-venv --python 3.11
 uv pip install --python /tmp/posecap-pytorch3d-venv/bin/python \
   torch==2.9.1+cu128 torchvision==0.24.1+cu128 \
   --index-url https://download.pytorch.org/whl/cu128
-uv pip install --python /tmp/posecap-pytorch3d-venv/bin/python \
-  --extra-index-url https://miropsota.github.io/torch_packages_builder \
-  "pytorch3d==0.7.9+d9839a9pt2.9.1cu128"
+git clone --branch v0.7.9 --depth 1 \
+  https://github.com/facebookresearch/pytorch3d.git /tmp/posecap-pytorch3d-source
+CUDA_HOME=/usr/local/cuda-12.8 CUB_HOME=/usr/local/cuda-12.8/include MAX_JOBS=1 \
+  uv pip install --python /tmp/posecap-pytorch3d-venv/bin/python \
+  /tmp/posecap-pytorch3d-source --no-build-isolation
 
 # 2. Build the payload (wheels + repacked PyTorch3D + uv binary + locks, zipped)
 uv run python packaging/build_pear_payload_linux.py \
