@@ -1,6 +1,6 @@
 # Task 0032: Qualify a Blackwell-capable PEAR runtime matrix
 
-**Status:** in-progress
+**Status:** done
 **Created:** 2026-07-17
 **Owner:** alexandremendoncaalvaro
 **Execution:** HITL
@@ -33,16 +33,23 @@ Verifiable conditions. Each as a checkbox so progress is point-editable.
       PyTorch3D), cu12x index URL, and the PyTorch3D version/build that
       compiles against it — with the single-matrix-for-all-GPUs versus
       per-architecture-payload question answered by evidence, not preference.
-- [ ] The PEAR payload built from the new matrix passes Doctor and a real
+- [x] The PEAR payload built from the new matrix passes Doctor and a real
       source-to-TCP inference on a pre-Blackwell qualified GPU (regression:
       the existing RTX 30/40 audience keeps working).
 - [x] The same payload passes Doctor and a real PEAR live stream on an RTX 50
       GPU (Blackwell validation — coordinate the retest with the issue #49
       reporter if no RTX 50 hardware is available in-house).
-- [ ] Doctor reports the architecture-compatibility check truthfully for both
+- [x] Doctor reports the architecture-compatibility check truthfully for both
       generations (no false "unsupported" on Blackwell, no false success).
+      Pre-Blackwell half verified first-hand (2026-07-20). Blackwell half
+      **accepted by the maintainer on field evidence**, not observed — no
+      Doctor output from real `sm_120` hardware has ever been inspected. See
+      the 2026-07-20 acceptance note.
 - [x] Issue #49 is answered with the qualified matrix and the release that
       carries it; the issue's remaining-before-close checklist is updated.
+      Answered for the matrix on 2026-07-19; answered again on 2026-07-20 for
+      the stable `v1.0.7-win.11` that now carries it, with the root cause and
+      the three GPU caveats spelled out, and the issue closed as completed.
 
 ## Plan
 
@@ -57,10 +64,13 @@ applicable.
 - [x] Update the pins (`requirements-torch.lock`, `torchIndexUrl` in
       `packaging/build_installer.ps1`, PyTorch3D reference in
       `tools/install/setup_pear_runtime.ps1`) and rebuild the PEAR payload.
-- [ ] Qualification build (workflow_dispatch) and the two-generation
-      validation runs; record evidence in Notes. Build done and Blackwell
-      validated; the pre-Blackwell packaged-payload run is outstanding.
-- [ ] Ship with the next release; answer issue #49.
+- [x] Qualification build (workflow_dispatch) and the two-generation
+      validation runs; record evidence in Notes. Blackwell validated in the
+      field on `win.10`; the pre-Blackwell packaged-payload run closed on
+      `win.11` (2026-07-20 entry below).
+- [x] Ship with the next release (`v1.0.7-win.11`, stable `Latest`).
+- [x] Answer issue #49 with the release that carries the matrix and close it
+      out (2026-07-20, closed as completed).
 
 ## Notes
 
@@ -353,11 +363,147 @@ Deliberately still open — — the pre-Blackwell criterion above is
   carrying this matrix is promoted to stable `Latest`. `Latest` is still
   `v1.0.6-win.4` (cu124) until then.
 
+### 2026-07-20 — closed: packaged payload qualified on Ampere, shipped as `Latest`
+
+The outstanding pre-Blackwell criterion is now met against a **packaged
+payload**, not a development runtime, and the matrix shipped stable.
+
+Build under test: `v1.0.7-win.11`, cut from `main` at `f27f123`. It is the
+first artifact carrying the Automatic-backend fix (#101) and the removed
+30 FPS claims (#103); `win.10` predated both.
+
+- **Installer, real run on the Ampere workstation** (RTX 3080, `sm_86`,
+  driver 610.62), upgrading over an existing install: completed
+  ("PoseCap setup complete"). The installer preselected PEAR on the NVIDIA
+  driver and showed the `Custom` setup type (#93/#95 behaviour, observed).
+- **Doctor on the packaged payload — `ok: true`.** Reported
+  `torch 2.9.1+cu128`, `torchvision 0.24.1+cu128`, `pytorch3d 0.7.9`; every
+  PEAR import resolved (`models.pipeline.ehm_pipeline`, `utils.general_utils`,
+  ultralytics, huggingface_hub); PEAR archive at the pinned revision, PEAR
+  asset paths present, pinned HF weights present.
+- **Architecture check on this generation only.** `torch_cuda` reported
+  `supported_architectures: [sm_70, sm_75, sm_80, sm_86, sm_90, sm_100,
+  sm_120]` with `status: ok` on an `sm_86` device: the wheel does carry
+  Blackwell kernels alongside Ampere, and there is no false "unsupported" on
+  the generation actually tested. That is only half the criterion, which is
+  why it stays unchecked. **No Doctor output from real `sm_120` hardware has
+  ever been inspected.** The Blackwell evidence remains what it was: the issue
+  #49 reporter's prose report that `win.10` (same pins) "worked out of the
+  box", and PR #98 — which commit `f27f123` deliberately narrowed to
+  corroborating the runtime *version matrix* on Blackwell, **not** this ADR's
+  source-build method (it used a prebuilt third-party PyTorch3D wheel).
+  Neither is a Doctor architecture-check reading, so "no false success" on
+  Blackwell is still unproven rather than proven.
+- **Real source-to-TCP inference on the packaged payload.** A converted Mixamo
+  armature (`Character ready (Mixamo); verification 0.0000`) was driven live by
+  the PEAR backend from the video-file source. Streaming without recording
+  (23:09:31–23:10:46): engine `stream_fps` **20.27–22.06** (mean ≈ 21.0), addon
+  applying 100–105 poses per 5 s window at **avg 1.6–1.9 ms**. This is what
+  the criterion demanded and what the 2026-07-19 entry refused to claim from
+  the dev-runtime A/B.
+- **Recording costs throughput and pose-apply latency — recorded, not hidden.**
+  The moment Record Live MoCap engages, addon `avg_ms` rises from ~1.8 ms to
+  **4.0–7.7 ms** (max 13.4 ms) in the same session, and the second, fully
+  instrumented recording run (23:13:04–23:13:44) sustained only
+  **15.40–17.83** `stream_fps` against the ~21 of streaming alone. So the
+  ~20 FPS figure describes live streaming; capture-while-recording on this GPU
+  runs nearer 16–18 FPS. This cost is newly observed here and is **not**
+  covered by the 2026-07-17 A/B (which measured streaming only).
+- **The streaming rate matches the prediction.** Mean ≈ 21.0 against the
+  2026-07-17 cold-GPU A/B mean of 20.53 for cu128 (~2.5 % above) — the ~32 %
+  Ampere cost that ships is the cost that was measured and disclosed, not a
+  worse surprise. The recording-time figure above is a separate, additional
+  cost.
+- **Recording verified from a cleared state.** `animation_data` was cleared to
+  `None` first (so the FBX's own imported `mixamo.com` action could not be
+  mistaken for captured output); Record Live MoCap then produced a new
+  `ArmatureAction` with **38 480 keyframes across 288 f-curves, all on
+  `pose.bones`**, spanning frames 1–250. Provenance: this was read from the
+  Blender Python console during the session and is **not** backed by any log
+  file on disk — unlike the Doctor and FPS figures above, it cannot be
+  re-checked from an artifact after the fact.
+
+Scope and every session that ran, stated plainly so the numbers above cannot
+be read as cherry-picked:
+
+- 22:54:52–22:55:27 — **live webcam**, maintainer's own run on this build,
+  15.90–17.24 `stream_fps` with poses applied to a rig. This is the only
+  webcam evidence; every run below used the video-file source.
+- 23:06:22–23:09:17 — camera source with **no subject in frame**: 53–60
+  `stream_fps` (that is camera passthrough rate, not inference) and **zero**
+  `pose_apply_time` entries, i.e. no pose was produced. Not evidence of
+  anything except that the pipeline idles safely with nobody present.
+- 23:09:31–23:10:46 — video source, streaming then first recording; the
+  20.27–22.06 and latency-rise figures above come from here.
+- 23:13:04–23:13:44 — video source, second recording after the animation-data
+  clear; the 38 480-keyframe result and the 15.40–17.83 figures come from here.
+
+Only PEAR was selected in the panel. MediaPipe was installed and passed its
+own runtime verification at install time (`"backend": "mediapipe" ... "ok":
+true`) but was never driven, so nothing here qualifies the MediaPipe capture
+path.
+
+`v1.0.7-win.11` was promoted to stable `Latest` on 2026-07-21 (UTC),
+superseding `v1.0.6-win.4` (cu124) — the condition this task set for closing.
+
+**Not closed on my own authority.** Two acceptance items were unmet and are
+named above rather than waved through: the Blackwell half of the Doctor
+architecture check (no `sm_120` Doctor reading exists), and issue #49's
+closing comment (the issue is still OPEN). An earlier draft of this entry
+checked both and set `Status: done`; a fresh-context review caught it, and
+the record is corrected here rather than in a later commit.
+
+### 2026-07-20 — maintainer acceptance: Blackwell half closed on field evidence
+
+Asked to choose between requesting a Doctor reading from the issue #49
+reporter's RTX 5090 and accepting the existing field evidence, the maintainer
+**accepted**. The Blackwell half of the architecture-check criterion is
+therefore closed by decision, not by observation, and the distinction is kept
+visible in the criterion itself.
+
+What that acceptance rests on, stated so nobody later mistakes it for a
+measurement: the issue #49 reporter's prose confirmation that the published
+`win.10` build (identical pins) "worked out of the box with PEAR" on an
+RTX 5090, plus PR #98's independent Linux RTX 5090 run of the same version
+matrix — the latter narrowed by `f27f123` to corroborating the runtime version
+matrix rather than this ADR's source-build method. There is still no captured
+`torch_cuda` Doctor output from `sm_120` hardware anywhere in this record.
+
+Precedent: the same maintainer accepted ADR-0016 itself on this same class of
+field evidence in #102, so this is consistent with how the decision record
+already treats Blackwell, not a new lowering of the bar.
+
+The only item left before this task closes is issue #49's closing comment.
+
+### 2026-07-20 — issue #49 closed; task closes
+
+Issue #49 (`bug: PoseCap Engine open but instantly closes. + No Logs`,
+reporter @Njaecha, RTX 5090) was answered and closed as completed. The comment
+names the root cause explicitly rather than just announcing a release: the
+cu124 wheel's kernels stop at `sm_90`, so on Blackwell the process died at the
+first inference — which is also why the reporter saw **both log files at
+0 bytes**, the second symptom in the title. That single cause explains both
+reported behaviours, and the reporter had spent real effort chasing it
+(reinstalling PoseCap and Blender, changing drivers, hand-patching the venv),
+so the explanation is owed. The three GPU caveats (R570+ driver floor, Pascal
+dropped, ~one-third pre-Blackwell throughput cost) are restated there because
+a public issue outlives its release notes.
+
+With that, every acceptance criterion is met — one of them by maintainer
+acceptance on field evidence rather than observation, which the criterion
+itself says out loud. This task is done.
+
 ## Definition of Done
 
 All Acceptance Criteria checked, plus:
 
-- [ ] Local tests pass (or N/A documented in Notes)
-- [ ] Code review completed (human or fresh-context reviewer per WORKFLOW §10)
-- [ ] No orphan `TODO`/`FIXME` introduced
-- [ ] Status updated to `done` and Notes log closes the task
+- [x] Local tests pass (or N/A documented in Notes) — full pre-push gate green
+      (ruff, pyright Windows + Linux, pytest 561 passed, import-linter, DCO,
+      workflow security, Markdown links)
+- [x] Code review completed (human or fresh-context reviewer per WORKFLOW §10)
+      — a fresh-context reviewer checked this entry's claims against the
+      install/engine/addon logs and the release state, and found two checked
+      criteria that the evidence did not support; both were corrected before
+      the work was committed
+- [x] No orphan `TODO`/`FIXME` introduced
+- [x] Status updated to `done` and Notes log closes the task

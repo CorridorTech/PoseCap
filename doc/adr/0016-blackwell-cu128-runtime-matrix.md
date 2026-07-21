@@ -23,7 +23,11 @@ distributing cu128 wheels. Accepted 2026-07-19 on field evidence. The qualificat
 `v1.0.7-win.10`. Blackwell is validated on the published build: the issue #49
 reporter retested the published build on an RTX 5090 and reported it "worked out
 of the box", independently corroborated by a community Linux installer
-contribution that reused this same matrix unmodified on a Linux RTX 5090; on
+contribution (PR #98, not merged) that ran the same version pins
+(torch 2.9.1+cu128, torchvision 0.24.1+cu128, PyTorch3D 0.7.9) on a Linux
+RTX 5090. That contribution obtained PyTorch3D as a prebuilt third-party wheel
+rather than the source build this ADR specifies, so it corroborates the runtime
+version matrix on Blackwell, not this ADR's build method; on
 Ampere an interleaved A/B on an RTX 3080 ran real source-to-TCP inference on
 these pins (see `doc/benchmarks.md`, 2026-07-17).
 
