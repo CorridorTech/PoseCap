@@ -55,16 +55,17 @@ installer work and it sits blocked on infrastructure only the maintainer can add
 
 Verifiable conditions. Each as a checkbox so progress is point-editable.
 
-- [ ] A repeatable job in this repository builds PyTorch3D from the pinned
+- [x] A repeatable job in this repository builds PyTorch3D from the pinned
       `v0.7.9` source against `torch 2.9.1+cu128` inside an environment whose
       CUDA toolkit and host compiler versions are pinned by us, not inherited
       from whatever machine runs it.
-- [ ] The job runs in CI on a clean runner, not on a maintainer's workstation,
+- [x] The job runs in CI on a clean runner, not on a maintainer's workstation,
       and produces the same wheel filename and layout the Linux payload expects.
 - [ ] The wheel is checksummed and shipped inside the Linux PEAR payload, the
       same way `build_pear_payload.ps1` ships the Windows one — no wheel is
-      fetched from a third-party host at user-install time.
-- [ ] The produced wheel carries the same architecture coverage as the Windows
+      fetched from a third-party host at user-install time. Checksumming is
+      done; the payload wiring is not.
+- [x] The produced wheel carries the same architecture coverage as the Windows
       matrix (`sm_70` through `sm_120`), verified by inspecting the built
       artifact rather than assumed from the build flags.
 - [ ] On a real Linux machine with an NVIDIA GPU, installing the payload that
@@ -83,16 +84,16 @@ Verifiable conditions. Each as a checkbox so progress is point-editable.
 Concrete sequential steps. Each as a checkbox. Reference file paths where
 applicable.
 
-- [ ] Decide the base image and record why: a manylinux-style image pinned to a
+- [x] Decide the base image and record why: a manylinux-style image pinned to a
       glibc old enough to be broadly compatible and a GCC within CUDA 12.8's
       supported range.
-- [ ] Provision the pinned CUDA 12.8 toolchain into the image, evaluating the
+- [x] Provision the pinned CUDA 12.8 toolchain into the image, evaluating the
       contributor's component-`.deb` extraction against the full runfile on size
       and reproducibility.
-- [ ] Build PyTorch3D `v0.7.9` against `torch 2.9.1+cu128` in that image and
+- [x] Build PyTorch3D `v0.7.9` against `torch 2.9.1+cu128` in that image and
       emit a wheel; mirror the naming and repack behaviour of
       `packaging/build_pear_payload.ps1`.
-- [ ] Verify the artifact's architecture coverage directly.
+- [x] Verify the artifact's architecture coverage directly.
 - [ ] Wire the job into the release pipeline so a Linux payload is produced and
       checksummed alongside the Windows one.
 - [ ] Validate end to end on real Linux hardware — coordinate with the PR #98
@@ -121,6 +122,52 @@ product decision, and this task only removes the technical blocker. The
 architecture-coverage criterion is stated as "verified by inspecting the
 artifact" on purpose — the Windows matrix was accepted on a build-flag claim
 once, and this one should not be.
+
+### 2026-07-21 — first wheel built, architecture coverage proven from the artifact
+
+`.github/workflows/linux-pear-wheel.yml` produced a real wheel on the fourth
+dispatch (run `29846134294`, 40m41s, `conclusion: success`):
+`pytorch3d-0.7.9-cp311-cp311-linux_x86_64.whl`, sha256
+`07500640105e4970dc86a438e2fc3a5a75a2e89588136efa4fc6fb53985870f1`, uploaded as
+a 69 MB artifact.
+
+**Architecture coverage was read out of the compiled extension, not the build
+flags.** `cuobjdump --list-elf` on `_C.cpython-311-x86_64-linux-gnu.so` inside
+the wheel lists cubins for `sm_70`, `sm_75`, `sm_80`, `sm_86`, `sm_90`,
+`sm_100` and `sm_120` — the same span the Windows payload carries, Blackwell
+included. That is the artifact-level proof this task demanded.
+
+Base image: `quay.io/pypa/manylinux_2_28_x86_64`, pinned by digest. Chosen
+because `torch 2.9.1+cu128` ships for Linux as `manylinux_2_28_x86_64`; building
+on a newer base (ubuntu-24.04, glibc 2.39) would have made our own wheel the
+limiting factor and excluded distributions whose torch installs fine. The
+contributor's `.deb`-component extraction was not needed — the NVIDIA `rhel8`
+repository serves the pinned 12.8 components directly into this image.
+
+Three dispatches failed first, and each failure is worth keeping:
+
+1. **Toolchain.** NVIDIA's repository is rolling and its current `cccl` package
+   *obsoletes* `cuda-cccl-12-8`, so `dnf` refused the version requested by name.
+   `--setopt=obsoletes=0` is what keeps the build on the ADR-0016 toolkit. This
+   is the same class of wall the contributor hit on his own machine, surfacing
+   in package resolution instead of the compiler — evidence for the whole
+   premise of this task.
+2. **Transitive headers.** `ATen/cuda/CUDAContextLight.h` includes
+   `cusparse.h`, so compiling any PyTorch3D CUDA source against torch needs
+   cuSPARSE (plus cuSOLVER and cuFFT) even though PyTorch3D never calls them.
+3. **`cuobjdump` ships separately from `nvcc`**, and its absence was discovered
+   only after a 52-minute compile. Both it and the toolkit version are now
+   asserted in the toolchain step, so a missing or drifted toolchain fails in
+   about a minute rather than an hour.
+
+Notably, **none of the three version walls that blocked the contributor on his
+own machine appeared here** — which is exactly the premise of moving the
+compile to our side.
+
+Still open, and not to be mistaken for done: the wheel has never run on a GPU.
+Nothing in CI can establish that, since no runner here has an NVIDIA device.
+The remaining criteria — payload wiring, real Doctor plus source-to-TCP
+inference on Linux hardware, and the ADR-0016 amendment — stay unchecked.
 
 ## Definition of Done
 
