@@ -64,12 +64,20 @@ jobs:
           dnf -y install dnf-plugins-core
           dnf config-manager --add-repo \
             https://developer.download.nvidia.com/compute/cuda/repos/rhel8/x86_64/cuda-rhel8.repo
-          dnf -y install \
+          # NVIDIA's repository is rolling: the current cccl package declares
+          # that it OBSOLETES cuda-cccl-12-8, so dnf refuses to install the 12.8
+          # component we ask for by name and the whole transaction fails. Turning
+          # obsolete processing off is what keeps this build pinned to the
+          # ADR-0016 toolkit instead of drifting to whatever CUDA is newest --
+          # which is the entire reason this job exists.
+          dnf -y install --setopt=obsoletes=0 \
             "cuda-nvcc-${CUDA_SUFFIX}" \
             "cuda-cudart-devel-${CUDA_SUFFIX}" \
             "cuda-cccl-${CUDA_SUFFIX}" \
             "libcublas-devel-${CUDA_SUFFIX}" \
             "libcurand-devel-${CUDA_SUFFIX}"
+          # Fail loudly if the pin silently drifted to another toolkit.
+          "${CUDA_HOME_DIR}/bin/nvcc" --version | grep -q "release 12.8"
           "${CUDA_HOME_DIR}/bin/nvcc" --version
           # The host compiler must sit inside nvcc's supported range; this base
           # image ships one that does, and we record it rather than assume it.
