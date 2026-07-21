@@ -1,6 +1,6 @@
 # Task 0032: Qualify a Blackwell-capable PEAR runtime matrix
 
-**Status:** in-progress
+**Status:** done
 **Created:** 2026-07-17
 **Owner:** alexandremendoncaalvaro
 **Execution:** HITL
@@ -39,16 +39,17 @@ Verifiable conditions. Each as a checkbox so progress is point-editable.
 - [x] The same payload passes Doctor and a real PEAR live stream on an RTX 50
       GPU (Blackwell validation — coordinate the retest with the issue #49
       reporter if no RTX 50 hardware is available in-house).
-- [ ] Doctor reports the architecture-compatibility check truthfully for both
+- [x] Doctor reports the architecture-compatibility check truthfully for both
       generations (no false "unsupported" on Blackwell, no false success).
-      Pre-Blackwell half done first-hand (2026-07-20); no Doctor output from
-      real `sm_120` hardware has ever been inspected — see that entry.
-- [ ] Issue #49 is answered with the qualified matrix and the release that
+      Pre-Blackwell half verified first-hand (2026-07-20). Blackwell half
+      **accepted by the maintainer on field evidence**, not observed — no
+      Doctor output from real `sm_120` hardware has ever been inspected. See
+      the 2026-07-20 acceptance note.
+- [x] Issue #49 is answered with the qualified matrix and the release that
       carries it; the issue's remaining-before-close checklist is updated.
-      Answered for the matrix and the `win.10` pre-release on 2026-07-19;
-      re-opened here because the release that now *carries* it is the stable
-      `v1.0.7-win.11`, which the issue has not been told about — it is still
-      OPEN.
+      Answered for the matrix on 2026-07-19; answered again on 2026-07-20 for
+      the stable `v1.0.7-win.11` that now carries it, with the root cause and
+      the three GPU caveats spelled out, and the issue closed as completed.
 
 ## Plan
 
@@ -68,8 +69,8 @@ applicable.
       field on `win.10`; the pre-Blackwell packaged-payload run closed on
       `win.11` (2026-07-20 entry below).
 - [x] Ship with the next release (`v1.0.7-win.11`, stable `Latest`).
-- [ ] Answer issue #49 with the release that carries the matrix and close it
-      out — the issue is still OPEN awaiting that comment.
+- [x] Answer issue #49 with the release that carries the matrix and close it
+      out (2026-07-20, closed as completed).
 
 ## Notes
 
@@ -445,18 +446,64 @@ path.
 `v1.0.7-win.11` was promoted to stable `Latest` on 2026-07-21 (UTC),
 superseding `v1.0.6-win.4` (cu124) — the condition this task set for closing.
 
-**Not closed, deliberately.** Two acceptance items are unmet and are named
-above rather than waved through: the Blackwell half of the Doctor
+**Not closed on my own authority.** Two acceptance items were unmet and are
+named above rather than waved through: the Blackwell half of the Doctor
 architecture check (no `sm_120` Doctor reading exists), and issue #49's
 closing comment (the issue is still OPEN). An earlier draft of this entry
 checked both and set `Status: done`; a fresh-context review caught it, and
 the record is corrected here rather than in a later commit.
 
+### 2026-07-20 — maintainer acceptance: Blackwell half closed on field evidence
+
+Asked to choose between requesting a Doctor reading from the issue #49
+reporter's RTX 5090 and accepting the existing field evidence, the maintainer
+**accepted**. The Blackwell half of the architecture-check criterion is
+therefore closed by decision, not by observation, and the distinction is kept
+visible in the criterion itself.
+
+What that acceptance rests on, stated so nobody later mistakes it for a
+measurement: the issue #49 reporter's prose confirmation that the published
+`win.10` build (identical pins) "worked out of the box with PEAR" on an
+RTX 5090, plus PR #98's independent Linux RTX 5090 run of the same version
+matrix — the latter narrowed by `f27f123` to corroborating the runtime version
+matrix rather than this ADR's source-build method. There is still no captured
+`torch_cuda` Doctor output from `sm_120` hardware anywhere in this record.
+
+Precedent: the same maintainer accepted ADR-0016 itself on this same class of
+field evidence in #102, so this is consistent with how the decision record
+already treats Blackwell, not a new lowering of the bar.
+
+The only item left before this task closes is issue #49's closing comment.
+
+### 2026-07-20 — issue #49 closed; task closes
+
+Issue #49 (`bug: PoseCap Engine open but instantly closes. + No Logs`,
+reporter @Njaecha, RTX 5090) was answered and closed as completed. The comment
+names the root cause explicitly rather than just announcing a release: the
+cu124 wheel's kernels stop at `sm_90`, so on Blackwell the process died at the
+first inference — which is also why the reporter saw **both log files at
+0 bytes**, the second symptom in the title. That single cause explains both
+reported behaviours, and the reporter had spent real effort chasing it
+(reinstalling PoseCap and Blender, changing drivers, hand-patching the venv),
+so the explanation is owed. The three GPU caveats (R570+ driver floor, Pascal
+dropped, ~one-third pre-Blackwell throughput cost) are restated there because
+a public issue outlives its release notes.
+
+With that, every acceptance criterion is met — one of them by maintainer
+acceptance on field evidence rather than observation, which the criterion
+itself says out loud. This task is done.
+
 ## Definition of Done
 
 All Acceptance Criteria checked, plus:
 
-- [ ] Local tests pass (or N/A documented in Notes)
-- [ ] Code review completed (human or fresh-context reviewer per WORKFLOW §10)
-- [ ] No orphan `TODO`/`FIXME` introduced
-- [ ] Status updated to `done` and Notes log closes the task
+- [x] Local tests pass (or N/A documented in Notes) — full pre-push gate green
+      (ruff, pyright Windows + Linux, pytest 561 passed, import-linter, DCO,
+      workflow security, Markdown links)
+- [x] Code review completed (human or fresh-context reviewer per WORKFLOW §10)
+      — a fresh-context reviewer checked this entry's claims against the
+      install/engine/addon logs and the release state, and found two checked
+      criteria that the evidence did not support; both were corrected before
+      the work was committed
+- [x] No orphan `TODO`/`FIXME` introduced
+- [x] Status updated to `done` and Notes log closes the task
