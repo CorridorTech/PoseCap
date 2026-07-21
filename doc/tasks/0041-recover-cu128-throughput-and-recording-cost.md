@@ -67,6 +67,12 @@ Verifiable conditions. Each as a checkbox so progress is point-editable.
       with evidence: either the regression is recovered enough that one matrix
       stands, or the residual cost is quantified so the fork can be judged on
       numbers.
+- [ ] The measurement basis for the PRD's 30 FPS target is fixed and recorded
+      (recording or streaming, which GPU, which detector preset), so the target
+      becomes falsifiable rather than a number without conditions.
+- [ ] The final result states plainly how far the best achieved configuration
+      sits from 30 FPS under that basis — the target stands (2026-07-21
+      maintainer decision), so "improved" is not a passing answer.
 
 ## Plan
 
@@ -105,8 +111,36 @@ fork: the cost of a fork is permanent and doubles every future migration
 plausibly recoverable once. This task is what makes that recommendation
 falsifiable rather than a preference.
 
-The PRD's 30 FPS target is untouched and out of scope here. Whether to revise
-it is a product decision; this task supplies the numbers that decision needs.
+### 2026-07-21 — maintainer decision: the 30 FPS target stands
+
+Asked whether the PRD's 30 FPS target should be revised to match the shipped
+cu128 numbers, the maintainer confirmed it stays at 30 and will be treated as
+unmet until reached. The PRD is therefore deliberately unchanged.
+
+That decision changes what this task is. The 2026-07-17 A/B measured **cu124 at
+30.25 mean NET FPS** — the target, met, on the qualified RTX 3080 — against
+cu128's 20.53. So this is not a target the product has never reached; it is one
+that was reached and then traded for RTX 50 support with open eyes. This task
+is regression recovery against a standing commitment, not opportunistic
+optimisation, and it is prioritised accordingly.
+
+It also reopens the fork question rather than settling it. The earlier
+recommendation against per-architecture payloads rested on accepting ~20 FPS
+for the pre-Blackwell majority; with 30 FPS reaffirmed as the bar, that
+acceptance is no longer available as a steady state. Recovering cu128 on a
+single matrix remains the better outcome — it serves every GPU and avoids
+doubling all future migrations — but a temporary cu124 payload for RTX 30/40
+is now a legitimate fallback, and this task's measurements are what decide
+between them.
+
+Open before measurement can begin: the target needs a definition it does not
+have. `doc/product/PRD.md` says "pose applied in the viewport at 30 FPS ... on
+an RTX-class GPU", which does not say whether recording counts, which GPU, or
+which detector preset — and this qualification showed recording alone costs
+about a quarter of the frame rate. The proposed basis, pending the maintainer's
+confirmation, is the hardest honest one: **30 FPS while recording, on the
+RTX 3080 that is already the qualification reference, at the default detector**.
+Until that is fixed, no measurement here can declare the target met.
 
 ## Definition of Done
 
