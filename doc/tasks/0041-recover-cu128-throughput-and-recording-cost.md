@@ -67,9 +67,10 @@ Verifiable conditions. Each as a checkbox so progress is point-editable.
       with evidence: either the regression is recovered enough that one matrix
       stands, or the residual cost is quantified so the fork can be judged on
       numbers.
-- [ ] The measurement basis for the PRD's 30 FPS target is fixed and recorded
+- [x] The measurement basis for the PRD's 30 FPS target is fixed and recorded
       (recording or streaming, which GPU, which detector preset), so the target
       becomes falsifiable rather than a number without conditions.
+      Fixed 2026-07-21: sustained while recording, RTX 3080, default detector.
 - [ ] The final result states plainly how far the best achieved configuration
       sits from 30 FPS under that basis — the target stands (2026-07-21
       maintainer decision), so "improved" is not a passing answer.
@@ -133,14 +134,31 @@ doubling all future migrations — but a temporary cu124 payload for RTX 30/40
 is now a legitimate fallback, and this task's measurements are what decide
 between them.
 
-Open before measurement can begin: the target needs a definition it does not
-have. `doc/product/PRD.md` says "pose applied in the viewport at 30 FPS ... on
-an RTX-class GPU", which does not say whether recording counts, which GPU, or
-which detector preset — and this qualification showed recording alone costs
-about a quarter of the frame rate. The proposed basis, pending the maintainer's
-confirmation, is the hardest honest one: **30 FPS while recording, on the
-RTX 3080 that is already the qualification reference, at the default detector**.
-Until that is fixed, no measurement here can declare the target met.
+### 2026-07-21 — measurement basis fixed
+
+The target needed a definition it did not have. `doc/product/PRD.md` says "pose
+applied in the viewport at 30 FPS ... on an RTX-class GPU", which does not say
+whether recording counts, which GPU, or which detector preset — and this
+qualification showed recording alone costs about a quarter of the frame rate.
+An undefined target cannot be declared met or missed, so no measurement here
+could mean anything until it was pinned.
+
+**The basis is: 30 FPS sustained while Record Live MoCap is engaged, on the
+RTX 3080 that is already this project's qualification reference, at the default
+detector preset (`yolov8s` / "Balanced"), measured as NET FPS by the
+`doc/benchmarks.md` interleaved method.**
+
+Why the hardest of the available definitions. The maintainer's position is that
+the target stays at 30 and stands as unmet until reached, and the product's user
+is an animator whose actual session includes recording, not streaming alone.
+Measuring streaming-only on a quiesced cold GPU would let us declare victory at
+a number the user never experiences — and would hide precisely the cost this
+qualification uncovered. A target that flatters the measurement is not a target.
+
+Recorded as a decision so the work can start; it follows from the maintainer's
+stated position rather than replacing it, and he can overrule it. Streaming-only
+numbers stay worth reporting alongside, because they isolate the kernel-matrix
+regression from the recording cost — they are diagnostic, not the bar.
 
 ## Definition of Done
 
