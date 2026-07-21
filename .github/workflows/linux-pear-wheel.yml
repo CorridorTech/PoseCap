@@ -70,12 +70,19 @@ jobs:
           # obsolete processing off is what keeps this build pinned to the
           # ADR-0016 toolkit instead of drifting to whatever CUDA is newest --
           # which is the entire reason this job exists.
+          # cusparse/cusolver/cufft are here because torch's own headers pull
+          # them in transitively -- ATen/cuda/CUDAContextLight.h includes
+          # <cusparse.h>, so compiling any PyTorch3D CUDA source against torch
+          # fails without them even though PyTorch3D itself never calls them.
           dnf -y install --setopt=obsoletes=0 \
             "cuda-nvcc-${CUDA_SUFFIX}" \
             "cuda-cudart-devel-${CUDA_SUFFIX}" \
             "cuda-cccl-${CUDA_SUFFIX}" \
             "libcublas-devel-${CUDA_SUFFIX}" \
-            "libcurand-devel-${CUDA_SUFFIX}"
+            "libcurand-devel-${CUDA_SUFFIX}" \
+            "libcusparse-devel-${CUDA_SUFFIX}" \
+            "libcusolver-devel-${CUDA_SUFFIX}" \
+            "libcufft-devel-${CUDA_SUFFIX}"
           # Fail loudly if the pin silently drifted to another toolkit.
           "${CUDA_HOME_DIR}/bin/nvcc" --version | grep -q "release 12.8"
           "${CUDA_HOME_DIR}/bin/nvcc" --version
