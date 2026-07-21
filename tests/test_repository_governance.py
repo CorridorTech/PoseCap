@@ -183,9 +183,38 @@ def test_public_docs_state_backend_specific_gpu_compatibility() -> None:
     assert "RTX 30 / 40 / 50 series" not in readme
     assert "RTX 30 / 40 / 50 series" not in getting_started
     assert "MediaPipe Lite" in readme and "No GPU required" in readme
-    assert "RTX 3080" in readme and "RTX 50-series is not supported" in readme
+    # PEAR's GPU support must stay stated precisely, including what it excludes.
+    # v1.0.7 moved PEAR to the cu128 matrix (ADR-0016): RTX 50 (Blackwell) became
+    # supported, the driver floor rose to R570, and Pascal dropped off. Both
+    # public documents carry the same three facts so neither can drift alone.
+    for public_doc in (readme, getting_started):
+        assert "RTX 3080" in public_doc
+        assert "RTX 50-series (Blackwell) supported" in public_doc
+        assert "R570" in public_doc
+        assert "Pascal" in public_doc
     assert "Base + MediaPipe Lite" in getting_started
     assert "If you selected MediaPipe Lite, skip to step 3" in getting_started
+
+
+def test_user_facing_docs_do_not_promise_a_fixed_capture_frame_rate() -> None:
+    """User-facing docs must not resurrect the 30 FPS promise #103 removed.
+
+    Measured live PEAR throughput on the qualified RTX 3080 is ~20 FPS on the
+    cu128 matrix, and lower again while recording (doc/benchmarks.md and task
+    0032), so a blanket "30 FPS" in docs a user reads is a promise the product
+    does not keep. #103 dropped it from the UI and the release notes but missed
+    the docs, which is what this guard exists to catch.
+
+    Product *targets* deliberately stay in scope for `doc/product/PRD.md` and
+    are not covered here: aiming at 30 FPS is a goal, not a claim about today.
+    """
+    user_facing = [REPO_ROOT / "README.md", *sorted((REPO_ROOT / "doc" / "guides").glob("*.md"))]
+    offenders = [
+        path.relative_to(REPO_ROOT).as_posix()
+        for path in user_facing
+        if "30 FPS" in path.read_text(encoding="utf-8")
+    ]
+    assert offenders == [], f"user-facing docs promise a fixed frame rate: {offenders}"
 
 
 def test_release_workflow_manual_qualification_cannot_publish() -> None:
