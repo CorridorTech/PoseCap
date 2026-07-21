@@ -1,6 +1,6 @@
 # Task 0038: Make the Automatic Pose Backend choose instead of refusing
 
-**Status:** in-progress
+**Status:** done
 **Created:** 2026-07-19
 **Owner:** alexandremendoncaalvaro
 **Execution:** AFK
@@ -105,3 +105,20 @@ Append-only.
   the `v1.0.7-win.10` build was cut, so it is NOT in that artifact; shipping it
   needs a fresh build, and the maintainer decides whether it rides 1.0.7 or a
   later release.
+- 2026-07-20: Exercised in the real Blender GUI and shipped. `v1.0.7-win.11`
+  (cut from `main` at `f27f123`) is the first artifact carrying this change;
+  it was installed from its own installer on the maintainer's machine, where
+  both backends are ready — PEAR (`nvidia-cuda`) and MediaPipe Lite (`cpu`),
+  the exact multi-ready case that used to raise `BackendSelectionError`.
+  Observed in the panel, with the dropdown left on its `Automatic` default:
+  the hint reads **"Automatic uses PEAR (NVIDIA CUDA)."**, and after importing
+  and converting a character the **Start Stream button unlocked without any
+  backend being chosen by hand** — previously that state produced the "Choose
+  a Pose Backend before starting capture" refusal. Capture then ran on PEAR
+  end to end (live stream driving the armature, and Record Live MoCap writing
+  38 480 keyframes), so the resolver's pick was not merely displayed but
+  actually used. Full qualification evidence is in task 0032's 2026-07-20
+  entry. `v1.0.7-win.11` was promoted to stable `Latest` on 2026-07-21 (UTC),
+  so the fix is now what new users get.
+- 2026-07-20: The `capture_readiness.py` test-module gap recorded above is
+  still open and is NOT closed by this task; it stays a tracked follow-up.
