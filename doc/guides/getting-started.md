@@ -35,7 +35,7 @@ free licensing sign-up; everything else is one click or fully automatic.</sub>
 |---|---|
 | **OS** | Windows 10 or 11 |
 | **MediaPipe Lite** | CPU-first body capture; no GPU or model-provider account required |
-| **PEAR** | NVIDIA/CUDA; qualified on an RTX 3080. The current runtime does not support RTX 50-series GPUs |
+| **PEAR** | NVIDIA/CUDA, driver R570 or newer; qualified on an RTX 3080. RTX 50-series (Blackwell) supported since v1.0.7; GTX 10-series (Pascal) and older are not |
 | **Blender** | 4.2 LTS or newer (5.x supported) — install it first from [blender.org](https://www.blender.org/download/) |
 | **Camera** | Any webcam, or a video file to test with |
 

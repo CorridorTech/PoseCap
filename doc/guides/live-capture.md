@@ -62,14 +62,14 @@ the preview off.
 
 ## Fine-tuning (Advanced)
 
-The defaults are tuned for a good result at 30 FPS. Open **Advanced** only if you
-want to adjust:
+The defaults are tuned for a good balance of speed and quality. Open **Advanced**
+only if you want to adjust:
 
 | Control | What it does |
 |---|---|
 | **Smoothing Calm** | Steadier when you hold still (lower) vs. more responsive (higher) |
 | **Smoothing Speed Response** | Tracks fast moves with less lag (higher) vs. smoother (lower) |
-| **Detector** | Person-detector size: *Fastest* → *Balanced (30 FPS)* → *High Quality* → *Max Quality* |
+| **Detector** | Person-detector size: *Fastest* → *Balanced* → *High Quality* → *Max Quality* |
 | **Capture Width / Height** | Webcam capture resolution |
 | **Camera Pitch** | Compensate a tilted capture camera so the character stands straight: negative if the camera looks *up* at you, positive if it looks *down*. Leave at 0 for a camera at your height |
 | **Apply Capture To** | Toggle **Arms**, **Legs**, **Torso** on or off individually |

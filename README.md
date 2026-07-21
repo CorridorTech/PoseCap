@@ -49,7 +49,7 @@ Blender animators who want believable body animation without mocap suits, marker
 |---|---|
 | OS | Windows 10 / 11 |
 | MediaPipe Lite | CPU-first body capture. No GPU required |
-| PEAR | NVIDIA/CUDA; qualified on an RTX 3080. RTX 50-series is not supported by the current PEAR runtime |
+| PEAR | NVIDIA/CUDA, driver R570 or newer; qualified on an RTX 3080. RTX 50-series (Blackwell) supported since v1.0.7; GTX 10-series (Pascal) and older are not |
 | Blender | 4.2 LTS minimum, 5.x supported |
 | Python | 3.11 (Blender bundled for the extension; uv-managed venv for the engine bridge) |
 | Camera | Any webcam, including virtual cameras (e.g. Iriun) |
@@ -61,7 +61,7 @@ Other PEAR GPU generations remain unqualified unless a release note says otherwi
 Two processes, joined by explicit contracts:
 
 1. The engine captures webcam frames, finds the person and estimates their full-body pose on the GPU, and streams those poses to Blender over a local connection.
-2. The Blender extension consumes the stream on a background thread and applies poses on the main thread at up to 30 FPS — without wiping your existing keyframes.
+2. The Blender extension consumes the stream on a background thread and applies poses on the main thread as they arrive — without wiping your existing keyframes.
 3. Poses apply pelvis-locked: monocular depth estimation cannot recover trustworthy world position, so world translation stays out until a solid software approach lands (camera tracking is the leading candidate — see the roadmap).
 
 Step-by-step diagrams for every flow (live streaming, capture jobs, install) live in [doc/workflows.md](doc/workflows.md); binding structure lives in [ARCHITECTURE.md](ARCHITECTURE.md).
