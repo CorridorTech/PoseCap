@@ -4,9 +4,9 @@ Mirrors packaging/installer/bootstrap_install.ps1's sequence: begin the
 component transaction, install the Blender extension, mark base ready,
 install any selected optional components, then complete the transaction and
 drop a SETUP_OK marker. Assumes the payload layout (extension zip, MediaPipe
-payload, PEAR payload) is already staged under install_dir -- staging it is a
-separate, not-yet-built Linux payload/download step (see
-doc/linux-support/PROGRESS.md).
+payload, PEAR payload) is already staged under install_dir -- packaging/
+install_linux.py builds and stages that layout before calling this
+coordinator.
 
 Default component selection has no GUI wizard to drive it on Linux (unlike
 Windows's Inno Setup NvidiaDriverPresent check), so an unspecified

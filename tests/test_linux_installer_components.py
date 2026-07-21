@@ -1,20 +1,26 @@
 """Contract tests for the native Linux installer (packaging/linux_installer/).
 
 Unlike the Windows contract tests in test_installer_components.py (gated to
-sys.platform == "win32" and shelling out to real powershell.exe), these run
-on every platform pytest runs on -- there is no reason this pure-Python
-package needs a POSIX host to be exercised, and Linux CI (ubuntu-latest) is
-exactly where it matters most.
+sys.platform == "win32" and shelling out to real powershell.exe), the
+package under test here is pure Python and platform-neutral. The tests
+themselves are not, though: the fixtures below fake out `blender`/`uv` as
+POSIX shebang scripts marked executable via chmod, which Windows cannot
+run (extensionless files aren't executable, and chmod's exec bits are a
+no-op there) -- so this module is gated to POSIX and runs on Linux CI
+(ubuntu-latest), which is exactly where it matters most.
 """
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import stat
+import sys
 import zipfile
 from pathlib import Path
 
+import build_mediapipe_payload_linux
 import pytest
 from linux_installer import bootstrap_install as bootstrap_install_module
 from linux_installer import component_lifecycle
@@ -24,6 +30,10 @@ from linux_installer.install_mediapipe import MediaPipeInstallError, install_med
 from linux_installer.install_pear import PearInstallError, _fetch_pear_source, install_pear
 from linux_installer.nvidia_detect import nvidia_driver_present
 from posecap_contracts import decode_pose_backend_manifest
+
+pytestmark = pytest.mark.skipif(
+    sys.platform == "win32", reason="fixtures are POSIX executable shebang scripts"
+)
 
 
 def _prepend_to_path(monkeypatch: pytest.MonkeyPatch, directory: Path) -> None:
@@ -304,12 +314,18 @@ def test_remove_owned_tree_refuses_to_escape_the_install_root(tmp_path: Path) ->
 # --- install_mediapipe ---------------------------------------------------
 
 
-def test_install_mediapipe_registers_a_schema_valid_backend_manifest(tmp_path: Path) -> None:
+def test_install_mediapipe_registers_a_schema_valid_backend_manifest(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     install_dir = tmp_path / "install"
     _mediapipe_payload(install_dir / "payloads" / "mediapipe")
     (install_dir / "backends" / "mediapipe" / "models").mkdir(parents=True)
+    model_bytes = b"fixture"
     (install_dir / "backends" / "mediapipe" / "models" / "holistic_landmarker.task").write_bytes(
-        b"fixture"
+        model_bytes
+    )
+    monkeypatch.setattr(
+        build_mediapipe_payload_linux, "_MODEL_SHA256", hashlib.sha256(model_bytes).hexdigest()
     )
 
     install_mediapipe(install_dir)
@@ -320,6 +336,25 @@ def test_install_mediapipe_registers_a_schema_valid_backend_manifest(tmp_path: P
     assert "linux" in manifest.compatibility.operating_systems
     assert manifest.command[0].endswith("posecap-mediapipe")
     assert (install_dir / "backends" / "mediapipe" / "runtime" / "bin" / "python").is_file()
+
+
+def test_install_mediapipe_raises_when_the_model_checksum_does_not_match(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    install_dir = tmp_path / "install"
+    _mediapipe_payload(install_dir / "payloads" / "mediapipe")
+    (install_dir / "backends" / "mediapipe" / "models").mkdir(parents=True)
+    (install_dir / "backends" / "mediapipe" / "models" / "holistic_landmarker.task").write_bytes(
+        b"corrupted-download"
+    )
+    monkeypatch.setattr(
+        build_mediapipe_payload_linux,
+        "_MODEL_SHA256",
+        hashlib.sha256(b"the-real-model").hexdigest(),
+    )
+
+    with pytest.raises(MediaPipeInstallError, match="does not match its pinned checksum"):
+        install_mediapipe(install_dir)
 
 
 def test_install_mediapipe_raises_when_the_payload_is_incomplete(tmp_path: Path) -> None:

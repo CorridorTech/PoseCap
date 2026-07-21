@@ -4,7 +4,7 @@ Mirrors packaging/installer/blender_discovery.ps1's search order (PATH, known
 install directories, Steam) and version gate (>= 4.2), adapted to Linux's
 package-manager, tarball, and Steam layouts. Flatpak/Snap Blender installs are
 intentionally not covered yet: their sandboxed invocation model needs its own
-decision, not a guess (see doc/linux-support/PROGRESS.md).
+decision, not a guess.
 """
 
 from __future__ import annotations

@@ -10,15 +10,17 @@ and packaging/requirements-pypi-linux.lock instead of the Windows lock file.
 requirements-torch.lock needs no Linux variant: it's already platform-neutral
 and already validated identical on Linux.
 
-PyTorch3D has no route into this script that builds it from source or
-downloads a third-party wheel -- run
+PyTorch3D has no route into this script that builds it -- prepare a venv
+first (packaging/install_linux.py's _build_pytorch3d_venv does this step for
+the one-command path, mirroring tools/install/setup_pear_runtime.ps1):
     uv pip install --python <venv>/bin/python torch==2.9.1+cu128 torchvision==0.24.1+cu128 \\
       --index-url https://download.pytorch.org/whl/cu128
-    uv pip install --python <venv>/bin/python \\
-      --extra-index-url https://miropsota.github.io/torch_packages_builder \\
-      "pytorch3d==0.7.9+d9839a9pt2.9.1cu128"
-first (or build PyTorch3D from source), then point --pytorch3d-site-packages
-at that venv's site-packages -- the same shape the Windows script requires.
+    git clone --branch v0.7.9 --depth 1 https://github.com/facebookresearch/pytorch3d.git p3d
+    CUDA_HOME=/usr/local/cuda-12.8 CUB_HOME=/usr/local/cuda-12.8/include MAX_JOBS=1 \\
+      uv pip install --python <venv>/bin/python p3d --no-build-isolation
+then point --pytorch3d-site-packages at that venv's site-packages -- the same
+shape the Windows script requires, and the same build-from-source provenance
+ADR-0016 specifies (not a prebuilt third-party wheel).
 
     uv run python packaging/build_pear_payload_linux.py \\
       --pytorch3d-site-packages /path/to/venv/lib/python3.11/site-packages \\

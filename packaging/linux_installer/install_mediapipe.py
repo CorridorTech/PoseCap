@@ -8,11 +8,14 @@ addon/posecap_addon/support.py's _LINUX_LAYOUT already expects.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import subprocess
 from pathlib import Path
 from typing import Any
+
+import build_mediapipe_payload_linux
 
 _REQUIRED_WHEEL_COUNT = 3
 
@@ -117,6 +120,11 @@ def _verify_payload(uv: Path, lock: Path, model_path: Path, wheels_dir: Path) ->
     for required in (uv, lock, model_path):
         if not required.is_file():
             raise MediaPipeInstallError(f"required component file is missing: {required}")
+    actual = hashlib.sha256(model_path.read_bytes()).hexdigest()
+    if actual != build_mediapipe_payload_linux._MODEL_SHA256:
+        raise MediaPipeInstallError(
+            f"{model_path} does not match its pinned checksum -- reinstall PoseCap"
+        )
     wheels = list(wheels_dir.glob("*.whl")) if wheels_dir.is_dir() else []
     if len(wheels) != _REQUIRED_WHEEL_COUNT:
         raise MediaPipeInstallError(f"expected three PoseCap wheels in {wheels_dir}")
