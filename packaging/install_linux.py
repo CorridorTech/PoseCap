@@ -186,6 +186,11 @@ def _stage_mediapipe(install_dir: Path, base_url: str, work_dir: Path) -> None:
 
     target = install_dir / "payloads" / "mediapipe"
     target.mkdir(parents=True, exist_ok=True)
+    # Same hazard as _stage_pear's wheels/ clear: extractall() never removes
+    # files absent from the new archive, so a stale, differently-versioned
+    # workspace wheel from an earlier install would survive a version bump
+    # and trip install_mediapipe.py's exact-three-wheels check.
+    shutil.rmtree(target / "wheels", ignore_errors=True)
     with zipfile.ZipFile(archives[0]) as archive:
         archive.extractall(target)
     uv_binary = target / "bin" / "uv"
@@ -247,6 +252,15 @@ def _stage_pear(
         raise InstallLinuxError("PEAR payload build produced no archive")
 
     install_dir.mkdir(parents=True, exist_ok=True)
+    # wheels/ is installer-owned (component_lifecycle._PEAR_OWNED_PATHS) and
+    # extractall() only overwrites files present in the new archive -- it
+    # never removes ones that aren't. A prior install's PyTorch3D wheel can
+    # carry a different filename (the from-source fallback embeds a git-hash
+    # local version, e.g. "+d9839a9pt2.9.1cu128"; a version bump changes it
+    # too), so a stale wheel from an earlier install can sit alongside the
+    # new one and make the "install bundled wheels" step's `uv pip install`
+    # refuse with a conflicting-package error. Clear it before extracting.
+    shutil.rmtree(install_dir / "wheels", ignore_errors=True)
     with zipfile.ZipFile(archives[0]) as archive:
         archive.extractall(install_dir)
     (install_dir / "bin" / "uv").chmod(0o755)
@@ -411,13 +425,18 @@ def _build_parser() -> argparse.ArgumentParser:
         default=_default_cuda_home(),
         help="CUDA Toolkit 12.8 install used by --build-pytorch3d-from-source",
     )
-    parser.add_argument(
+    # Not required=True: neither flag matters unless PEAR ends up selected
+    # (--components can omit it, or the NVIDIA-driver autodetect can skip
+    # it), and _stage_pear raises its own clear error if PEAR is selected
+    # but neither was given. The group only rules out passing both at once.
+    pytorch3d_source = parser.add_mutually_exclusive_group()
+    pytorch3d_source.add_argument(
         "--pytorch3d-wheel",
         type=Path,
         default=None,
         help="prebuilt PyTorch3D wheel to bundle for PEAR -- the normal path",
     )
-    parser.add_argument(
+    pytorch3d_source.add_argument(
         "--build-pytorch3d-from-source",
         action="store_true",
         help="fallback: compile PyTorch3D locally against --cuda-home instead of "

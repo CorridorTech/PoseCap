@@ -27,7 +27,7 @@ from linux_installer import component_lifecycle
 from linux_installer.blender_discovery import find_compatible_blenders
 from linux_installer.install_base import BaseInstallError, install_base
 from linux_installer.install_mediapipe import MediaPipeInstallError, install_mediapipe
-from linux_installer.install_pear import PearInstallError, _fetch_pear_source, install_pear
+from linux_installer.install_pear import PearInstallError, install_pear
 from linux_installer.nvidia_detect import nvidia_driver_present
 from posecap_contracts import decode_pose_backend_manifest
 
@@ -309,6 +309,17 @@ def test_remove_owned_tree_refuses_to_escape_the_install_root(tmp_path: Path) ->
     with pytest.raises(component_lifecycle.ComponentLifecycleError, match="refusing to remove"):
         component_lifecycle._remove_installer_owned_tree(install_dir, "../outside.txt")
     assert outside.is_file()
+
+
+def test_remove_owned_tree_refuses_to_remove_the_install_root_itself(tmp_path: Path) -> None:
+    install_dir = tmp_path / "install"
+    install_dir.mkdir()
+    (install_dir / "keep.txt").write_text("do not delete me")
+
+    with pytest.raises(component_lifecycle.ComponentLifecycleError, match="refusing to remove"):
+        component_lifecycle._remove_installer_owned_tree(install_dir, ".")
+    assert install_dir.is_dir()
+    assert (install_dir / "keep.txt").is_file()
 
 
 # --- install_mediapipe ---------------------------------------------------
@@ -620,8 +631,8 @@ def _pear_install_dir(tmp_path: Path, *, wheel_count: int = 4) -> Path:
     return install_dir
 
 
-def test_fetch_pear_source_merges_into_an_existing_checkout_with_licensed_assets(
-    tmp_path: Path,
+def test_install_pear_merges_into_an_existing_checkout_with_licensed_assets(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     # Real bug found in the field: a prior checkout (e.g. from an earlier
     # manual setup) already has a non-empty assets/ directory holding the
@@ -629,23 +640,28 @@ def test_fetch_pear_source_merges_into_an_existing_checkout_with_licensed_assets
     # archive zip extracts to "PEAR-<revision>/", a different top-level name
     # than "pear/" -- the old code tried to `rename()` the fresh assets/
     # directory over the existing non-empty one and crashed with ENOTEMPTY.
-    pear_dir = tmp_path / "pear"
-    pear_dir.mkdir()
+    # Driven through the public install_pear() entrypoint (not the private
+    # _fetch_pear_source helper directly) so argument wiring and call order
+    # inside install_pear() stay covered too, per GUIDELINES SS9.
+    install_dir = _pear_install_dir(tmp_path)
+    nvidia_smi = tmp_path / "gpu-bin" / "nvidia-smi"
+    _fake_nvidia_smi(nvidia_smi, healthy=True)
+    _prepend_to_path(monkeypatch, nvidia_smi.parent)
+    monkeypatch.setenv("FAKE_DOCTOR_SCENARIO", "pear_assets_only")
+
+    pear_dir = install_dir / "pear"
     licensed_asset = pear_dir / "assets" / "SMPL" / "SMPL_NEUTRAL.pkl"
     licensed_asset.parent.mkdir(parents=True)
     licensed_asset.write_bytes(b"the user's own licensed model, never touch this")
     # A pre-existing (older) source file that a fresh checkout should update.
     (pear_dir / "configs").mkdir()
     (pear_dir / "configs" / "infer.yaml").write_text("config: old\n")
-
-    source_archive = tmp_path / "pear-source.zip"
     _fake_pear_source_archive(
-        source_archive, revision_hint="PEAR-977331937ea8c3d08ae0254d8831d640d46a5cf6"
+        install_dir / "payloads" / "pear" / "pear-source.zip",
+        revision_hint="PEAR-977331937ea8c3d08ae0254d8831d640d46a5cf6",
     )
 
-    _fetch_pear_source(
-        source_archive, pear_dir, "977331937ea8c3d08ae0254d8831d640d46a5cf6"
-    )  # must not raise
+    install_pear(install_dir)  # must not raise
 
     assert licensed_asset.read_bytes() == b"the user's own licensed model, never touch this"
     assert (pear_dir / "configs" / "infer.yaml").read_text() == "config: true\n"
