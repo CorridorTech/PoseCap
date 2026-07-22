@@ -349,3 +349,112 @@ def test_stage_pear_builds_from_source_when_requested_and_no_wheel_given(
     assert len(venv_builds) == 1
     expected_site_packages = venv_builds[0] / "lib" / "python3.11" / "site-packages"
     assert build_calls[0]["pytorch3d_site_packages"] == expected_site_packages
+
+
+def test_stage_pear_removes_a_stale_differently_named_wheel_before_extracting(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def fake_build_payload(**kwargs: object) -> Path:
+        output_dir = kwargs["output_dir"]
+        assert isinstance(output_dir, Path)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        archive = output_dir / "posecap-pear-bootstrap-9.9.9-linux.1.zip"
+        with zipfile.ZipFile(archive, "w") as zf:
+            zf.writestr("bin/uv", "fixture")
+            zf.writestr("wheels/pytorch3d-0.7.9-cp311-cp311-linux_x86_64.whl", "new wheel")
+        return output_dir
+
+    monkeypatch.setattr(
+        install_linux_module.build_pear_payload_linux,
+        "build_pear_payload_for_linux",
+        fake_build_payload,
+    )
+    monkeypatch.setattr(install_linux_module, "_download_and_verify", lambda *a, **k: None)
+    monkeypatch.setattr(
+        install_linux_module.build_pear_payload_linux,
+        "_pear_source_lock",
+        lambda: {"url": "https://example.test/pear-source.zip", "sha256": "0" * 64},
+    )
+
+    wheel = tmp_path / "pytorch3d-0.7.9-cp311-cp311-linux_x86_64.whl"
+    wheel.write_bytes(b"fixture wheel")
+    install_dir = tmp_path / "install"
+    stale_wheel_dir = install_dir / "wheels"
+    stale_wheel_dir.mkdir(parents=True)
+    stale_wheel = (
+        stale_wheel_dir / "pytorch3d-0.7.9+d9839a9pt2.9.1cu128-cp311-cp311-linux_x86_64.whl"
+    )
+    stale_wheel.write_bytes(b"stale wheel from an earlier from-source install")
+
+    install_linux_module._stage_pear(
+        install_dir, "https://example.test/base", tmp_path, tmp_path / "cuda", wheel, False
+    )
+
+    remaining = sorted(path.name for path in stale_wheel_dir.glob("*.whl"))
+    assert remaining == ["pytorch3d-0.7.9-cp311-cp311-linux_x86_64.whl"]
+
+
+def test_stage_mediapipe_removes_stale_versioned_wheels_before_extracting(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def fake_build_payload(**kwargs: object) -> Path:
+        output_dir = kwargs["output_dir"]
+        assert isinstance(output_dir, Path)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        archive = output_dir / "posecap-mediapipe-bootstrap-9.9.9-linux.1.zip"
+        with zipfile.ZipFile(archive, "w") as zf:
+            zf.writestr("bin/uv", "fixture")
+            zf.writestr("wheels/posecap_contracts-1.0.8-py3-none-any.whl", "new wheel")
+        return output_dir
+
+    monkeypatch.setattr(
+        install_linux_module.build_mediapipe_payload_linux,
+        "build_mediapipe_payload_for_linux",
+        fake_build_payload,
+    )
+    monkeypatch.setattr(install_linux_module, "_download_and_verify", lambda *a, **k: None)
+    monkeypatch.setattr(
+        install_linux_module.build_mediapipe_payload_linux, "_MODEL_URL", "https://example.test/m"
+    )
+    monkeypatch.setattr(
+        install_linux_module.build_mediapipe_payload_linux, "_MODEL_SHA256", "0" * 64
+    )
+
+    install_dir = tmp_path / "install"
+    stale_wheel_dir = install_dir / "payloads" / "mediapipe" / "wheels"
+    stale_wheel_dir.mkdir(parents=True)
+    stale_wheel = stale_wheel_dir / "posecap_contracts-1.0.7-py3-none-any.whl"
+    stale_wheel.write_bytes(b"stale wheel from an earlier install")
+
+    install_linux_module._stage_mediapipe(install_dir, "https://example.test/base", tmp_path)
+
+    remaining = sorted(path.name for path in stale_wheel_dir.glob("*.whl"))
+    assert remaining == ["posecap_contracts-1.0.8-py3-none-any.whl"]
+
+
+# --- CLI parser ------------------------------------------------------------
+
+
+def test_cli_rejects_both_pytorch3d_wheel_and_build_from_source_together(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    parser = install_linux_module._build_parser()
+    with pytest.raises(SystemExit):
+        parser.parse_args(
+            [
+                "--pytorch3d-wheel",
+                str(tmp_path / "pytorch3d.whl"),
+                "--build-pytorch3d-from-source",
+            ]
+        )
+    assert "not allowed with argument" in capsys.readouterr().err
+
+
+def test_cli_accepts_pytorch3d_wheel_alone(tmp_path: Path) -> None:
+    parser = install_linux_module._build_parser()
+    wheel = tmp_path / "pytorch3d.whl"
+
+    args = parser.parse_args(["--pytorch3d-wheel", str(wheel)])
+
+    assert args.pytorch3d_wheel == wheel
+    assert args.build_pytorch3d_from_source is False

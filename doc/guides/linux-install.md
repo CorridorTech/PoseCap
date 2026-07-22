@@ -113,8 +113,17 @@ assert actual == expected, f'hash mismatch: {actual} != {expected}'
 print('MediaPipe model hash OK')
 "
 
-# installer_manifest.json (version must match pyproject.toml)
-python3 -c "import json; open('$INSTALL/installer_manifest.json','w').write(json.dumps({'version': '1.0.7'}))"
+# installer_manifest.json -- version must be "<pyproject version>-linux.<build
+# number>", matching what install_linux.py itself writes (_workspace_version()
+# + --build-number, default 1). A version that doesn't match this shape (e.g.
+# just the bare pyproject version) makes a later repair install look like a
+# no-op to _same_version_repair and skip work it should actually do.
+python3 -c "
+import json
+version = open('pyproject.toml').read().splitlines()
+version = next(line for line in version if line.startswith('version = ')).split('\"')[1]
+open('$INSTALL/installer_manifest.json', 'w').write(json.dumps({'version': f'{version}-linux.1'}))
+"
 
 # Run the installer
 PYTHONPATH=packaging uv run python -m linux_installer.bootstrap_install \
@@ -196,11 +205,20 @@ assert actual == expected, f'hash mismatch: {actual} != {expected}'
 print('PEAR source hash OK')
 "
 
-# 5. installer_manifest.json (version must match pyproject.toml)
+# 5. installer_manifest.json -- version must be "<pyproject version>-linux.
+#    <build number>", matching what install_linux.py itself writes
+#    (_workspace_version() + --build-number, default 1). A version that
+#    doesn't match this shape (e.g. just the bare pyproject version) makes a
+#    later repair install look like a no-op to _same_version_repair and skip
+#    work it should actually do.
 python3 -c "
 import json
+pyproject_version = open('pyproject.toml').read().splitlines()
+pyproject_version = next(
+    line for line in pyproject_version if line.startswith('version = ')
+).split('\"')[1]
 open('$INSTALL/installer_manifest.json', 'w').write(json.dumps({
-    'version': '1.0.7',
+    'version': f'{pyproject_version}-linux.1',
     'torchIndexUrl': 'https://download.pytorch.org/whl/cu128',
     'pearRevision': '977331937ea8c3d08ae0254d8831d640d46a5cf6',
 }))

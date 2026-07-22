@@ -1,10 +1,14 @@
 """Installed-component inventory and safe deselection cleanup (Linux).
 
 Mirrors packaging/installer/component_lifecycle.ps1's JSON schema and
-behavior field-for-field, so installed_components.json stays a shared
+owned-path cleanup behavior, so installed_components.json stays a shared
 cross-platform contract per ADR-0011 ("other operating systems... reuse the
 component, inventory, and manifest contracts... through their native
-packaging surface").
+packaging surface"). One field is not yet at parity: Windows's
+Get-PayloadProvenance embeds a "payload" block (url, sha256, size_bytes,
+filename) per component; begin() below does not. Nothing reads it back as
+a security control today, so this is a known audit gap, not a behavioral
+one -- worth closing if a consumer ever needs it.
 """
 
 from __future__ import annotations
@@ -26,6 +30,11 @@ _BASE_OWNED_PATHS = (
     "bootstrap",
     "extension",
     "installer_manifest.json",
+    # These two are never written by the Linux build pipeline today (Windows
+    # populates them via build_installer.ps1) -- kept here so the owned-path
+    # schema stays field-for-field with component_lifecycle.ps1's list.
+    # Harmless as dead entries: _remove_installer_owned_tree() no-ops on a
+    # path that does not exist.
     "pear_payload_manifest.json",
     "mediapipe_payload_manifest.json",
     "installed_components.json",
@@ -199,7 +208,7 @@ def _remove_installer_owned_tree(install_dir: Path, relative_path: str) -> None:
     """Delete a path the installer owns, refusing to escape the install root."""
     root = install_dir.resolve()
     target = (root / relative_path).resolve()
-    if target != root and root not in target.parents:
+    if root not in target.parents:
         raise ComponentLifecycleError(
             f"refusing to remove path outside the PoseCap install root: '{target}'"
         )
