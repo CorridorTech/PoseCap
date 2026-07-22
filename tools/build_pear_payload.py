@@ -43,8 +43,9 @@ def build_payload(arguments: argparse.Namespace) -> None:
         raise ValueError("PEAR source size must be positive")
 
     source = arguments.source.resolve()
+    uv_relative_path = _uv_relative_path(source)
     required_paths = (
-        "bin/uv.exe",
+        uv_relative_path,
         "requirements-torch.lock",
         "requirements-pypi.lock",
     )
@@ -97,6 +98,15 @@ def build_payload(arguments: argparse.Namespace) -> None:
     }
     manifest_path = arguments.output_dir / f"posecap-pear-bootstrap-{arguments.version}.json"
     manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+
+
+def _uv_relative_path(source: Path) -> str:
+    """The staged uv binary: bin/uv.exe (Windows) or bin/uv (Linux)."""
+    if (source / "bin" / "uv.exe").is_file():
+        return "bin/uv.exe"
+    if (source / "bin" / "uv").is_file():
+        return "bin/uv"
+    raise ValueError("missing required PEAR payload path: bin/uv(.exe)")
 
 
 def main() -> int:

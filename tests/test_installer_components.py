@@ -547,6 +547,39 @@ def test_payload_packer_emits_complete_archive_and_verified_manifest(tmp_path: P
         assert "payloads/pear/pear-source.zip" not in payload_zip.namelist()
 
 
+def test_payload_packer_accepts_the_posix_uv_binary_without_an_exe_suffix(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "source"
+    files = {
+        "bin/uv": b"uv",
+        "wheels/posecap-contracts.whl": b"contracts",
+        "wheels/posecap-core.whl": b"core",
+        "wheels/posecap-engine.whl": b"engine",
+        "wheels/pytorch3d.whl": b"pytorch3d",
+        "requirements-torch.lock": b"torch==fixture",
+        "requirements-pypi.lock": b"numpy==fixture",
+    }
+    for relative_path, content in files.items():
+        path = source / relative_path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        if path.suffix == ".whl":
+            with zipfile.ZipFile(path, "w") as wheel:
+                wheel.writestr("fixture/__init__.py", content)
+        else:
+            path.write_bytes(content)
+    output_dir = tmp_path / "dist"
+
+    result = _run_payload_packer(source, output_dir)
+
+    assert result.returncode == 0, result.stderr
+    archive = output_dir / "posecap-pear-bootstrap-1.2.3-win.4.zip"
+    with zipfile.ZipFile(archive) as payload_zip:
+        names = set(payload_zip.namelist())
+    assert "bin/uv" in names
+    assert "bin/uv.exe" not in names
+
+
 def test_payload_packer_rejects_incomplete_staging_tree(tmp_path: Path) -> None:
     source = tmp_path / "source"
     source.mkdir()
@@ -555,7 +588,7 @@ def test_payload_packer_rejects_incomplete_staging_tree(tmp_path: Path) -> None:
     result = _run_payload_packer(source, tmp_path / "dist")
 
     assert result.returncode != 0
-    assert "missing required PEAR payload path: bin/uv.exe" in result.stderr
+    assert "missing required PEAR payload path: bin/uv(.exe)" in result.stderr
     assert not (tmp_path / "dist" / "posecap-pear-bootstrap-1.2.3-win.4.zip").exists()
 
 
