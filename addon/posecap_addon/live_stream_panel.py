@@ -130,6 +130,9 @@ def _draw_pose_backend_selector(column: Any, settings: LiveStreamSettings) -> No
     """Keep the backend choice in the normal capture panel, not a terminal workflow."""
     column.prop(settings, "pose_backend_id", text="Pose Backend")
     catalog = discover_installed_pose_backends(dict(os.environ))
+    if not catalog.ready and not catalog.issues:
+        column.label(text="No Pose Backend is installed.", icon="ERROR")
+        column.label(text="Run the PoseCap installer or its Repair option.")
     if len(catalog.ready) > 1 and selected_backend_id(settings) is None:
         # Automatic resolves on its own (task 0038); name the pick so the
         # choice is visible rather than hidden behind the word "Automatic".

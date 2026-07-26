@@ -88,7 +88,7 @@ def pose_backend_items(_self: Any, _context: Any) -> list[tuple[str, str, str]]:
         (
             _AUTOMATIC_BACKEND_ID,
             "Automatic",
-            "Let PoseCap pick the best installed backend for this machine",
+            "Use the best installed backend when one is available",
         )
     ]
     for backend in catalog.ready:

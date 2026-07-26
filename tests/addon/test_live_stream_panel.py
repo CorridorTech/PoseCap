@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 from posecap_addon import draw_live_stream_panel
+from posecap_addon.stream_properties import pose_backend_items
 from posecap_addon.ui_state import LifecycleState
 
 
@@ -113,6 +114,30 @@ def _two_ready_backends(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None
     _write_backend(registry, "pear", "PEAR (NVIDIA CUDA)", "nvidia-cuda")
     _write_backend(registry, "mediapipe", "MediaPipe Lite (CPU)", "cpu")
     monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+
+
+def test_panel_explains_when_no_pose_backend_is_installed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Issue #99: an empty registry must identify the supported remedy."""
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+    layout = _FakeLayout()
+
+    draw_live_stream_panel(layout, _Settings())
+
+    assert "No Pose Backend is installed." in layout.labels
+    assert "Run the PoseCap installer or its Repair option." in layout.labels
+
+
+def test_automatic_backend_description_does_not_promise_an_unavailable_pick(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Automatic remains selectable but must not claim an installed backend exists."""
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+
+    items = pose_backend_items(None, None)
+
+    assert items[0][2] == "Use the best installed backend when one is available"
 
 
 def test_panel_names_the_automatic_pick_instead_of_demanding_a_choice(
