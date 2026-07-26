@@ -45,3 +45,7 @@ dist/
 
 # Ephemeral ad-review handoffs
 .agentic/reviews/
+
+# Agent working notes for the Linux-support effort — session logs, not
+# project documentation
+doc/linux-support/

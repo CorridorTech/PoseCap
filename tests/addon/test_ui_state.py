@@ -855,6 +855,8 @@ def test_start_and_stop_operators_own_stream_runtime(monkeypatch) -> None:
     # execute() resolves the engine via real os.environ; hide any installed
     # runtime so this asserts the explicit settings, not the build machine.
     monkeypatch.delenv("LOCALAPPDATA", raising=False)
+    monkeypatch.delenv("XDG_DATA_HOME", raising=False)
+    monkeypatch.delenv("HOME", raising=False)
     bpy = _FakeBpy()
     register_blender_ui(bpy)
     settings = _Settings(lifecycle_state="STOPPED")
@@ -1502,6 +1504,8 @@ def test_start_stream_uses_addon_preferences_when_scene_runtime_fields_are_empty
     # Hide any installed runtime so the installer fallback can't shadow the
     # addon-preference values this test asserts.
     monkeypatch.delenv("LOCALAPPDATA", raising=False)
+    monkeypatch.delenv("XDG_DATA_HOME", raising=False)
+    monkeypatch.delenv("HOME", raising=False)
     bpy = _FakeBpy()
     register_blender_ui(bpy)
     settings = _Settings(lifecycle_state="STOPPED")
@@ -1565,6 +1569,8 @@ def test_start_stream_uses_addon_preferences_when_scene_runtime_fields_are_empty
 
 def test_start_stream_configures_apply_time_instrumentation(monkeypatch, tmp_path) -> None:
     monkeypatch.delenv("LOCALAPPDATA", raising=False)
+    monkeypatch.delenv("XDG_DATA_HOME", raising=False)
+    monkeypatch.delenv("HOME", raising=False)
     bpy = _FakeBpy()
     bpy.app.tempdir = str(tmp_path)
     register_blender_ui(bpy)
