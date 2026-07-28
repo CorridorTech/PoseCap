@@ -146,7 +146,7 @@ def test_ci_cancels_stale_runs_and_pins_python_311() -> None:
     ]
     assert setup_python == [
         {
-            "uses": "actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1",
+            "uses": "actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97",
             "with": {"python-version": "3.11"},
         }
     ]
