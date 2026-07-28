@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from queue import Empty, Queue
 from threading import Thread
+from typing import Any
 
 
 class EngineStartupError(RuntimeError):
@@ -50,7 +51,7 @@ class EngineProcess:
 PopenFactory = Callable[[Sequence[str]], subprocess.Popen[str]]
 
 
-def _drain_pipe(stream: object) -> None:
+def _drain_pipe(stream: Any) -> None:
     try:
         for _ in stream:
             pass
