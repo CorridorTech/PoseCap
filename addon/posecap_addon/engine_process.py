@@ -50,6 +50,14 @@ class EngineProcess:
 PopenFactory = Callable[[Sequence[str]], subprocess.Popen[str]]
 
 
+def _drain_pipe(stream: object) -> None:
+    try:
+        for _ in stream:
+            pass
+    except Exception:
+        pass
+
+
 def start_engine_stream(
     command: Sequence[str],
     *,
@@ -67,6 +75,21 @@ def start_engine_stream(
     try:
         line = _read_startup_line(process, timeout_seconds=startup_timeout_seconds)
         endpoint = _parse_listening_event(line)
+
+        if process.stdout is not None:
+            Thread(
+                target=_drain_pipe,
+                args=(process.stdout,),
+                name="posecap-engine-stdout-drainer",
+                daemon=True,
+            ).start()
+        if process.stderr is not None:
+            Thread(
+                target=_drain_pipe,
+                args=(process.stderr,),
+                name="posecap-engine-stderr-drainer",
+                daemon=True,
+            ).start()
     except Exception:
         _terminate_process(process, timeout_seconds=1.0)
         raise
