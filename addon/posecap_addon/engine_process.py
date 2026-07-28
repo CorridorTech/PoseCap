@@ -32,6 +32,7 @@ class EngineProcess:
     process: subprocess.Popen[str]
     endpoint: EngineEndpoint
     command: tuple[str, ...]
+    drainer_threads: tuple[Thread, ...] = ()
 
     @property
     def pid(self) -> int:
@@ -46,6 +47,9 @@ class EngineProcess:
     def stop(self, *, timeout_seconds: float = 5.0) -> None:
         """Terminate the engine by process handle, escalating to kill on timeout."""
         _terminate_process(self.process, timeout_seconds=timeout_seconds)
+        for t in self.drainer_threads:
+            if t.is_alive():
+                t.join(timeout=1.0)
 
 
 PopenFactory = Callable[[Sequence[str]], subprocess.Popen[str]]
@@ -73,28 +77,38 @@ def start_engine_stream(
 
     command_tuple = tuple(str(part) for part in command)
     process = (popen_factory or _popen)(command_tuple)
+    drainer_threads = []
     try:
         line = _read_startup_line(process, timeout_seconds=startup_timeout_seconds)
         endpoint = _parse_listening_event(line)
 
         if process.stdout is not None:
-            Thread(
+            t = Thread(
                 target=_drain_pipe,
                 args=(process.stdout,),
                 name="posecap-engine-stdout-drainer",
                 daemon=True,
-            ).start()
+            )
+            t.start()
+            drainer_threads.append(t)
         if process.stderr is not None:
-            Thread(
+            t = Thread(
                 target=_drain_pipe,
                 args=(process.stderr,),
                 name="posecap-engine-stderr-drainer",
                 daemon=True,
-            ).start()
+            )
+            t.start()
+            drainer_threads.append(t)
     except Exception:
         _terminate_process(process, timeout_seconds=1.0)
         raise
-    return EngineProcess(process=process, endpoint=endpoint, command=command_tuple)
+    return EngineProcess(
+        process=process,
+        endpoint=endpoint,
+        command=command_tuple,
+        drainer_threads=tuple(drainer_threads),
+    )
 
 
 def _popen(command: Sequence[str]) -> subprocess.Popen[str]:
@@ -196,10 +210,3 @@ def _terminate_process(process: subprocess.Popen[str], *, timeout_seconds: float
         except subprocess.TimeoutExpired:
             process.kill()
             process.wait(timeout=timeout_seconds)
-    _close_process_pipes(process)
-
-
-def _close_process_pipes(process: subprocess.Popen[str]) -> None:
-    for stream in (process.stdout, process.stderr):
-        if stream is not None:
-            stream.close()
