@@ -9,7 +9,7 @@ allowed-tools: Read, Write, Glob, Grep, Bash
 
 Layer 1 Constitution trinity member. Lazy lifecycle owner of `GUIDELINES.md` at the repo root. Companion to `WORKFLOW.md` (universal engineering philosophy, kit-shipped) and `AGENTS.md` (distilled non-negotiable rules read every session).
 
-`GUIDELINES.md` is the **full reference**; `AGENTS.md` is the **distilled summary**. Each AGENTS.md section that has detail points to the corresponding GUIDELINES.md section. The two never duplicate — `ad-audit` flags duplication as drift.
+`GUIDELINES.md` is the **full reference**; `AGENTS.md` is the **distilled summary**. Each AGENTS.md section that has detail points to the corresponding GUIDELINES.md section. The two never duplicate — `ad-drift` flags duplication as drift.
 
 ## Step 0 — Confirm regime
 
@@ -179,7 +179,7 @@ The user confirms before the AGENTS.md rewrite. The skill never modifies AGENTS.
 
 ## Step 5 — Write the file
 
-Path: `GUIDELINES.md` at repo root. Use the template at [`templates/guidelines.md`](../../templates/guidelines.md).
+Path: `GUIDELINES.md` at repo root. Use the template at `templates/guidelines.md`.
 
 Sections the user skipped do not land in the file. Sections that were fully pre-filled land verbatim. Sections requiring user preference land with the user's answer.
 
@@ -200,11 +200,11 @@ Never rewrite existing prose — append rationale paragraphs where decisions evo
 
 - Primary output: `GUIDELINES.md` at the repo root.
 - Side-effect (optional, user-confirmed): `AGENTS.md` engineering sections rewritten as pointer stubs to `GUIDELINES.md`.
-- No dates inside narrative prose; the file is project-state, not a decision-record artifact (per [WORKFLOW §2](../../WORKFLOW.md) rule #2).
+- No dates inside narrative prose; the file is project-state, not a decision-record artifact (per WORKFLOW §2 rule #2).
 
 ## Next
 
 - After writing `GUIDELINES.md`: invoke `/ad-hooks` to wire the quality gates this file describes (`team` and `mature` profiles).
 - After writing `GUIDELINES.md`: invoke `/ad-bootstrap` to refresh `AGENTS.md` with pointer-style sections.
 - When a binding decision arises that the guidelines do not yet cover (e.g., picking a specific error-handling library, naming an exception hierarchy): `/ad-adr`.
-- Periodic drift check: `/ad-audit` flags AGENTS sections that duplicate GUIDELINES sections, and GUIDELINES sections whose claims do not match the code (e.g., naming convention says snake_case but half the codebase is camelCase).
+- Periodic drift check: `/ad-drift` flags AGENTS sections that duplicate GUIDELINES sections, and GUIDELINES sections whose claims do not match the code (e.g., naming convention says snake_case but half the codebase is camelCase).

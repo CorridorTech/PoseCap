@@ -1,13 +1,13 @@
 ---
 name: ad-deepen
-description: Surface deepening opportunities in the codebase using the Ousterhout/Feathers vocabulary from WORKFLOW §8 (Module / Interface / Depth / Seam / Adapter / Leverage / Locality). Three-phase process — explore organically, present numbered candidates with deletion-test framing, grilling loop on the chosen candidate. Pairs with `ad-audit` (audit detects drift; deepen proposes refactors). Triggers on "deepen", "refactor for depth", "shallow module", "deletion test", "two-adapters rule", "interface is the test surface", "leverage", "locality", "/ad-deepen". Profile-scoped to `team` and `mature` only — premature for `poc` and `solo` per ADR-0020 §4.
-summary: Surface deepening opportunities using WORKFLOW §8 vocabulary (Module / Interface / Depth / Seam / Adapter / Leverage / Locality). Three phases — explore, present numbered candidates with deletion-test framing, grill the chosen one. Pairs with `ad-audit`. Profile-scoped to `team` and `mature` only.
+description: Surface deepening opportunities in the codebase using the Ousterhout/Feathers vocabulary from WORKFLOW §8 (Module / Interface / Depth / Seam / Adapter / Leverage / Locality). Three-phase process — explore organically, present numbered candidates with deletion-test framing, grilling loop on the chosen candidate. Pairs with `ad-drift` (audit detects drift; deepen proposes refactors). Triggers on "deepen", "refactor for depth", "shallow module", "deletion test", "two-adapters rule", "interface is the test surface", "leverage", "locality", "/ad-deepen". Profile-scoped to `team` and `mature` only — premature for `poc` and `solo` per ADR-0020 §4.
+summary: Surface deepening opportunities using WORKFLOW §8 vocabulary (Module / Interface / Depth / Seam / Adapter / Leverage / Locality). Three phases — explore, present numbered candidates with deletion-test framing, grill the chosen one. Pairs with `ad-drift`. Profile-scoped to `team` and `mature` only.
 allowed-tools: Read, Glob, Grep, Bash
 ---
 
 # /ad-deepen
 
-Implements [ADR-0020](../../doc/adr/0020-deep-modules-vocabulary.md) — the operational counterpart to the WORKFLOW §8 architectural vocabulary. Surfaces deepening opportunities and walks the user through them. Process scaffold; no primary file output.
+Implements ADR-0020 — the operational counterpart to the WORKFLOW §8 architectural vocabulary. Surfaces deepening opportunities and walks the user through them. Process scaffold; no primary file output.
 
 Profile scope: **`team` and `mature` only.** Architectural deepening is premature for ≤200-line experiments. `poc` and `solo` users do not have this skill installed; to enable deepening, re-init the project at `team` profile (`agentic profile set team`) once the codebase has stabilized enough to warrant it. Per ADR-0020 §4.
 
@@ -27,7 +27,7 @@ Route elsewhere when:
 - The codebase is `poc`-shaped (one-shot script, ≤200 lines, no callers): deepening is premature; ship the experiment first.
 - The friction is a *bug*, not a *shape* — `/ad-diagnose` (WORKFLOW §15).
 - The friction is a *naming/vocabulary* drift — `/ad-domain`.
-- The friction is *missing context*, not module shape — `/ad-grill`.
+- The friction is *missing context*, not module shape — `/ad-grill-me`.
 
 ## Step 1 — Explore organically
 
@@ -73,7 +73,7 @@ Number candidates 1, 2, 3, ... Order by leverage × locality (largest impact fir
 
 The user picks one candidate by number. Drop into a grilling loop on that one:
 
-1. Walk the design tree of the proposal branch by branch (one question per turn, recommendation included). Reuse the [`ad-grill`](../ad-grill/SKILL.md) discipline — codebase-first, single question, captured inline.
+1. Walk the decision tree of the proposal branch by branch (one question per turn, recommendation included). Reuse the [`ad-grill-me`](../ad-grill-me/SKILL.md) discipline — codebase-first, single question, captured inline.
 2. Add new domain terms to `CONTEXT.md` lazily via `/ad-domain` as the proposal surfaces them.
 3. Offer an ADR only when the three criteria pass (hard to reverse, surprising without context, real trade-off —' ' If a deepening proposal does not need an ADR, it does not get one — most refactors do not.
 4. When the proposal stabilizes: route to `/ad-tdg` (WORKFLOW §9) for the implementation pass with ground-truth pair + TDM + criterion-based selection.
@@ -82,7 +82,7 @@ Reject candidates the grilling loop reveals as wrong-shaped. Better to discard a
 
 ## Vocabulary discipline (always on)
 
-Per [ADR-0020](../../doc/adr/0020-deep-modules-vocabulary.md), use the canonical vocabulary verbatim throughout the skill's output:
+Per ADR-0020, use the canonical vocabulary verbatim throughout the skill's output:
 
 - **Module** — any unit with an interface and an implementation.
 - **Interface** — what callers see.
@@ -117,7 +117,7 @@ Each session produces:
 
 ## Next
 
-- After candidates surface but before picking: `/ad-audit` for a broader drift check; the audit may reorder priorities.
+- After candidates surface but before picking: `/ad-drift` for a broader drift check; the audit may reorder priorities.
 - After picking and grilling stabilizes: `/ad-tdg` to implement under WORKFLOW §9 discipline.
 - If the proposal touches load-bearing architecture: `/ad-adr` to record the decision (only when the three-criteria test passes).
 - If the deepening exposed a domain-vocabulary drift: `/ad-domain` to update `CONTEXT.md`.

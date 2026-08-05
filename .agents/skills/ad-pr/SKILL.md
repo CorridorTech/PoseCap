@@ -5,7 +5,7 @@ summary: Open a GitHub pull request with a uniform body shape (Summary / Test pl
 ---
 
 <background_information>
-Implements ADR-0024 (`doc/adr/0024-agentic-pr-skill.md`) and ADR-0032 (`doc/adr/0032-ci-failure-is-local-gate-gap.md`). Opens a PR via `gh pr create` with a uniform body shape (Summary / Test plan / Links). Helper posture on scope, links, and body drafting — warnings surface without refusing. Hard gate on local quality: the skill refuses to open a PR when pre-push / CI-mirror gates exit non-zero (WORKFLOW §11 — CI failure is a local gate gap). No `--no-verify` symmetric bypass; users who need to open a red draft invoke `gh pr create --draft` directly.
+Implements ADR-0024 and ADR-0032 (`doc/adr/0032-ci-failure-is-local-gate-gap.md`). Opens a PR via `gh pr create` with a uniform body shape (Summary / Test plan / Links). Helper posture on scope, links, and body drafting — warnings surface without refusing. Hard gate on local quality: the skill refuses to open a PR when pre-push / CI-mirror gates exit non-zero (WORKFLOW §11 — CI failure is a local gate gap). No `--no-verify` symmetric bypass; users who need to open a red draft invoke `gh pr create --draft` directly.
 
 Codex auto-trigger on description keywords is less mature than Claude Code's. If auto-invocation does not fire when the user mentions opening a PR or submitting changes for review, invoke this skill manually.
 </background_information>

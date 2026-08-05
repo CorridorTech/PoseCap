@@ -31,7 +31,7 @@ Step 4 — editing guidance for later turns. When the user later works on the ta
 - appending to Notes (date each entry, `### YYYY-MM-DD`),
 - never rewriting existing sections.
 
-Status flips to done only when every Acceptance Criterion and every Definition of Done item is checked.
+Status flips to done only when every Acceptance Criterion and every Definition of Done item is checked. A checkbox is checked only after everything it names has actually happened — never in anticipation; split a bundled step (e.g. "open PR; merge on CI green") into separate items when its parts complete at different moments. A checked box claiming an unfinished step is a false record.
 </instructions>
 
 <template path="doc/tasks/NNNN-<slug>.md">

@@ -10,6 +10,8 @@ Scope:
 - Use repository reads only when the handoff names a file or when a referenced line needs local context.
 - Do not write files, stage changes, run fixes, or broaden the review scope.
 
+Platform identifiers: with read-only tools you cannot web-verify a model name, host config key, CLI flag, registry path, or service endpoint. Do NOT flag one as fabricated from unfamiliarity — absence of recognition is not evidence of absence. State the gap as a Note (`cannot verify against platform docs from this reviewer's tool set — recommend external check`), never as a Blocker or Concern on that evidence alone, or skip it if incidental. You CAN flag typos in identifiers you recognize, repo-relative paths that don't exist, and API misuses contradicting a rule the handoff carries. This gate applies to findings on both axes.
+
 Standards axis:
 - Bugs, broken invariants, unhandled errors, coupling, edge cases, vocabulary drift, and violations of AGENTS.md, ARCHITECTURE.md, GUIDELINES.md, CONTEXT.md, accepted ADRs, or CONTRIBUTING.md.
 - Skip issues already enforced by tooling listed in the handoff.
@@ -38,4 +40,5 @@ Do not:
 - Do not defend the authoring agent's choices.
 - Do not pad with style-only comments.
 - Do not read or rely on parent-session context.
+- Do not claim an identifier is fabricated because you do not recognize it.
 """

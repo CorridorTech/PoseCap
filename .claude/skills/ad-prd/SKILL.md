@@ -24,7 +24,7 @@ Route elsewhere when:
 - Scope is one feature → `/ad-spec` (Layer 4).
 - Scope is a vocabulary question → `/ad-domain` (Layer 2).
 - Scope is an architectural decision → `/ad-adr`.
-- Scope is fuzzy and needs interview-before-research → `/ad-grill`, which can route back here once the product framing is sharp.
+- Scope is fuzzy and needs interview-before-research → `/ad-grill-me`, which can route back here once the product framing is sharp.
 
 A spike or PoC does not need a PRD — the skill is excluded from the `poc` profile. If the user is on `poc` profile and invokes `/ad-prd`, ask explicitly whether the project has graduated to `solo` or `team` before writing.
 
@@ -61,7 +61,7 @@ If the product framing is vague ("improve efficiency", "build a dashboard", "use
 - **How Might We.** Reframe the problem broad enough to allow multiple solutions, narrow enough to exclude generic improvement.
 - **North Star.** "Deploy `<what>` to change `<metric 1>` and `<metric 2>` so that `<ultimate outcome>`." Require baseline, target, and measurement source when available.
 
-If the user starts with a solution, validate it against the Today statement and North Star before accepting it into Roadmap. If it serves a different user, fails to move the named metrics, or prescribes implementation before the problem is clear, route back to `/ad-grill`.
+If the user starts with a solution, validate it against the Today statement and North Star before accepting it into Roadmap. If it serves a different user, fails to move the named metrics, or prescribes implementation before the problem is clear, route back to `/ad-grill-me`.
 
 - **Product.** Name and one-sentence positioning. *"X is a Y that does Z for W."*
 - **Target User.** Specific role / persona, not "developers" or "users". Cite the primary success-bearing user; secondary users go under Personas if they affect the product shape.
@@ -90,7 +90,7 @@ Inline text questions are an acceptable fallback only when the host lacks the pr
 
 ## Step 5 — Write the file
 
-Path: `doc/product/PRD.md` (single-product) or `doc/product/<slug>.md` (multi-product). Use the template at [`templates/prd.md`](../../templates/prd.md).
+Path: `doc/product/PRD.md` (single-product) or `doc/product/<slug>.md` (multi-product). Use the template at `templates/prd.md`.
 
 Stop after writing. Do **not** flip status to `accepted` — that requires user review.
 
@@ -119,5 +119,5 @@ Never rewrite existing prose — append rationale to **Open Questions** as a res
 - After writing the PRD: `/ad-spec` for each `MVP` roadmap item — feature specs inherit target user, success metrics scope, and constraints from this PRD.
 - When the PRD surfaces an architectural commitment (technology choice, deployment model, data-residency constraint): `/ad-adr` per the three-criteria rule (hard to reverse, surprising without context, real trade-off).
 - When a roadmap item is technique-uncertain: `/ad-spike` (WORKFLOW §14).
-- When the PRD framing is fuzzy and the user is still resolving target user / problem boundaries: `/ad-grill` to sharpen, then return here.
-- Periodic drift check: `/ad-audit` flags feature specs whose target user or success metrics contradict the PRD.
+- When the PRD framing is fuzzy and the user is still resolving target user / problem boundaries: `/ad-grill-me` to sharpen, then return here.
+- Periodic drift check: `/ad-drift` flags feature specs whose target user or success metrics contradict the PRD.

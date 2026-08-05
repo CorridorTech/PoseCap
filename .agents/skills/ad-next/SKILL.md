@@ -1,11 +1,11 @@
 ---
 name: ad-next
-description: Survey the project's state across the six-layer artifact stack and recommend prioritized next actions, modeled on `flutter doctor`. Use when the user asks "what's next", "next step", "where am I", "project status", "doctor", "what should I do", "audit my workflow". Read-only; complements `ad-audit` (drift detection, a different question). Profile-aware — `poc` suppresses Layer 3/4/5 noise, `team`/`mature` run the full survey.
+description: Survey the project's state across the six-layer artifact stack and recommend prioritized next actions, modeled on `flutter doctor`. Use when the user asks "what's next", "next step", "where am I", "project status", "doctor", "what should I do", "audit my workflow". Read-only; complements `ad-drift` (drift detection, a different question). Profile-aware — `poc` suppresses Layer 3/4/5 noise, `team`/`mature` run the full survey.
 summary: State survey + prioritized next-action recommendations across the six-layer artifact stack. Read-only navigation aid (`flutter doctor` pattern).
 ---
 
 <background_information>
-Read-only state survey + prioritized next-action recommendations. Mirrors `flutter doctor` shape: layer-by-layer status + concrete fix per finding. Complements `ad-audit` — audit answers "is anything wrong?", next answers "what should I do?".
+Read-only state survey + prioritized next-action recommendations. Mirrors `flutter doctor` shape: layer-by-layer status + concrete fix per finding. Complements `ad-drift` — audit answers "is anything wrong?", next answers "what should I do?".
 
 The skill writes nothing. Output is recommendations the user copies into the next conversation turn or the next CLI invocation.
 
@@ -59,16 +59,16 @@ Step 4 — prioritize next actions. Rank by workflow leverage, not by document l
 
 Priority heuristic:
 1. Protect active work: blocked tasks, proposed ADRs blocking implementation, dirty/ahead branch needing `/ad-review`, stale state that makes installed skills unreliable.
-2. Fresh / unframed greenfield: for solo/team/mature, recommend `/ad-grill` when the product ask is fuzzy or `/ad-prd` when it is clear; then `/ad-bootstrap`. Do not recommend `/ad-bootstrap` first, even when a framework scaffold already exists.
+2. Fresh / unframed greenfield: for solo/team/mature, recommend `/ad-grill-me` when the product ask is fuzzy or `/ad-prd` when it is clear; then `/ad-bootstrap`. Do not recommend `/ad-bootstrap` first, even when a framework scaffold already exists.
 3. Product-framed greenfield: if PRD exists, recommend `/ad-bootstrap` when `AGENTS.md` / `CLAUDE.md` is missing or stale, then `/ad-guidelines`, optional `/ad-design`, then `/ad-spec`.
 4. Brownfield: if meaningful code exists and `AGENTS.md` / `CLAUDE.md` is missing, recommend `/ad-bootstrap` scan-first. Then recommend `/ad-guidelines` for standards, `/ad-architecture` for team/mature system patterns, or `/ad-prd` only when product scope is being backfilled or changed.
 5. Feature pipeline gaps: accepted PRD without specs → `/ad-spec`; accepted spec without tasks → `/ad-task`; missing research before implementation → `/ad-ground`.
-6. Quality gates and drift: mature hooks missing → `/ad-hooks`; orphan tasks/spec mismatches → `/ad-audit`; kit/profile drift → `agentic update` or `agentic profile set <name>`.
+6. Quality gates and drift: mature hooks missing → `/ad-hooks`; orphan tasks/spec mismatches → `/ad-drift`; kit/profile drift → `agentic update` or `agentic profile set <name>`.
 
-If nothing actionable surfaces, say so: "No urgent next action. Continue current work or invoke `/ad-audit` for a full drift check."
+If nothing actionable surfaces, say so: "No urgent next action. Continue current work or invoke `/ad-drift` for a full drift check."
 
 Step 5 — profile-aware filtering. Apply at the end:
-- poc: suppress Layer 3 (Product), Layer 4 (Specs), Layer 5 (Plans/Decisions) sections if those directories do not exist. Show Layer 1 + Layer 2 + Layer 6 only. Layer 2 (Domain) and Layer 3 (Product) render informationally — CONTEXT.md and PRD.md missing are *not* findings (lazy-created; PRD also profile-excluded). Recommendation set: `/ad-grill` for fuzzy exploration, `/ad-ground` for research-ready questions, `/ad-spike` when the technique is uncertain, `/ad-audit` for drift, `agentic update` for staleness. Do not recommend `/ad-prd`, `/ad-spec`, `/ad-task`, `/ad-bootstrap`, `/ad-guidelines`, `/ad-architecture`, `/ad-adr`, or `/ad-hooks` unless the user is graduating the project out of poc.
+- poc: suppress Layer 3 (Product), Layer 4 (Specs), Layer 5 (Plans/Decisions) sections if those directories do not exist. Show Layer 1 + Layer 2 + Layer 6 only. Layer 2 (Domain) and Layer 3 (Product) render informationally — CONTEXT.md and PRD.md missing are *not* findings (lazy-created; PRD also profile-excluded). Recommendation set: `/ad-grill-me` for fuzzy exploration, `/ad-ground` for research-ready questions, `/ad-spike` when the technique is uncertain, `/ad-drift` for drift, `agentic update` for staleness. Do not recommend `/ad-prd`, `/ad-spec`, `/ad-task`, `/ad-bootstrap`, `/ad-guidelines`, `/ad-architecture`, `/ad-adr`, or `/ad-hooks` unless the user is graduating the project out of poc.
 - solo: Layer 3/4/5 render; ADR / ARCHITECTURE.md absence is informational, not a flag. PRD is universal for real products, but fresh greenfield still starts with product framing before `/ad-bootstrap`; brownfield quick fixes do not need PRD backfill before the fix. Specs are universal; spec-without-tasks remains a real finding. Layer 2 — same lazy-creation rule as poc.
 - team: full survey (default). Fresh greenfield still routes through product discovery / PRD before `/ad-bootstrap`; brownfield may bootstrap scan-first from existing code.
 - mature: additionally flag hooks-not-wired louder (WORKFLOW §11 binding for mature profile). Keep `/ad-hooks` after product/operational context unless the only finding is missing gates.
@@ -107,5 +107,5 @@ A single Markdown message structured as:
 2. <action> — <one-line reason>
 ```
 
-No file written. No state mutation. Recommendations are advisory; the user decides whether to invoke. Cross-references `ad-audit` (drift detection), `agentic update` (kit drift — CLI subcommand, not a skill), `agentic profile` (profile changes — CLI subcommand, not a skill) where they apply.
+No file written. No state mutation. Recommendations are advisory; the user decides whether to invoke. Cross-references `ad-drift` (drift detection), `agentic update` (kit drift — CLI subcommand, not a skill), `agentic profile` (profile changes — CLI subcommand, not a skill) where they apply.
 </output_contract>

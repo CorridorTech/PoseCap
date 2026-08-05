@@ -1,101 +1,114 @@
 {
   "schemaVersion": 1,
-  "kitVersion": "0.17.9-beta.1",
+  "kitVersion": "0.18.0-beta.5",
   "agent": "claude-code",
   "profile": "mature",
   "skills": {
     "ad-adr": {
-      "version": "0.17.9-beta.1",
+      "version": "0.18.0-beta.5",
       "files": [
         {
           "path": ".claude/skills/ad-adr/SKILL.md",
-          "sourceSha": "bed3dd0af6199de434aa40a6177c7b569082d5f11a32b5e847c612b328089fb3"
+          "sourceSha": "214182e5344a5af32c653d9a4d53fb4636b599eb3daabac4f7d41380293c4332"
         }
       ]
     },
     "ad-architecture": {
-      "version": "0.17.9-beta.1",
+      "version": "0.18.0-beta.5",
       "files": [
         {
           "path": ".claude/skills/ad-architecture/SKILL.md",
-          "sourceSha": "c1ad4f2bedeece1631f9121fa5815ada7a2765cea0f03a471e948cb1a06da3b8"
+          "sourceSha": "ae3d7bbbd6b1e1922fc14c5c51c8d9ffa1edb53de7486bcba391826ab97e161b"
         }
       ]
     },
     "ad-archive": {
-      "version": "0.17.9-beta.1",
+      "version": "0.18.0-beta.5",
       "files": [
         {
           "path": ".claude/skills/ad-archive/SKILL.md",
-          "sourceSha": "93ef407ed2bf40346ce8c09fb08ec910aa68a475980cfd482b9e2866266b74fd"
+          "sourceSha": "b68ace3a3726fc52559f2a01a37d16a54163b02eb1304969f3a0cc8932bd1e69"
         }
       ]
     },
     "ad-audit": {
-      "version": "0.17.9-beta.1",
+      "version": "0.18.0-beta.5",
       "files": [
         {
+          "path": ".claude/agents/audit-group-reviewer.md",
+          "sourceSha": "646ee148b70ee0594048609ba11e7b0a35a749a5fecd76c3a0710e10f381a7a0"
+        },
+        {
           "path": ".claude/skills/ad-audit/SKILL.md",
-          "sourceSha": "c5f8b2645077e24bcfdfc5e16bca1d3b12e413b683520a23d8d2822c1d2a0c07"
+          "sourceSha": "7fbab78b6f551c1e96635775e5105b4004763335f83ed43b9a5f38e083ed9a58"
         }
       ]
     },
     "ad-bootstrap": {
-      "version": "0.17.9-beta.1",
+      "version": "0.18.0-beta.5",
       "files": [
         {
           "path": ".claude/skills/ad-bootstrap/SKILL.md",
-          "sourceSha": "dce61bb601d9e425b4b5769b0cc9ede74af65c039139ae922fc23a3e9645eb3c"
+          "sourceSha": "2a67459cf2fe405af06c1e42a55b98fb4b3371a58a29a2522d5d50419dcb6186"
         }
       ]
     },
     "ad-commit": {
-      "version": "0.17.9-beta.1",
+      "version": "0.18.0-beta.5",
       "files": [
         {
           "path": ".claude/skills/ad-commit/SKILL.md",
-          "sourceSha": "3f8a7dd2e2ac9d1c982bed90f7782919a9a3b11cb3f3bec36da8f0e47339ff40"
+          "sourceSha": "ca1b6e89e9d83354551860f8a77944dd6effc53349144eeb407db43c1aac5004"
         }
       ]
     },
     "ad-deepen": {
-      "version": "0.17.9-beta.1",
+      "version": "0.18.0-beta.5",
       "files": [
         {
           "path": ".claude/skills/ad-deepen/SKILL.md",
-          "sourceSha": "480680556d6a4891cbfd46e4b2eda16a2b80504b025d53776da731ee8307a557"
+          "sourceSha": "0d947669c8f3dae59e7f1b80d13cdf077e99530fa81246e10417f2ff08daf8dc"
         }
       ]
     },
     "ad-diagnose": {
-      "version": "0.17.9-beta.1",
+      "version": "0.18.0-beta.5",
       "files": [
         {
           "path": ".claude/skills/ad-diagnose/SKILL.md",
-          "sourceSha": "f565609df9a21e9d879da7eeb60c5d31df8857f6ce2d094507399ecc2bd028a1"
+          "sourceSha": "78800da63584195c08ea6d442dea0981a8a6a0d0540f1a7dfa59c8398623b360"
         }
       ]
     },
     "ad-domain": {
-      "version": "0.17.9-beta.1",
+      "version": "0.18.0-beta.5",
       "files": [
         {
           "path": ".claude/skills/ad-domain/SKILL.md",
-          "sourceSha": "434b475d207c18d2edd5100f0e672f4597684cb4bd9cd26353027d2195ef59eb"
+          "sourceSha": "3a139614e28e71ac11048fe4f2bdb84df5140a24ba91b447cc9a81e0a6eb3981"
         }
       ]
     },
-    "ad-grill": {
-      "version": "0.17.9-beta.1",
+    "ad-drift": {
+      "version": "0.18.0-beta.5",
       "files": [
         {
-          "path": ".claude/skills/ad-grill/SKILL.md",
-          "sourceSha": "0df4dcd35113f75ff82e76ea2dc63f341256977ef12a09e51b756bf09b1f3e2e"
+          "path": ".claude/skills/ad-drift/SKILL.md",
+          "sourceSha": "17a0ab4e6d4eb0f84fe75155a266c7083e44f17e65699ab423a38ff97b6c5127"
+        }
+      ]
+    },
+    "ad-grill-me": {
+      "version": "0.18.0-beta.5",
+      "files": [
+        {
+          "path": ".claude/skills/ad-grill-me/SKILL.md",
+          "sourceSha": "4502d7dc9ac146780da429b580393419bbafe0f5c0b346bbb5e575675b29863e"
         }
       ]
     },
     "ad-ground": {
-      "version": "0.17.9-beta.1",
+      "version": "0.18.0-beta.5",
       "files": [
         {
           "path": ".claude/skills/ad-ground/SKILL.md",
@@ -104,61 +117,74 @@
       ]
     },
     "ad-guidelines": {
-      "version": "0.17.9-beta.1",
+      "version": "0.18.0-beta.5",
       "files": [
         {
           "path": ".claude/skills/ad-guidelines/SKILL.md",
-          "sourceSha": "a60907f30464b100f99ae43207685a66939128ced511ddd90c3ad70adbcae075"
+          "sourceSha": "f47d17299791d002b446f3157043c1ee6fc91231fb18a9db0da2fbfdcc5cd0e8"
         }
       ]
     },
     "ad-handoff": {
-      "version": "0.17.9-beta.1",
+      "version": "0.18.0-beta.5",
       "files": [
         {
           "path": ".claude/skills/ad-handoff/SKILL.md",
-          "sourceSha": "5c16294bae5af25b45d28f216cd4c76344a48e3ecede9718a01afba4f03f371f"
+          "sourceSha": "7e44984e7b572d51a7c2aae6775e8787f94d8c280d1feb5806be8b4d9b0fc896"
         }
       ]
     },
     "ad-hooks": {
-      "version": "0.17.9-beta.1",
+      "version": "0.18.0-beta.5",
       "files": [
         {
           "path": ".claude/skills/ad-hooks/SKILL.md",
-          "sourceSha": "a1e7620418a1bb1efba3c72a6f9571e2f150ab56fc8f5a3d550ffbf531d90dd8"
+          "sourceSha": "3199e0261fa47d3217b7e85a0c63d77dec006c38a60815920acb3cd765b6e6bc"
+        }
+      ]
+    },
+    "ad-level-up": {
+      "version": "0.18.0-beta.5",
+      "files": [
+        {
+          "path": ".claude/agents/rule-candidate-reviewer.md",
+          "sourceSha": "c527ab1b30a148a6d0dc2ee09c8cc8b0f2108edf7f14134508b37da693f31a3b"
+        },
+        {
+          "path": ".claude/skills/ad-level-up/SKILL.md",
+          "sourceSha": "f525edf2afde93945e2fc922daca29822b5483703d8d437b4f7722f4ff8b123e"
         }
       ]
     },
     "ad-merge": {
-      "version": "0.17.9-beta.1",
+      "version": "0.18.0-beta.5",
       "files": [
         {
           "path": ".claude/skills/ad-merge/SKILL.md",
-          "sourceSha": "1791640c531ec0388fea8318625119384d0bba1f9fb4c2160ab4c6d0325d6787"
+          "sourceSha": "2d8f18b59cbac2cf9ebf2f48f16201d40043510a3fbf8eb5918c943a9ad1ce1d"
         }
       ]
     },
     "ad-next": {
-      "version": "0.17.9-beta.1",
+      "version": "0.18.0-beta.5",
       "files": [
         {
           "path": ".claude/skills/ad-next/SKILL.md",
-          "sourceSha": "64044bd957a4b79f202c3f551276adbecdc30b3f8441fedc98826c59b806b23f"
+          "sourceSha": "3baee92498c84b067385949fbac8b45a5e04c967eb59969787629ca2548ca4a7"
         }
       ]
     },
     "ad-philosophy": {
-      "version": "0.17.9-beta.1",
+      "version": "0.18.0-beta.5",
       "files": [
         {
           "path": ".claude/skills/ad-philosophy/SKILL.md",
-          "sourceSha": "ae87bb756fed05b164c75001185d5172a57c904bb761a6d4237580cecd145173"
+          "sourceSha": "657d66feb0de6bce0cdfb180add3d0d45d4718e0e46e314c69dae4fadd44320b"
         }
       ]
     },
     "ad-pr": {
-      "version": "0.17.9-beta.1",
+      "version": "0.18.0-beta.5",
       "files": [
         {
           "path": ".claude/skills/ad-pr/SKILL.md",
@@ -167,16 +193,16 @@
       ]
     },
     "ad-prd": {
-      "version": "0.17.9-beta.1",
+      "version": "0.18.0-beta.5",
       "files": [
         {
           "path": ".claude/skills/ad-prd/SKILL.md",
-          "sourceSha": "a514afbbb18169279128c6b07d3749c46e180abe8cc6e7dbdf0d9ca4bbd489be"
+          "sourceSha": "b01584d71823c2eb5afcb8698e052666e61dc1729938836d1f5544075384d407"
         }
       ]
     },
     "ad-review": {
-      "version": "0.17.9-beta.1",
+      "version": "0.18.0-beta.5",
       "files": [
         {
           "path": ".claude/agents/fresh-context-reviewer.md",
@@ -188,17 +214,35 @@
         }
       ]
     },
+    "ad-rules": {
+      "version": "0.18.0-beta.5",
+      "files": [
+        {
+          "path": ".claude/skills/ad-rules/SKILL.md",
+          "sourceSha": "1c5dd6565ff7965c5a18ed26469767044a4baabc5762aae8fa801cd184f3a2e0"
+        }
+      ]
+    },
+    "ad-skill": {
+      "version": "0.18.0-beta.5",
+      "files": [
+        {
+          "path": ".claude/skills/ad-skill/SKILL.md",
+          "sourceSha": "6bc76be0bc63f44fc27adf648248efcc90a83c4ed67038c8fb56010d2097f690"
+        }
+      ]
+    },
     "ad-spec": {
-      "version": "0.17.9-beta.1",
+      "version": "0.18.0-beta.5",
       "files": [
         {
           "path": ".claude/skills/ad-spec/SKILL.md",
-          "sourceSha": "39eab84ca5940d3696708043503f343050b000ec9922b903ea02142143788e2f"
+          "sourceSha": "6c32f003bc3f9083e148c072270a67b6599a54e56f7127f02dd8e2d3bc321ada"
         }
       ]
     },
     "ad-spike": {
-      "version": "0.17.9-beta.1",
+      "version": "0.18.0-beta.5",
       "files": [
         {
           "path": ".claude/skills/ad-spike/SKILL.md",
@@ -207,7 +251,7 @@
       ]
     },
     "ad-subagent": {
-      "version": "0.17.9-beta.1",
+      "version": "0.18.0-beta.5",
       "files": [
         {
           "path": ".claude/skills/ad-subagent/SKILL.md",
@@ -216,25 +260,25 @@
       ]
     },
     "ad-task": {
-      "version": "0.17.9-beta.1",
+      "version": "0.18.0-beta.5",
       "files": [
         {
           "path": ".claude/skills/ad-task/SKILL.md",
-          "sourceSha": "fa340b45624aa841f026cc69f2ed3d03f5b0122a7977a3f79520c1a22f9fa524"
+          "sourceSha": "ca9967f87e7dddba89243712f555ee14ae27e714704e524fe7e3153055804b9f"
         }
       ]
     },
     "ad-tdd": {
-      "version": "0.17.9-beta.1",
+      "version": "0.18.0-beta.5",
       "files": [
         {
           "path": ".claude/skills/ad-tdd/SKILL.md",
-          "sourceSha": "28c570a0253729b4f3de3ab2b12142459d39be7300e2a745758ff587f503ea99"
+          "sourceSha": "e5ebf7d419594611a6369d020e42c2632a1e11556332a1f260e662c80530c06c"
         }
       ]
     },
     "ad-tdg": {
-      "version": "0.17.9-beta.1",
+      "version": "0.18.0-beta.5",
       "files": [
         {
           "path": ".claude/skills/ad-tdg/SKILL.md",

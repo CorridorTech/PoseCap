@@ -1,12 +1,35 @@
 ---
 name: ad-philosophy
-description: Universal agent behavior and documentation discipline — think before coding, decide when grounded (only ask on judgment calls), ground in real patterns, prefer simplicity, make surgical changes, define verifiable goals, verify before claiming done, and write documentation that captures only definitions and decisions. Auto-invokes on non-trivial changes, refactors, debugging, "think before coding", "ground before coding", "verify done", "decide when grounded", "employee not co-pilot", "before implementing", on documentation work — "writing docs", "writing readme", "writing architecture", "writing adr", "writing task", "audit docs" — or whenever the task is ambiguous enough that guardrails matter.
-summary: Universal agent guardrails (think, decide when grounded, verify done). Auto-loads on non-trivial work.
+description: Universal agent behavior and documentation discipline — think before coding, decide when grounded (only ask on judgment calls), ground in real patterns, prefer simplicity, make surgical changes, define verifiable goals, verify before claiming done, report for a decision-maker (conclusion first, self-contained, translate-not-dump), and write documentation that captures only definitions and decisions. Auto-invokes on non-trivial changes, refactors, debugging, "think before coding", "ground before coding", "verify done", "decide when grounded", "employee not co-pilot", "report for a decision-maker", "before implementing", on documentation work — "writing docs", "writing readme", "writing architecture", "writing adr", "writing task", "audit docs" — or whenever the task is ambiguous enough that guardrails matter.
+summary: Universal agent guardrails (think, decide when grounded, verify done, report for a decision-maker). Auto-loads as posture on non-trivial work; an explicit `/ad-philosophy` additionally forces a binding statement applying all eight behaviors to the current task.
 ---
 
 # /ad-philosophy
 
-Seven behaviors apply to every non-trivial change. Bias toward caution over speed; for trivial diffs, use judgment. A separate Documentation Discipline section at the end applies to every document the agent writes.
+Eight behaviors apply to every non-trivial change. Bias toward caution over speed; for trivial diffs, use judgment. A separate Documentation Discipline section at the end applies to every document the agent writes.
+
+## Explicit Invocation Is a Recommitment
+
+**Applies only when the user invoked this skill as a request** — they typed `/ad-philosophy`, or asked for it by name. It does not fire on an incidental mention (discussing the skill, asking how it works). When the skill auto-loaded as posture, skip this section: read the behaviors and continue the task silently.
+
+An explicit invocation is a correction, not a request for the text. The text never left — the behaviors were already in context, which is exactly why reloading them changes nothing. What is being asked for is application: bind each behavior to the task actually in front of you, out loud, before doing anything else.
+
+Emit the applied-binding statement first:
+
+- **All eight behaviors, in order, one line each.** Name the behavior, then state what it changes about your *immediate next actions on this task*.
+- **Behaviors that do not bind are listed as `n/a` with a reason.** Coverage, not cherry-picking — a silently omitted behavior is how a recitation passes for an application, and the omitted one tends to be the one currently being violated.
+- **Every line names a referent from this task** — a file, a command, an artifact, or a specific next action. A line with no task-specific referent is a restatement of the rule and does not count, whatever label it carries: "Verify Before Claiming Done — re-run the suite and paste the output before calling it green" binds; "Verify Before Claiming Done — I will verify my work" does not.
+- **Add a ninth line for Documentation Discipline** when the task writes or edits any document.
+- **A binding that contradicts the current plan forces the correction in the same pass** — state what changes, then continue with the corrected plan.
+
+Shape:
+
+```
+<Behavior> — bind: <what changes in my next actions>
+<Behavior> — n/a: <why this task does not touch it>
+```
+
+Close with one line naming the first action that changes because of the statement. Concluding that nothing changes requires saying what you checked to reach that conclusion — and it contradicts any behavior you just bound, so resolve the contradiction before continuing.
 
 ## Think Before Coding
 
@@ -14,10 +37,10 @@ Seven behaviors apply to every non-trivial change. Bias toward caution over spee
 
 Before implementing:
 
-- State your assumptions explicitly. Then apply *Decide When Grounded* below — if grounding resolves the uncertainty, decide; if it does not and the spec itself is fuzzy, route to `/ad-grill` instead of a raw open question.
+- State your assumptions explicitly. Then apply *Decide When Grounded* below — if grounding resolves the uncertainty, decide; if it does not and the spec itself is fuzzy, route to `/ad-grill-me` instead of a raw open question.
 - If multiple interpretations remain after grounding, present them — don't pick silently.
 - If a simpler approach exists, say so. Push back when warranted.
-- If something is unclear *and grounding cannot resolve it*, stop. Name what's confusing. Ask through `/ad-grill` when the ambiguity is spec-level; otherwise a single focused question with a recommended answer.
+- If something is unclear *and grounding cannot resolve it*, stop. Name what's confusing. Ask through `/ad-grill-me` when the ambiguity is spec-level; otherwise a single focused question with a recommended answer.
 
 ## Ground Before Coding
 
@@ -27,7 +50,7 @@ For non-trivial changes, invoke `/ad-ground` — the workflow-operational skill 
 
 ## Decide When Grounded, Ask When Judgment
 
-Universal rule; [WORKFLOW.md §7](../../../../WORKFLOW.md) subsection *Decide when grounded, ask when judgment* is the canonical source.
+Universal rule; WORKFLOW.md §7 subsection *Decide when grounded, ask when judgment* is the canonical source.
 
 **The engineer is the boss, not the co-pilot.** They are not reading every file, doc, or line the agent read to arrive at a recommendation. Bring decisions with a recommendation — do not punt every fork back to them.
 
@@ -43,7 +66,8 @@ Ask only when:
 - **Design or taste.** UX shape, product tradeoff, naming that carries brand.
 - **Irreversible / high blast radius.** Destructive git ops, shared-state mutations, force-pushes, deletions. Match the confirmation to the blast radius, not to the diff size.
 - **Genuinely close calls.** Two options tie on the picked criterion; the tie-break is a preference the agent cannot ground.
-- **Fuzzy spec.** Route to `/ad-grill`, not a raw open question.
+- **Insufficient evidence.** A single unreproduced observation does not license autonomous follow-up creation (tasks, issues) — mention it in the report; file it only once it reproduces or the user explicitly asks.
+- **Fuzzy spec.** Route to `/ad-grill-me`, not a raw open question.
 
 Shape of the ask: one question, recommended answer first, why the alternatives are weaker. Not a survey of every option the agent considered — that pushes synthesis work back onto the boss.
 
@@ -87,6 +111,7 @@ Transform tasks into verifiable goals:
 - "Add validation" → "Write tests for invalid inputs, then make them pass"
 - "Fix the bug" → "Write a test that reproduces it, then make it pass"
 - "Refactor X" → "Ensure tests pass before and after"
+- "Gate/reviewer flagged a violation" → "Enumerate every instance of that violation class across the change, then fix and verify all of them together" — never just the named instances
 
 Before modifying a file, list which tests cover it. Run. Modify. Run. If none, write one first.
 
@@ -104,8 +129,23 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 
 - Type-check and tests verify *code*, not *feature*.
 - For UI/runtime changes, exercise the feature in a browser.
-- Can't verify it? Say so. Don't claim success.
+- Can't verify it? Say so. Don't claim success — including a status claim relayed from another session, agent, or handoff: re-run the check yourself and state what you observed; if you cannot, say UNVERIFIED explicitly.
+- Flakiness claims need distribution evidence: one green run — or five — does not prove a fix. Run the suspect check N times (N ≥ 10) and report the pass/fail distribution. One unreproduced failure does not prove flakiness either.
+- An "N of M" claim needs a reproducible enumeration: state the exact command that produces the count, and name the false positives in its output — or say none were found and how that was checked. Stating the population is not enough; the enumeration itself is what fails.
 - Never bypass gates (`--no-verify`, skipped hooks, deleted failing tests).
+
+## Report for a Decision-Maker
+
+**The reader was not in the session. Write reports they can act on without replaying it.**
+
+Companion to *Decide When Grounded*: that rule governs whether to decide or ask; this one governs how the result reaches the reader. It applies to every report a human reads — chat summaries, PR bodies, handoffs — because the reader did not see the files read, the tools run, or the intermediate results.
+
+- **Lead with the conclusion.** What happened, what it means, what comes next — in plain terms first; supporting technical detail after, for whoever wants it.
+- **Self-contained.** Assume the reader just arrived and saw nothing of the session. Give the minimum context that makes the conclusion stand on its own; never reference unexplained earlier state ("the fix from before", "that error").
+- **Translate, don't dump.** Raw artifacts — metrics, error output, file lists, diffs — become what they *mean* and what to *do*. The artifact alone is not a report.
+- **Expand jargon and acronyms on first use**, and state the implication. Assume an intelligent reader who is not immersed in this subsystem's minutiae.
+- **Clarity over compression.** A clear, slightly longer explanation beats a dense one. Never optimize a report for brevity at the cost of the reader's understanding — leading with the conclusion is what keeps it short, not cutting the context.
+- **Decisions arrive shaped.** When the report carries a decision: options with the recommendation first (per *Decide When Grounded*), trade-offs in value terms — what each option delivers and costs, not the implementation guts.
 
 ## Documentation Discipline
 
@@ -127,7 +167,7 @@ When generating or auditing a document, walk this list before declaring done.
 
 ## Next
 
-- Continue current work with the seven behaviors active. This skill is posture, not a one-shot task.
+- Continue current work with the eight behaviors active. This skill is posture, not a one-shot task.
 - `/ad-ground` for non-trivial research before code.
 - `/ad-next` when uncertain where to go in the workflow.
 - `/ad-review` before merging non-trivial diffs.

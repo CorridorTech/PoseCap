@@ -74,4 +74,4 @@ Documentation discipline rules apply at write time:
 - Run the runner's bootstrap command (cited in Step 6 — e.g., `npm install`, `lefthook install`, `pre-commit install`).
 - Verify a deliberately-failing edit (e.g., a known lint violation) gets blocked at commit.
 - Add a redundant CI gate so contributors cannot bypass via `--no-verify`. WORKFLOW §11 binding.
-- `/ad-audit` periodically to confirm hooks stay wired as the project evolves.
+- `/ad-drift` periodically to confirm hooks stay wired as the project evolves.
