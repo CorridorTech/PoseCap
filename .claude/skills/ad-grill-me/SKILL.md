@@ -1,11 +1,11 @@
 ---
-name: ad-grill
-description: Interview-before-research grilling session that challenges a fuzzy ask against the existing codebase, sharpens vocabulary against `CONTEXT.md`, and resolves the design tree branch by branch. One question at a time, codebase-first when an answer is in code, with each question carrying a recommended answer. Triggers on "grill me", "interview me", "stress test the plan", "challenge my assumptions", "before implementing", "ask me questions", "fuzzy ask", "sharpen the question", "what should I clarify", "/ad-grill". Routes to `ad-ground` once the question is research-ready, `ad-tdg` once the technique is settled, `ad-spike` for technique discovery, `ad-diagnose` for debugging.
+name: ad-grill-me
+description: Interview-before-research grilling session that challenges a fuzzy ask against the existing codebase, sharpens vocabulary against `CONTEXT.md`, and resolves the decision tree branch by branch. One question at a time, codebase-first when an answer is in code, with each question carrying a recommended answer. Triggers on "grill me", "interview me", "stress test the plan", "challenge my assumptions", "before implementing", "ask me questions", "fuzzy ask", "sharpen the question", "what should I clarify", "/ad-grill-me". Routes to `ad-ground` once the question is research-ready, `ad-tdg` once the technique is settled, `ad-spike` for technique discovery, `ad-diagnose` for debugging.
 summary: Interview-before-research grilling session — one question at a time with recommendation, codebase-first, sharpens vocabulary against `CONTEXT.md`, captures terms via `ad-domain` and decisions via `ad-adr` (three-criteria rule). Upstream of `ad-ground`.
 allowed-tools: Read, Glob, Grep, Bash
 ---
 
-# /ad-grill
+# /ad-grill-me
 
 Implements ADR-0022 — the upstream-of-research phase. Process scaffold for sharpening fuzzy asks before any code, research, or spec work begins. Sits upstream of [`ad-ground`](../ad-ground/SKILL.md); routes to it (and the other implementation-phase skills) when the question is sharp enough to act on.
 
@@ -48,7 +48,7 @@ Each question:
 
 - **Stands alone.** Self-contained, no "and also...". Never a numbered list of three.
 - **Carries a recommended answer.** Show the recommendation. The user can confirm with one word.
-- **Walks the design tree.** Resolve the parent decision before its children. Bundling violates the "one decision per turn" rule.
+- **Walks the decision tree.** Resolve the parent decision before its children. Bundling violates the "one decision per turn" rule.
 - **Waits for feedback.** No proceeding past an unanswered question, no parallel branches.
 
 Format:
@@ -107,7 +107,7 @@ Each turn:
 
 1. Codebase-first read (Step 1) — silent unless something interesting surfaces.
 2. One question with recommendation (Step 2).
-3. After user answer: capture if applicable (Step 4), then advance to the next branch (Step 2 again) until the design tree is resolved or the user routes out.
+3. After user answer: capture if applicable (Step 4), then advance to the next branch (Step 2 again) until the decision tree is resolved or the user routes out.
 
 ## Next
 
@@ -115,5 +115,5 @@ Each turn:
 - When the technique is known and the ask is implementation-strategy choice: `/ad-tdg` (WORKFLOW §9).
 - When the technique itself is uncertain: `/ad-spike` (WORKFLOW §14).
 - When the ask turned out to be "fix this bug": `/ad-diagnose` (WORKFLOW §15).
-- After capture: stay in `/ad-grill` to walk the next branch of the design tree, or route out per above.
+- After capture: stay in `/ad-grill-me` to walk the next branch of the decision tree, or route out per above.
 - If the session spans multiple working days: `/ad-task` to capture the open branches as a tracked task.

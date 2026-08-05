@@ -1,13 +1,13 @@
 ---
 name: ad-diagnose
-description: Disciplined diagnosis loop for hard bugs and performance regressions per WORKFLOW §15. Five phases — build a feedback loop, reproduce, hypothesise (3-5 ranked falsifiable), instrument, fix + regression-test. The feedback loop is the skill; everything else is mechanical. Triggers on "diagnose this", "debug this", "this is broken", "this is throwing", "performance regression", "find the bug", "build a repro", "feedback loop", "ranked hypotheses", "falsifiable", "/ad-diagnose". Routes to `ad-spike` when the technique is uncertain across approaches, `ad-grill` when the spec is unclear, `ad-tdg` when the bug is a clean ground-truth-pair regression.
+description: Disciplined diagnosis loop for hard bugs and performance regressions per WORKFLOW §15. Five phases — build a feedback loop, reproduce, hypothesise (3-5 ranked falsifiable), instrument, fix + regression-test. The feedback loop is the skill; everything else is mechanical. Triggers on "diagnose this", "debug this", "this is broken", "this is throwing", "performance regression", "find the bug", "build a repro", "feedback loop", "ranked hypotheses", "falsifiable", "/ad-diagnose". Routes to `ad-spike` when the technique is uncertain across approaches, `ad-grill-me` when the spec is unclear, `ad-tdg` when the bug is a clean ground-truth-pair regression.
 summary: Disciplined diagnosis loop for hard bugs and performance regressions per WORKFLOW §15. Five phases — build a feedback loop (the skill itself), reproduce, hypothesise (3-5 ranked falsifiable), instrument (one variable at a time), fix + regression-test.
 allowed-tools: Read, Edit, Write, Glob, Grep, Bash
 ---
 
 # /ad-diagnose
 
-Implements [WORKFLOW.md §15](../../WORKFLOW.md) per [ADR-0021](../../doc/adr/0021-diagnose-discipline.md). Disciplined diagnosis for hard bugs and performance regressions. Process scaffold; the output is the verified fix + regression test landing through normal commits.
+Implements WORKFLOW.md §15 per ADR-0021. Disciplined diagnosis for hard bugs and performance regressions. Process scaffold; the output is the verified fix + regression test landing through normal commits.
 
 The shape is grounded in Kernighan & Pike, *The Practice of Programming* (1999, ch. 5–6) and Karl Popper's falsifiability framing. The Phase-1 framing ("the loop is the skill — everything else is mechanical") is borrowed from [`mattpocock/skills`](https://github.com/mattpocock/skills/blob/main/skills/engineering/diagnose/SKILL.md) with attribution.
 
@@ -25,7 +25,7 @@ Route elsewhere when:
 - The bug is one-line obvious (typo, off-by-one) — fix it directly; the skill is overkill.
 - The bug is a clean ground-truth-pair regression (test was passing, output unchanged, now failing) → `/ad-tdg` (WORKFLOW §9). TDG handles it with the existing pair as the verification surface.
 - The technique itself is uncertain across multiple plausible approaches → `/ad-spike` (WORKFLOW §14).
-- The spec or expected behavior is unclear → `/ad-grill`. Sharpen the question before diagnosing.
+- The spec or expected behavior is unclear → `/ad-grill-me`. Sharpen the question before diagnosing.
 
 ## Phase 1 — Build a feedback loop
 
@@ -90,7 +90,7 @@ If you cannot state the prediction, the hypothesis is a vibe — discard or shar
 
 **Show the ranked list to the user before testing.** They often have domain knowledge that re-ranks instantly ("we just deployed a change to #3"), or know hypotheses they have already ruled out. Cheap checkpoint, big time saver. Don't block on it — proceed with your ranking if the user is AFK.
 
-Read [`CONTEXT.md`](../../CONTEXT.md) if it exists and ADRs in `doc/adr/` covering the surface — domain vocabulary and prior decisions sharpen the hypotheses.
+Read [`CONTEXT.md`](CONTEXT.md) if it exists and ADRs in `doc/adr/` covering the surface — domain vocabulary and prior decisions sharpen the hypotheses.
 
 ## Phase 4 — Instrument
 
@@ -118,7 +118,7 @@ A correct seam is one where the test exercises the **real bug pattern** as it oc
 
 To pick the right routing branch below, determine the current profile: `Read .claude/agentic-state.json` (or `.agents/agentic-state.json` for Codex installs) and inspect the `profile` field. Default to `team` if the file is absent.
 
-- If the project profile is `team` or `mature`: hand off to `/ad-deepen` ([ADR-0020](../../doc/adr/0020-deep-modules-vocabulary.md)) with the specifics — the "test surface impact" line in the candidate template was made for this case.
+- If the project profile is `team` or `mature`: hand off to `/ad-deepen` (ADR-0020) with the specifics — the "test surface impact" line in the candidate template was made for this case.
 - If the project profile is `poc` or `solo`: `ad-deepen` is not installed (premature for these maturities per ADR-0020 §4). Capture the seam gap in the commit message body and the task `Notes` log as a finding for a future deepening pass; if the project is graduating to `team`, re-init at the higher profile to enable `/ad-deepen` then.
 
 If a correct seam exists:
@@ -154,5 +154,5 @@ Each session produces:
 - After fix + regression test land: `/ad-review main..HEAD` (or current scope) before merge — WORKFLOW §10. Diagnose verifies the symptom is gone; §10 review checks coupling, edge cases, spec drift the fix did not cover.
 - If Phase 5 found no correct seam for the regression test and the profile is `team` / `mature`: `/ad-deepen` to surface the deepening opportunity that would create one (Test surface impact line in the candidate template). On `poc` / `solo`, capture the gap in the commit message and the task Notes — `ad-deepen` is not installed at those profiles.
 - If Phase 1 could not build a loop and the user provided a captured artifact: re-enter Phase 1 with the artifact as the loop seed.
-- If the bug turned out to be a vocabulary drift (the term in code did not match the term in the spec): `/ad-domain` to update `CONTEXT.md` and `/ad-audit` to scan for further drift.
+- If the bug turned out to be a vocabulary drift (the term in code did not match the term in the spec): `/ad-domain` to update `CONTEXT.md` and `/ad-drift` to scan for further drift.
 - If the bug is one of several in a related cluster: `/ad-task` to capture the cluster as a tracked task with this diagnose run cited in the Notes.

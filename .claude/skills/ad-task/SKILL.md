@@ -47,6 +47,8 @@ When the user later works on the task, edit the file by:
 
 Status flips to `done` only when every Acceptance Criterion and every Definition of Done item is checked.
 
+A checkbox is checked only after everything it names has actually happened — never in anticipation. Split a bundled step (e.g. "open PR; merge on CI green") into separate items when its parts complete at different moments; a checked box claiming an unfinished step is a false record.
+
 ## Template — `doc/tasks/NNNN-<slug>.md`
 
 ````markdown

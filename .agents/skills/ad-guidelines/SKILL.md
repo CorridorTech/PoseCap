@@ -7,7 +7,7 @@ summary: Lazy lifecycle owner of `GUIDELINES.md` (Layer 1 Constitution, full eng
 <background_information>
 Layer 1 Constitution trinity member. Lazy lifecycle owner of `GUIDELINES.md` at the repo root. Companion to `WORKFLOW.md` (universal philosophy, kit-shipped) and `AGENTS.md` (distilled non-negotiable rules read every session).
 
-`GUIDELINES.md` is the full reference; `AGENTS.md` is the distilled summary. Each AGENTS.md section that has detail points to the corresponding GUIDELINES.md section. The two never duplicate — `ad-audit` flags duplication as drift.
+`GUIDELINES.md` is the full reference; `AGENTS.md` is the distilled summary. Each AGENTS.md section that has detail points to the corresponding GUIDELINES.md section. The two never duplicate — `ad-drift` flags duplication as drift.
 
 Skill is excluded from `poc` profile. Universal at `solo` / `team` / `mature`.
 
@@ -115,5 +115,5 @@ Step 6 — editing guidance for later turns. Tier change → update §3.1 checke
 - Side-effect (optional, user-confirmed): `AGENTS.md` engineering sections rewritten as pointer stubs to `GUIDELINES.md`.
 - No dates inside narrative prose; the file is project-state, not a decision-record artifact.
 
-Next: invoke `ad-hooks` to wire the quality gates this file describes (team/mature); invoke `ad-bootstrap` to refresh AGENTS.md with pointer-style sections; invoke `ad-adr` when a binding decision arises the guidelines do not yet cover; periodic drift via `ad-audit`.
+Next: invoke `ad-hooks` to wire the quality gates this file describes (team/mature); invoke `ad-bootstrap` to refresh AGENTS.md with pointer-style sections; invoke `ad-adr` when a binding decision arises the guidelines do not yet cover; periodic drift via `ad-drift`.
 </output_contract>

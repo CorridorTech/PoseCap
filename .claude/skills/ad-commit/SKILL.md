@@ -163,5 +163,5 @@ The output is one or more atomic commits on the current branch. Each commit:
 
 - After commits land: `/ad-pr` to open the PR with a uniform body shape.
 - After PR is open and CI is green: `/ad-merge` to evaluate and merge.
-- If the diff also surfaced a refactor opportunity: `/ad-deepen` (when on `team` / `mature` profile per [ADR-0020](../../doc/adr/0020-deep-modules-vocabulary.md) §4).
-- If a hook failure exposed a recurring drift: `/ad-audit`.
+- If the diff also surfaced a refactor opportunity: `/ad-deepen` (when on `team` / `mature` profile per ADR-0020 §4).
+- If a hook failure exposed a recurring drift: `/ad-drift`.

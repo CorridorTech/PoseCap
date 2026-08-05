@@ -114,4 +114,4 @@ Writes nothing to disk other than `git rm` staging. Never auto-commits. Refuses 
 
 - `/ad-commit` — author the deletion commit (Conventional Commits + DCO sign-off).
 - `/ad-next` — re-run the state survey; removed artifacts disappear from Layer 4 / Layer 5 counts.
-- `/ad-audit` — confirm no narrative document still cites the removed ADRs by slug as load-bearing context (decoration-citation rule per ADR-0030 §11).
+- `/ad-drift` — confirm no narrative document still cites the removed ADRs by slug as load-bearing context (decoration-citation rule per ADR-0030 §11).

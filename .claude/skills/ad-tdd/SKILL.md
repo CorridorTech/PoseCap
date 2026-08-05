@@ -7,9 +7,9 @@ allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 
 # /ad-tdd
 
-Implements [WORKFLOW.md §16](../../WORKFLOW.md). Process scaffold for the implementation phase when the change's behavior is known and expressible as a test up front. No file written — output is the verified implementation that lands through normal commits.
+Implements WORKFLOW.md §16. Process scaffold for the implementation phase when the change's behavior is known and expressible as a test up front. No file written — output is the verified implementation that lands through normal commits.
 
-TDD is a deterministic LLM guardrail: a failing test is unambiguous, so "almost right" (the [WORKFLOW §12](../../WORKFLOW.md) failure mode) cannot slip past. The skill keeps the agent inside red-green-refactor and blocks the named anti-pattern (horizontal slicing).
+TDD is a deterministic LLM guardrail: a failing test is unambiguous, so "almost right" (the WORKFLOW §12 failure mode) cannot slip past. The skill keeps the agent inside red-green-refactor and blocks the named anti-pattern (horizontal slicing).
 
 **Good tests read like a specification.** *"User can checkout with a valid cart"* tells you exactly what capability exists. **Bad tests couple to implementation** — mock internal collaborators, assert on private state, test the *shape* of things (data structures, function signatures) rather than user-facing behavior. A test that breaks on a rename but not on a behavior change was testing implementation, not behavior.
 

@@ -25,7 +25,7 @@ Read in this order, taking the first that exists for each category:
 * `README.md`, plus any `doc/` or `docs/` directory.
 * Top-level directory listing.
 * `doc/adr/` — binding decisions; read every ADR.
-* `GUIDELINES.md` at repo root — if present, the AGENTS.md sections that have a corresponding GUIDELINES.md section (Code Style → §2; Quality Gates → §8; Commit & PR → §10; Security & Privacy → §12) emit as pointer stubs instead of inline rules' ' reciprocity and [ADR-0030](../../doc/adr/0030-single-responsibility-per-document.md) §1.
+* `GUIDELINES.md` at repo root — if present, the AGENTS.md sections that have a corresponding GUIDELINES.md section (Code Style → §2; Quality Gates → §8; Commit & PR → §10; Security & Privacy → §12) emit as pointer stubs instead of inline rules' ' reciprocity and ADR-0030 §1.
 * `.claude/`, `.cursor/`, `.openai/`, `.agents/` — existing agent config.
 * Hook configs: `.husky/`, `.pre-commit-config.yaml`, `.github/workflows/`, `.gitlab-ci.yml`, `.circleci/`.
 * Lockfiles: `package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`, `poetry.lock`, `Cargo.lock`.
