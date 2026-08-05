@@ -223,6 +223,15 @@
         }
       ]
     },
+    "ad-skill": {
+      "version": "0.18.0-beta.5",
+      "files": [
+        {
+          "path": ".claude/skills/ad-skill/SKILL.md",
+          "sourceSha": "6bc76be0bc63f44fc27adf648248efcc90a83c4ed67038c8fb56010d2097f690"
+        }
+      ]
+    },
     "ad-spec": {
       "version": "0.18.0-beta.5",
       "files": [
