@@ -14,9 +14,12 @@
 [CmdletBinding()]
 param(
     # 0 is reserved for dev builds; a shipped installer carries a real id.
-    [ValidateRange(1, 999999)] [int]$BuildNumber = 1,
-    [Parameter(Mandatory = $true)] [string]$PearPayloadManifest,
-    [Parameter(Mandatory = $true)] [string]$MediaPipePayloadManifest
+[ValidateRange(1, 999999)] [int]$BuildNumber = 1,
+[Parameter(Mandatory = $true)] [string]$PearPayloadManifest,
+[Parameter(Mandatory = $true)] [string]$MediaPipePayloadManifest,
+# Qualification builds can carry the already-built backend payloads instead of
+# resolving their release URLs. Shipped installers remain online-first.
+[switch]$EmbedBackendPayloads
 )
 
 $ErrorActionPreference = 'Stop'
@@ -37,6 +40,21 @@ function Invoke-Checked {
     if ($Command.Count -gt 1) { $arguments = $Command[1..($Command.Count - 1)] }
     & $program @arguments | Out-Host
     if ($LASTEXITCODE -ne 0) { throw "$Label failed with exit code $LASTEXITCODE" }
+}
+
+function Get-Sha256Hex {
+    param([Parameter(Mandatory = $true)] [string]$Path)
+
+    $algorithm = [System.Security.Cryptography.SHA256]::Create()
+    $stream = [System.IO.File]::OpenRead($Path)
+    try {
+        $digest = [System.BitConverter]::ToString($algorithm.ComputeHash($stream))
+        return $digest.Replace('-', '').ToLowerInvariant()
+    }
+    finally {
+        $stream.Dispose()
+        $algorithm.Dispose()
+    }
 }
 
 # --- Version: single source of truth is the root pyproject ---------------------
@@ -96,6 +114,23 @@ Copy-Item $mediaPipePayloadManifestPath (Join-Path $Staging 'mediapipe_payload_m
 $mediaPipePayload = Get-Content -LiteralPath $mediaPipePayloadManifestPath -Raw -Encoding UTF8 |
     ConvertFrom-Json
 
+if ($EmbedBackendPayloads) {
+    foreach ($payload in @(
+        @{ Name = 'PEAR'; ManifestPath = $pearPayloadManifestPath; Metadata = $pearPayload; Destination = 'payloads\pear' },
+        @{ Name = 'MediaPipe'; ManifestPath = $mediaPipePayloadManifestPath; Metadata = $mediaPipePayload; Destination = 'payloads\mediapipe' }
+    )) {
+        $archive = Join-Path (Split-Path -Parent $payload.ManifestPath) $payload.Metadata.archive.filename
+        if (-not (Test-Path -LiteralPath $archive -PathType Leaf)) {
+            throw "$($payload.Name) payload archive not found beside its manifest: $archive"
+        }
+        $actualSha256 = Get-Sha256Hex -Path $archive
+        if ($actualSha256 -cne $payload.Metadata.archive.sha256.ToLowerInvariant()) {
+            throw "$($payload.Name) payload archive hash does not match its manifest: $archive"
+        }
+        Expand-Archive -LiteralPath $archive -DestinationPath (Join-Path $Staging $payload.Destination)
+    }
+}
+
 $manifest = [ordered]@{
     version       = $displayLabel
     pearRevision  = $pearRevision
@@ -129,7 +164,7 @@ SMPL-X body-model files. MPI / Meshcapade terms remain applicable.
 # --- Render + compile -----------------------------------------------------------
 $outputBase = "PoseCap_v${displayLabel}_Windows_Setup"
 $iss = Join-Path $ScriptRoot 'work\posecap.iss'
-Invoke-Checked -Label 'render online installer' -Command @(
+$renderCommand = @(
     'uv', 'run', 'python', (Join-Path $RepoRoot 'tools\render_windows_installer.py'),
     '--template', (Join-Path $ScriptRoot 'installer\posecap.iss.template'),
     '--payload-manifest', $pearPayloadManifestPath,
@@ -140,6 +175,8 @@ Invoke-Checked -Label 'render online installer' -Command @(
     '--output-basename', $outputBase,
     '--output', $iss
 )
+if ($EmbedBackendPayloads) { $renderCommand += '--embed-backend-payloads' }
+Invoke-Checked -Label 'render installer' -Command $renderCommand
 
 $isccCandidates = @(
     "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe",
@@ -153,7 +190,7 @@ if (-not $iscc) { throw 'Inno Setup 6 (ISCC.exe) not found -- winget install JRS
 Invoke-Checked -Label "compile installer with $iscc" -Command @($iscc, "/O$Dist", $iss)
 
 $setup = Join-Path $Dist "$outputBase.exe"
-$sha = (Get-FileHash -Algorithm SHA256 $setup).Hash
+$sha = Get-Sha256Hex -Path $setup
 Write-Host ''
 Write-Host "==> built: $setup"
 Write-Host "    sha256: $sha"

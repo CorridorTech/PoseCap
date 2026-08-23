@@ -21,6 +21,7 @@ def _arguments() -> argparse.Namespace:
     parser.add_argument("--base-version", required=True)
     parser.add_argument("--output-basename", required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--embed-backend-payloads", action="store_true")
     return parser.parse_args()
 
 
@@ -34,24 +35,24 @@ def render_installer(arguments: argparse.Namespace) -> None:
     mediapipe_archive, mediapipe_model = _validated_mediapipe_payload(
         mediapipe_manifest, expected_version=arguments.app_version
     )
+    pear_payload_entry, mediapipe_payload_entry = _payload_entries(
+        staging=arguments.staging,
+        pear_archive=archive,
+        mediapipe_archive=mediapipe_archive,
+        embed_backend_payloads=arguments.embed_backend_payloads,
+    )
     replacements = {
         "@@APP_VERSION@@": arguments.app_version,
         "@@BASE_VERSION@@": arguments.base_version,
         "@@DISPLAY_LABEL@@": arguments.app_version,
         "@@OUTPUT_BASENAME@@": arguments.output_basename,
         "@@STAGING@@": str(arguments.staging),
-        "@@PEAR_PAYLOAD_URL@@": archive["url"],
-        "@@PEAR_PAYLOAD_FILENAME@@": archive["filename"],
-        "@@PEAR_PAYLOAD_SHA256@@": archive["sha256"],
-        "@@PEAR_PAYLOAD_INSTALLED_SIZE@@": str(archive["installed_size_bytes"]),
+        "@@PEAR_PAYLOAD_ENTRY@@": pear_payload_entry,
         "@@PEAR_SOURCE_URL@@": pear_source["url"],
         "@@PEAR_SOURCE_FILENAME@@": pear_source["filename"],
         "@@PEAR_SOURCE_SHA256@@": pear_source["sha256"],
         "@@PEAR_SOURCE_SIZE@@": str(pear_source["size_bytes"]),
-        "@@MEDIAPIPE_PAYLOAD_URL@@": mediapipe_archive["url"],
-        "@@MEDIAPIPE_PAYLOAD_FILENAME@@": mediapipe_archive["filename"],
-        "@@MEDIAPIPE_PAYLOAD_SHA256@@": mediapipe_archive["sha256"],
-        "@@MEDIAPIPE_PAYLOAD_INSTALLED_SIZE@@": str(mediapipe_archive["installed_size_bytes"]),
+        "@@MEDIAPIPE_PAYLOAD_ENTRY@@": mediapipe_payload_entry,
         "@@MEDIAPIPE_MODEL_URL@@": mediapipe_model["url"],
         "@@MEDIAPIPE_MODEL_SHA256@@": mediapipe_model["sha256"],
         "@@MEDIAPIPE_MODEL_SIZE@@": str(mediapipe_model["size_bytes"]),
@@ -63,6 +64,41 @@ def render_installer(arguments: argparse.Namespace) -> None:
         raise ValueError("installer template contains an unrendered token")
     arguments.output.parent.mkdir(parents=True, exist_ok=True)
     arguments.output.write_text(rendered, encoding="utf-8")
+
+
+def _payload_entries(
+    *,
+    staging: Path,
+    pear_archive: dict[str, Any],
+    mediapipe_archive: dict[str, Any],
+    embed_backend_payloads: bool,
+) -> tuple[str, str]:
+    if embed_backend_payloads:
+        return (
+            f'Source: "{staging}\\payloads\\pear\\*"; DestDir: "{{app}}"; '
+            "Components: pear; Flags: ignoreversion recursesubdirs createallsubdirs",
+            f'Source: "{staging}\\payloads\\mediapipe\\*"; '
+            'DestDir: "{app}\\payloads\\mediapipe"; Components: mediapipe; '
+            "Flags: ignoreversion recursesubdirs createallsubdirs",
+        )
+    return (
+        'Source: "{}"; DestDir: "{{app}}"; DestName: "{}"; Components: pear; '
+        'Hash: "{}"; Flags: external download extractarchive recursesubdirs '
+        "createallsubdirs ignoreversion; ExternalSize: {}".format(
+            pear_archive["url"],
+            pear_archive["filename"],
+            pear_archive["sha256"],
+            pear_archive["installed_size_bytes"],
+        ),
+        'Source: "{}"; DestDir: "{{app}}\\payloads\\mediapipe"; DestName: "{}"; '
+        'Components: mediapipe; Hash: "{}"; Flags: external download extractarchive '
+        "recursesubdirs createallsubdirs ignoreversion; ExternalSize: {}".format(
+            mediapipe_archive["url"],
+            mediapipe_archive["filename"],
+            mediapipe_archive["sha256"],
+            mediapipe_archive["installed_size_bytes"],
+        ),
+    )
 
 
 def _validated_archive(manifest: dict[str, Any], *, expected_version: str) -> dict[str, Any]:
