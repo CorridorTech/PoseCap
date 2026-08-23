@@ -149,9 +149,10 @@ def test_release_workflow_discloses_unsigned_installer_and_attests_artifacts() -
     assert "-PearPayloadManifest $pearPayloadManifest" in commands
     assert "-MediaPipePayloadManifest $mediaPipePayloadManifest" in commands
     assert (
-        "gh release create $env:GITHUB_REF_NAME @assets --verify-tag --generate-notes "
-        "--notes $releaseNotice --draft" in commands
+        "gh release create $env:GITHUB_REF_NAME @assets --verify-tag --notes "
+        "$releaseNotice --draft" in commands
     )
+    assert "--generate-notes" not in commands
     assert "gh release view $env:GITHUB_REF_NAME --json assets" in commands
     assert "gh release edit $env:GITHUB_REF_NAME --draft=false" not in commands
     assert "packaging/dist/*.json" in workflow_text
