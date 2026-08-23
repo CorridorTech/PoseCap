@@ -681,6 +681,8 @@ def test_blender_ui_registration_adds_scene_state_and_unregisters_cleanly() -> N
         "POSECAP_OT_WatchModelDownloads",
         "POSECAP_OT_SetupBodyModelsWizard",
         "POSECAP_OT_ConvertCharacter",
+        "POSECAP_OT_BindCharacter",
+        "POSECAP_OT_UnbindCharacter",
         "POSECAP_OT_StartRecording",
         "POSECAP_OT_StopRecording",
         "POSECAP_PG_KeyPoseItem",
@@ -719,6 +721,8 @@ def test_blender_ui_registration_adds_scene_state_and_unregisters_cleanly() -> N
         "POSECAP_PG_KeyPoseItem",
         "POSECAP_OT_StopRecording",
         "POSECAP_OT_StartRecording",
+        "POSECAP_OT_UnbindCharacter",
+        "POSECAP_OT_BindCharacter",
         "POSECAP_OT_ConvertCharacter",
         "POSECAP_OT_SetupBodyModelsWizard",
         "POSECAP_OT_WatchModelDownloads",
@@ -1625,6 +1629,127 @@ def test_start_stream_configures_apply_time_instrumentation(monkeypatch, tmp_pat
         assert instrumentation_loggers == [logger]
     finally:
         unregister_blender_ui(bpy)
+
+
+def test_start_stream_routes_a_t_pose_binding_to_the_apply_timer(monkeypatch) -> None:
+    """A T-pose bind uses direct compensation for preview and recording."""
+    captured: list[dict[str, object]] = []
+    created_bindings: list[object] = []
+    binding = object()
+
+    class _RecordingTimer:
+        def __init__(self, stream, writer, **kwargs) -> None:
+            captured.append(kwargs)
+            self._stream = stream
+
+        def tick(self) -> float:
+            return 1.0 / 60.0
+
+        def stop(self) -> None:
+            self._stream.close()
+
+    class _RecordingMatrixWriter:
+        def __init__(self, _bpy, _target, restored_binding, **_kwargs) -> None:
+            created_bindings.append(restored_binding)
+
+        def is_valid(self) -> bool:
+            return True
+
+        def apply(self, _plan, *, insert_keyframes: bool) -> None:
+            del insert_keyframes
+
+        def tag_redraw(self) -> None:
+            return None
+
+    bpy = _FakeBpy()
+    register_blender_ui(bpy)
+    settings = _Settings(lifecycle_state="STOPPED")
+    settings.pear_root = "C:/PEAR"
+    _mark_capture_ready(settings, monkeypatch)
+    context = _FakeContext(settings)
+    monkeypatch.setattr(
+        posecap_addon.stream_operators,
+        "start_engine_stream",
+        lambda _command: _FakeEngine(),
+    )
+    monkeypatch.setattr(
+        posecap_addon.stream_operators,
+        "TcpPoseStreamClient",
+        lambda host, port, **_kwargs: _FakeClient(host, port),
+    )
+    monkeypatch.setattr(posecap_addon.stream_operators, "PoseApplyTimer", _RecordingTimer)
+    monkeypatch.setattr(
+        posecap_addon.stream_operators, "MatrixRetargetPoseWriter", _RecordingMatrixWriter
+    )
+    monkeypatch.setattr(
+        posecap_addon.stream_operators,
+        "load_binding",
+        lambda target: binding if target is settings.target_armature else None,
+    )
+    monkeypatch.setattr(
+        posecap_addon.stream_operators,
+        "requires_matrix_retarget",
+        lambda _target, _binding: False,
+    )
+
+    try:
+        start_cls = bpy.utils.registered_class("POSECAP_OT_StartStream")
+        assert start_cls().execute(context) == {"FINISHED"}
+    finally:
+        unregister_blender_ui(bpy)
+
+    assert created_bindings == []
+    assert captured[0]["binding"] is binding
+
+
+def test_start_failure_after_bound_writer_creation_closes_the_intermediary(monkeypatch) -> None:
+    closed: list[bool] = []
+
+    class _ClosingMatrixWriter:
+        def __init__(self, _bpy, _target, _binding, **_kwargs) -> None:
+            return None
+
+        def close(self) -> None:
+            closed.append(True)
+
+    bpy = _FakeBpy()
+    register_blender_ui(bpy)
+    settings = _Settings(lifecycle_state="STOPPED")
+    settings.pear_root = "C:/PEAR"
+    _mark_capture_ready(settings, monkeypatch)
+    context = _FakeContext(settings)
+    engine = _FakeEngine()
+    monkeypatch.setattr(
+        posecap_addon.stream_operators, "start_engine_stream", lambda _command: engine
+    )
+    monkeypatch.setattr(
+        posecap_addon.stream_operators,
+        "TcpPoseStreamClient",
+        lambda host, port, **_kwargs: _FakeClient(host, port),
+    )
+    monkeypatch.setattr(posecap_addon.stream_operators, "load_binding", lambda _target: object())
+    monkeypatch.setattr(
+        posecap_addon.stream_operators,
+        "requires_matrix_retarget",
+        lambda _target, _binding: True,
+    )
+    monkeypatch.setattr(
+        posecap_addon.stream_operators, "MatrixRetargetPoseWriter", _ClosingMatrixWriter
+    )
+    monkeypatch.setattr(
+        posecap_addon.stream_operators,
+        "PoseApplyTimer",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("timer setup failed")),
+    )
+
+    try:
+        start_cls = bpy.utils.registered_class("POSECAP_OT_StartStream")
+        assert start_cls().execute(context) == {"CANCELLED"}
+    finally:
+        unregister_blender_ui(bpy)
+
+    assert closed == [True]
+    assert engine.stopped
 
 
 def test_starting_stream_stops_from_timer_when_client_reports_connect_error(monkeypatch) -> None:

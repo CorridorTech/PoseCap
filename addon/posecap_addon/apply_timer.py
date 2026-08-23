@@ -15,6 +15,7 @@ from posecap_core import (
     RIGHT_HAND_JOINT_NAMES,
     LimbFilter,
     PoseApplication,
+    PoseBinding,
     PoseSmoother,
     PoseStream,
     plan_pose_application,
@@ -55,6 +56,7 @@ class PoseApplyTimer:
         on_recovery: RecoveryCallback | None = None,
         instrumentation: ApplyTimeInstrumentation | None = None,
         supported_capabilities: tuple[str, ...] | None = None,
+        binding: PoseBinding | None = None,
     ) -> None:
         if interval_seconds <= 0:
             raise ValueError("interval_seconds must be positive")
@@ -76,6 +78,7 @@ class PoseApplyTimer:
         self._on_recovery = on_recovery
         self._instrumentation = instrumentation
         self._supported_bones = _bones_for_capabilities(supported_capabilities)
+        self._binding = binding
         self._previous_quaternions: dict[str, np.ndarray] = {}
         self._reported_invalid_target = False
         self._running = True
@@ -101,6 +104,9 @@ class PoseApplyTimer:
         """Stop the timer and close its stream."""
         self._running = False
         self._stream.close()
+        close = getattr(self._writer, "close", None)
+        if callable(close):
+            close()
 
     def _apply_frame(self, frame: PoseFrame) -> bool:
         if frame.status == "no_person" or frame.pose is None:
@@ -123,6 +129,7 @@ class PoseApplyTimer:
             captured_at=frame.captured_at,
             camera_pitch_radians=self._camera_pitch_radians,
             supported_bones=self._supported_bones,
+            binding=self._binding,
         )
         self._writer.apply(plan, insert_keyframes=self._should_insert_keyframes())
         self._writer.tag_redraw()
@@ -175,14 +182,35 @@ class BpyArmaturePoseWriter:
             return None
 
     def _clear_bones(self, bones: Any, plan: PoseApplication) -> None:
+        neutral_by_name = (
+            {rotation.bone_name: rotation.quaternion for rotation in plan.neutral_rotations}
+            if plan.neutral_rotations
+            else None
+        )
         if plan.clear_bones is None:
             for bone in bones:
-                _write_quaternion(bone, _IDENTITY_QUATERNION, insert_keyframes=False)
+                _write_quaternion(
+                    bone,
+                    (
+                        neutral_by_name.get(bone.name, _IDENTITY_QUATERNION)
+                        if neutral_by_name is not None
+                        else _IDENTITY_QUATERNION
+                    ),
+                    insert_keyframes=False,
+                )
             return
         for bone_name in plan.clear_bones:
             bone = _bone_by_name(bones, bone_name)
             if bone is not None:
-                _write_quaternion(bone, _IDENTITY_QUATERNION, insert_keyframes=False)
+                _write_quaternion(
+                    bone,
+                    (
+                        neutral_by_name.get(bone_name, _IDENTITY_QUATERNION)
+                        if neutral_by_name is not None
+                        else _IDENTITY_QUATERNION
+                    ),
+                    insert_keyframes=False,
+                )
 
 
 _IDENTITY_QUATERNION = np.asarray([1.0, 0.0, 0.0, 0.0])

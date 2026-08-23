@@ -60,6 +60,7 @@ def test_section_offers_preset_choice_and_convert_button() -> None:
     draw_character_setup_section(layout, _settings())
 
     assert "posecap.convert_character" in layout.operator_ids
+    assert "posecap.bind_character" in layout.operator_ids
     assert "character_preset" in layout.props_drawn
     assert "character_mapping_json" not in layout.props_drawn
 
@@ -144,12 +145,14 @@ def _context(armature) -> SimpleNamespace:
 
 
 def test_convert_operator_is_undoable() -> None:
-    (convert_cls,) = build_character_setup_classes(_bpy_module())
+    convert_cls, bind_cls, unbind_cls = build_character_setup_classes(_bpy_module())
     assert "UNDO" in convert_cls.bl_options
+    assert "UNDO" in bind_cls.bl_options
+    assert "UNDO" in unbind_cls.bl_options
 
 
 def test_convert_reports_the_probe_result_on_success(monkeypatch) -> None:
-    (convert_cls,) = build_character_setup_classes(_bpy_module())
+    convert_cls, _, _ = build_character_setup_classes(_bpy_module())
     armature = _Armature(("mixamorig:Hips", "mixamorig:LeftUpLeg", "mixamorig:LeftForeArm"))
     conversions: list[tuple[object, SimpleNamespace]] = []
 
@@ -169,7 +172,7 @@ def test_convert_reports_the_probe_result_on_success(monkeypatch) -> None:
 
 
 def test_convert_without_an_armature_is_a_friendly_cancel(monkeypatch) -> None:
-    (convert_cls,) = build_character_setup_classes(_bpy_module())
+    convert_cls, _, _ = build_character_setup_classes(_bpy_module())
     operator = convert_cls()
 
     result = operator.execute(_context(None))
@@ -179,7 +182,7 @@ def test_convert_without_an_armature_is_a_friendly_cancel(monkeypatch) -> None:
 
 
 def test_convert_with_an_unrecognized_skeleton_asks_for_a_preset(monkeypatch) -> None:
-    (convert_cls,) = build_character_setup_classes(_bpy_module())
+    convert_cls, _, _ = build_character_setup_classes(_bpy_module())
     armature = _Armature(("Bone", "Bone.001"))
     operator = convert_cls()
 
@@ -193,7 +196,7 @@ def test_convert_with_an_unrecognized_skeleton_asks_for_a_preset(monkeypatch) ->
 
 
 def test_conversion_failures_surface_as_error_reports_not_tracebacks(monkeypatch) -> None:
-    (convert_cls,) = build_character_setup_classes(_bpy_module())
+    convert_cls, _, _ = build_character_setup_classes(_bpy_module())
     armature = _Armature(("thigh_l", "clavicle_l"))
 
     def failing_convert(bpy, arm_obj, preset, **kwargs):
@@ -206,3 +209,27 @@ def test_conversion_failures_surface_as_error_reports_not_tracebacks(monkeypatch
 
     assert result == {"CANCELLED"}
     assert any("hand_l" in message for _levels, message in operator.reports)
+
+
+def test_bind_and_unbind_use_only_the_reversible_binding_state(monkeypatch) -> None:
+    _, bind_cls, unbind_cls = build_character_setup_classes(_bpy_module())
+    armature = _Armature(("mixamorig:Hips", "mixamorig:LeftUpLeg", "mixamorig:LeftForeArm"))
+    stored: list[SimpleNamespace] = []
+    cleared: list[object] = []
+
+    monkeypatch.setattr(
+        character_setup_panel, "build_pose_binding", lambda armature, preset: preset
+    )
+    monkeypatch.setattr(
+        character_setup_panel,
+        "store_binding",
+        lambda armature, binding: stored.append(binding),
+    )
+    monkeypatch.setattr(
+        character_setup_panel, "clear_binding", lambda armature: cleared.append(armature)
+    )
+
+    assert bind_cls().execute(_context(armature)) == {"FINISHED"}
+    assert stored and stored[0].name == "mixamo"
+    assert unbind_cls().execute(_context(armature)) == {"FINISHED"}
+    assert cleared == [armature]

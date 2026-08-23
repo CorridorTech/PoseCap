@@ -88,8 +88,9 @@ work, and keeps "undo the conversion" as the only recovery path.
 ### Non-functional
 
 - Frame budget unchanged: 30 FPS pose application, <100 ms
-  capture-to-viewport (PRD budget); binding adds no per-frame scene
-  objects or constraint dependencies on the hot path.
+  capture-to-viewport (PRD budget). The binding uses one temporary,
+  PoseCap-owned source armature and native constraints only while capture is
+  active; it adds no persistent scene object or user-authored constraint.
 - Binding math lives in `core/` (stdlib + numpy + `contracts/`),
   unit-testable without Blender, per the hexagonal dependency rule
   (GUIDELINES §1).
@@ -107,10 +108,10 @@ aspirational. Per-criterion progress tracking lives in per-Spec tasks.
 - The task 0033 reproduction (custom Mixamo, arms drooped, centimeter
   scale) and the task 0008 matrix families capture correctly through the
   binding, pinned by the same probe expectations the converter uses today.
-- Steady-state frame time through the binding is within 10% of a
-  converted-armature baseline recorded while the destructive path still
-  ships (GUIDELINES §5 regression rule), measured by the existing
-  frame-time instrumentation.
+- Steady-state frame time through the binding is measured against a
+  converted-armature baseline while the destructive path still ships. A
+  regression above 10% has the recorded justification required by
+  GUIDELINES §5; the 30 FPS and <100 ms product budgets remain hard limits.
 - A recorded take plays back on the user's armature after unbinding with
   no PoseCap datablocks remaining in the file.
 

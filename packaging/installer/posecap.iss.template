@@ -58,9 +58,9 @@ Source: "@@STAGING@@\pear_payload_manifest.json"; DestDir: "{app}"; Flags: ignor
 Source: "@@STAGING@@\mediapipe_payload_manifest.json"; DestDir: "{app}"; Flags: ignoreversion
 Source: "@@STAGING@@\LICENSE"; DestDir: "{app}"; Flags: ignoreversion
 Source: "@@STAGING@@\THIRD_PARTY_NOTICES.md"; DestDir: "{app}"; Flags: ignoreversion
-Source: "@@PEAR_PAYLOAD_URL@@"; DestDir: "{app}"; DestName: "@@PEAR_PAYLOAD_FILENAME@@"; Components: pear; Hash: "@@PEAR_PAYLOAD_SHA256@@"; Flags: external download extractarchive recursesubdirs createallsubdirs ignoreversion; ExternalSize: @@PEAR_PAYLOAD_INSTALLED_SIZE@@
+@@PEAR_PAYLOAD_ENTRY@@
 Source: "@@PEAR_SOURCE_URL@@"; DestDir: "{app}\payloads\pear"; DestName: "@@PEAR_SOURCE_FILENAME@@"; Components: pear; Hash: "@@PEAR_SOURCE_SHA256@@"; Flags: external download ignoreversion; ExternalSize: @@PEAR_SOURCE_SIZE@@
-Source: "@@MEDIAPIPE_PAYLOAD_URL@@"; DestDir: "{app}\payloads\mediapipe"; DestName: "@@MEDIAPIPE_PAYLOAD_FILENAME@@"; Components: mediapipe; Hash: "@@MEDIAPIPE_PAYLOAD_SHA256@@"; Flags: external download extractarchive recursesubdirs createallsubdirs ignoreversion; ExternalSize: @@MEDIAPIPE_PAYLOAD_INSTALLED_SIZE@@
+@@MEDIAPIPE_PAYLOAD_ENTRY@@
 Source: "@@MEDIAPIPE_MODEL_URL@@"; DestDir: "{app}\backends\mediapipe\models"; DestName: "holistic_landmarker.task"; Components: mediapipe; Hash: "@@MEDIAPIPE_MODEL_SHA256@@"; Flags: external download ignoreversion; ExternalSize: @@MEDIAPIPE_MODEL_SIZE@@
 
 [Icons]

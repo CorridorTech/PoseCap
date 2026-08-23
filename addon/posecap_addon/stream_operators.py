@@ -11,9 +11,11 @@ from posecap_core import LimbFilter, PoseSmoother
 
 from .apply_timer import PoseApplyTimer, tag_view3d_redraw
 from .backend_registry import BackendSelectionError
+from .binding_state import load_binding
 from .capture_readiness import can_start_stream, capture_setup_issue
 from .engine_process import start_engine_stream
 from .instrumentation import ApplyTimeInstrumentation, configure_addon_logging
+from .matrix_retarget import MatrixRetargetPoseWriter, requires_matrix_retarget
 from .pear_root import PathExists, resolve_engine_executable, resolve_pear_root
 from .preferences_panel import AddonPreferences, addon_preferences
 from .recording import pause_playback
@@ -88,6 +90,7 @@ def start_live_stream(context: Any, bpy_module: Any) -> set[str]:
     settings.status_message = "Starting"
     engine = None
     logger = None
+    writer: Any | None = None
     try:
         logger = configure_addon_logging(addon_log_path(context, bpy_module))
         preferences = addon_preferences(context)
@@ -100,14 +103,24 @@ def start_live_stream(context: Any, bpy_module: Any) -> set[str]:
         )
         client.start()
         lifecycle_stream = LifecyclePoseStream(client, settings)
-        writer = LiveTargetArmaturePoseWriter(
-            settings,
-            # Resolve the context at call time: the operator context captured
-            # here dies once execute() returns, and using it from the apply
-            # timer raised on the second tick and silently killed the timer
-            # (2026-07-10 GUI demo root cause).
-            redraw=lambda: tag_view3d_redraw(bpy_module.context),
+        binding = load_binding(settings.target_armature)
+
+        def redraw() -> None:
+            tag_view3d_redraw(bpy_module.context)
+
+        use_matrix_retarget = binding is not None and requires_matrix_retarget(
+            settings.target_armature, binding
         )
+        if use_matrix_retarget:
+            assert binding is not None
+            writer = MatrixRetargetPoseWriter(
+                bpy_module,
+                settings.target_armature,
+                binding,
+                redraw=redraw,
+            )
+        else:
+            writer = LiveTargetArmaturePoseWriter(settings, redraw=redraw)
         timer = PoseApplyTimer(
             lifecycle_stream,
             writer,
@@ -133,11 +146,15 @@ def start_live_stream(context: Any, bpy_module: Any) -> set[str]:
             supported_capabilities=(
                 None if backend_manifest is None else backend_manifest.capabilities
             ),
+            binding=None if use_matrix_retarget else binding,
         )
         session = LiveStreamSession(bpy_module, settings, engine, client, timer)
         bpy_module.app.timers.register(session.timer_callback, first_interval=0.0)
         activate_stream_session(session)
     except Exception as exc:
+        close_writer = getattr(writer, "close", None)
+        if callable(close_writer):
+            close_writer()
         if logger is not None:
             logger.exception("capture start failed")
         if engine is not None:

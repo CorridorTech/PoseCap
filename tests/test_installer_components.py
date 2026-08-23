@@ -274,6 +274,8 @@ def _run_base_handler(
 def _run_renderer(
     tmp_path: Path,
     payload_manifest: dict[str, Any],
+    *,
+    embed_backend_payloads: bool = False,
 ) -> tuple[subprocess.CompletedProcess[str], Path]:
     manifest_path = tmp_path / "pear-payload-manifest.json"
     manifest_path.write_text(json.dumps(payload_manifest), encoding="utf-8")
@@ -282,27 +284,30 @@ def _run_renderer(
         json.dumps(_valid_mediapipe_payload_manifest()), encoding="utf-8"
     )
     output_path = tmp_path / "posecap.iss"
+    command = [
+        sys.executable,
+        str(_ROOT / "tools" / "render_windows_installer.py"),
+        "--template",
+        str(_INSTALLER / "posecap.iss.template"),
+        "--payload-manifest",
+        str(manifest_path),
+        "--mediapipe-payload-manifest",
+        str(mediapipe_manifest_path),
+        "--staging",
+        str(tmp_path / "staging"),
+        "--app-version",
+        "1.2.3-win.4",
+        "--base-version",
+        "1.2.3",
+        "--output-basename",
+        "PoseCap_Test_Setup",
+        "--output",
+        str(output_path),
+    ]
+    if embed_backend_payloads:
+        command.append("--embed-backend-payloads")
     result = subprocess.run(
-        [
-            sys.executable,
-            str(_ROOT / "tools" / "render_windows_installer.py"),
-            "--template",
-            str(_INSTALLER / "posecap.iss.template"),
-            "--payload-manifest",
-            str(manifest_path),
-            "--mediapipe-payload-manifest",
-            str(mediapipe_manifest_path),
-            "--staging",
-            str(tmp_path / "staging"),
-            "--app-version",
-            "1.2.3-win.4",
-            "--base-version",
-            "1.2.3",
-            "--output-basename",
-            "PoseCap_Test_Setup",
-            "--output",
-            str(output_path),
-        ],
+        command,
         capture_output=True,
         check=False,
         text=True,
@@ -437,6 +442,24 @@ def test_valid_manifest_renders_selected_verified_external_pear_payload(
     assert 'DestName: "holistic_landmarker.task"' in rendered
     assert f'Hash: "{"d" * 64}"' in rendered
     assert "@@PEAR_PAYLOAD_" not in rendered
+
+
+def test_renderer_embeds_backend_archives_for_a_local_qualification_build(
+    tmp_path: Path,
+) -> None:
+    result, output_path = _run_renderer(
+        tmp_path,
+        _valid_payload_manifest(),
+        embed_backend_payloads=True,
+    )
+
+    assert result.returncode == 0, result.stderr
+    rendered = output_path.read_text(encoding="utf-8")
+    staging = str(tmp_path / "staging")
+    assert f'Source: "{staging}\\payloads\\pear\\*"' in rendered
+    assert f'Source: "{staging}\\payloads\\mediapipe\\*"' in rendered
+    assert "https://github.com/CorridorTech/PoseCap/releases/download/" not in rendered
+    assert "Flags: external download extractarchive" not in rendered
 
 
 def test_renderer_rejects_payload_manifest_with_invalid_sha256(tmp_path: Path) -> None:

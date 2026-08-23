@@ -76,6 +76,13 @@ def test_installer_manifest_torch_index_matches_the_lock_cuda_tag() -> None:
     assert f"torchIndexUrl = 'https://download.pytorch.org/whl/cu{cuda_tag}'" in build
 
 
+def test_installer_build_hashes_payloads_without_a_powershell_cmdlet() -> None:
+    build = _read("build_installer.ps1")
+
+    assert "Get-FileHash" not in build
+    assert "[System.Security.Cryptography.SHA256]::Create()" in build
+
+
 def test_runtime_setup_default_matrix_matches_the_lock() -> None:
     # The release runner builds PyTorch3D against the runtime this script
     # creates; a drifted pin here ships a payload the runner never validated.
