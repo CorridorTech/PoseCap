@@ -14,6 +14,7 @@ from typing import Any
 from posecap_contracts import PoseBackendManifest
 
 from .backend_registry import BackendSelectionError, discover_installed_pose_backends
+from .binding_state import is_bound_armature
 from .character_setup_panel import is_converted_armature
 from .model_setup_panel import models_missing
 from .onboarding import onboarding_steps
@@ -38,7 +39,8 @@ def character_ready(settings: Any) -> bool:
 
     Guards a removed StructRNA: the panel redraws every frame, and reading
     ``.type`` on an armature deleted mid-session raises (AGENTS.md gotcha)."""
-    return is_converted_armature(valid_target_armature(settings))
+    armature = valid_target_armature(settings)
+    return is_bound_armature(armature) or is_converted_armature(armature)
 
 
 def valid_target_armature(settings: Any) -> Any | None:

@@ -11,7 +11,13 @@ from posecap_contracts import (
     PoseFrame,
     PosePayload,
 )
-from posecap_core import KEYFRAME_DATA_PATH, BoneRotation, PoseApplication
+from posecap_core import (
+    KEYFRAME_DATA_PATH,
+    BoneRotation,
+    BoundBone,
+    PoseApplication,
+    PoseBinding,
+)
 
 
 def test_pose_apply_timer_applies_latest_ok_frame_and_reschedules() -> None:
@@ -28,6 +34,22 @@ def test_pose_apply_timer_applies_latest_ok_frame_and_reschedules() -> None:
     assert len(writer.applied) == 1
     assert writer.applied[0][0].bone_name == "pelvis"
     assert writer.redraws == 1
+
+
+def test_pose_apply_timer_writes_to_a_bound_armatures_original_bone_names() -> None:
+    stream = _FakeStream([PoseFrame(SCHEMA_VERSION, 1, 100.0, "ok", _payload())])
+    writer = _FakeWriter()
+    identity = np.asarray([1.0, 0.0, 0.0, 0.0])
+    binding = PoseBinding(
+        {
+            "left_hip": BoundBone("mixamorig:LeftUpLeg", identity, identity),
+        }
+    )
+    timer = PoseApplyTimer(stream, writer, binding=binding)
+
+    timer.tick()
+
+    assert [rotation.bone_name for rotation in writer.applied[0]] == ["mixamorig:LeftUpLeg"]
 
 
 def test_body_only_backend_does_not_touch_hand_bones() -> None:
@@ -165,6 +187,21 @@ def test_bpy_armature_pose_writer_sets_quaternion_and_keyframes() -> None:
     assert bone.rotation_quaternion == (0.5, 0.5, 0.5, 0.5)
     assert bone.keyframes == [KEYFRAME_DATA_PATH]
     assert armature.redraws == ["redraw"]
+
+
+def test_bpy_armature_pose_writer_uses_a_bindings_neutral_when_clearing() -> None:
+    armature = _FakeArmature(["mixamorig:LeftArm"])
+    writer = BpyArmaturePoseWriter(armature)
+    neutral = np.asarray([0.0, 1.0, 0.0, 0.0])
+    plan = PoseApplication(
+        clear_bones=frozenset({"mixamorig:LeftArm"}),
+        rotations=(),
+        neutral_rotations=(BoneRotation("mixamorig:LeftArm", neutral),),
+    )
+
+    writer.apply(plan, insert_keyframes=False)
+
+    assert armature.pose.bones["mixamorig:LeftArm"].rotation_quaternion == (0.0, 1.0, 0.0, 0.0)
 
 
 def test_bpy_armature_pose_writer_preserves_existing_keyframes_when_not_recording() -> None:

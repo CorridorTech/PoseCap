@@ -6,6 +6,7 @@ from .application import (
     PoseApplication,
     plan_pose_application,
 )
+from .binding import BoundBone, PoseBinding, apply_binding, compensation_from_rest_orientations
 from .errors import PoseCapError
 from .filters import LimbFilter
 from .landmark_pose import LandmarkMap, LandmarkPoseConverter
@@ -57,16 +58,20 @@ __all__ = [
     "T_POSE_MAX_ARM_DEVIATION_DEGREES",
     "UE_MAPPING",
     "BoneRotation",
+    "BoundBone",
     "PoseCapError",
     "LimbFilter",
     "LandmarkMap",
     "LandmarkPoseConverter",
     "PoseApplication",
+    "PoseBinding",
     "PoseSmoother",
     "PoseStream",
     "SkeletonPreset",
     "arm_t_pose_deviation_degrees",
+    "apply_binding",
     "axis_angle_to_quaternion",
+    "compensation_from_rest_orientations",
     "detect_skeleton_preset",
     "flip_global_orient",
     "make_sign_compatible",

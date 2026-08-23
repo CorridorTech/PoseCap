@@ -8,6 +8,7 @@ where they are testable without Blender.
 
 from collections.abc import Mapping
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 import numpy as np
 from posecap_contracts import PosePayload
@@ -22,6 +23,9 @@ from .skeleton import (
     RIGHT_HAND_JOINT_NAMES,
 )
 from .smoothing import PoseSmoother
+
+if TYPE_CHECKING:
+    from .binding import PoseBinding
 
 KEYFRAME_DATA_PATH = "rotation_quaternion"
 
@@ -42,6 +46,9 @@ class BoneRotation:
 class PoseApplication:
     """clear_bones is None when every bone resets (unfiltered mode).
 
+    neutral_rotations supplies the target-local reset for bound bones; names
+    absent from it reset to quaternion identity.
+
     world_offset is a Blender-space armature offset (experimental world
     position) or None when the feature is off or the pelvis is filtered out.
     """
@@ -49,6 +56,7 @@ class PoseApplication:
     clear_bones: frozenset[str] | None
     rotations: tuple[BoneRotation, ...]
     world_offset: FloatArray | None = None
+    neutral_rotations: tuple[BoneRotation, ...] = ()
 
 
 def plan_pose_application(
@@ -62,6 +70,7 @@ def plan_pose_application(
     captured_at: float = 0.0,
     camera_pitch_radians: float = 0.0,
     supported_bones: frozenset[str] | None = None,
+    binding: "PoseBinding | None" = None,
 ) -> PoseApplication:
     """Build the bone-level plan for one frame.
 
@@ -92,6 +101,8 @@ def plan_pose_application(
     previous: Mapping[str, FloatArray] = (
         previous_quaternions if previous_quaternions is not None else {}
     )
+    if binding is not None:
+        previous = binding.source_previous_quaternions(previous)
     rotations: list[BoneRotation] = []
     world_offset: FloatArray | None = None
 
@@ -123,9 +134,17 @@ def plan_pose_application(
                 )
             )
 
-    return PoseApplication(
+    plan = PoseApplication(
         clear_bones=allowed, rotations=tuple(rotations), world_offset=world_offset
     )
+    if binding is None:
+        return plan
+
+    # Binding owns plan-rewrite policy and imports these dataclasses; a local
+    # import prevents a module-level dependency cycle.
+    from .binding import apply_binding
+
+    return apply_binding(plan, binding)
 
 
 def _intersect_allowed_bones(

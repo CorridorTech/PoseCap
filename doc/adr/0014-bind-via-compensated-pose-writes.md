@@ -1,6 +1,6 @@
 # ADR-0014: Bind characters via compensated pose writes
 
-**Status:** accepted
+**Status:** superseded by ADR-0017
 **Date:** 2026-07-17
 **Deciders:** alexandremendoncaalvaro (maintainer), Dean (product direction)
 
@@ -38,6 +38,13 @@ not copy: it disables `use_inherit_rotation` on the user's armature data
 (a persistent asset mutation) instead of doing parent-relative math.
 
 ## Decision
+
+> Superseded. The task-0033 non-T fixture proved that isolated target-local
+> quaternion writes cannot represent the required result for connected bones:
+> Blender's constraint evaluator supplies a local translation that the target
+> cannot persist through its connected pose channel. ADR-0017 preserves the
+> non-destructive outcome through a transient PoseCap-owned source and native
+> `Copy Transforms` evaluation.
 
 We will bind characters by computing a per-bone binding map once at bind
 time and driving the user's own pose bones with rest-compensated

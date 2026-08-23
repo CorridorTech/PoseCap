@@ -12,10 +12,12 @@ import json
 from pathlib import Path
 from typing import Any
 
+from .binding_state import clear_binding, is_bound_armature, store_binding
 from .character_setup import (
     SMPLX_BODY_JOINTS,
     ConversionError,
     SkeletonPreset,
+    build_pose_binding,
     convert_armature,
     detect_skeleton_preset,
     mixamo_preset,
@@ -30,6 +32,7 @@ CHARACTER_PRESET_ITEMS = (
     ("MIXAMO", "Mixamo", "Mixamo skeleton (Adobe's free character library)"),
     ("CUSTOM", "Custom Mapping", "JSON file mapping SMPL-X joints to bone names"),
 )
+_PICK_TARGET_MESSAGE = "Pick a target armature first (or select one in the viewport)."
 
 
 def draw_character_setup_section(layout: Any, settings: Any) -> None:
@@ -37,6 +40,10 @@ def draw_character_setup_section(layout: Any, settings: Any) -> None:
     box = layout.box()
     box.label(text="Character Setup", icon="OUTLINER_OB_ARMATURE")
     armature = _target_armature(settings)
+    if is_bound_armature(armature):
+        box.label(text="Character bound for capture", icon="CHECKMARK")
+        box.operator("posecap.unbind_character", text="Unbind Character", icon="X")
+        return
     if is_converted_armature(armature):
         box.label(text="Character ready for capture", icon="CHECKMARK")
         return
@@ -52,8 +59,13 @@ def draw_character_setup_section(layout: Any, settings: Any) -> None:
     if settings.character_preset == "CUSTOM":
         column.prop(settings, "character_mapping_json")
     column.operator(
+        "posecap.bind_character",
+        text="Bind Character for PoseCap",
+        icon="ARMATURE_DATA",
+    )
+    column.operator(
         "posecap.convert_character",
-        text="Convert Character for PoseCap",
+        text="Convert Character for PoseCap (Legacy)",
         icon="ARMATURE_DATA",
     )
 
@@ -91,7 +103,42 @@ def build_character_setup_classes(bpy_module: Any) -> tuple[type[Any], ...]:
             )
             return {"FINISHED"}
 
-    return (POSECAP_OT_ConvertCharacter,)
+    class POSECAP_OT_BindCharacter(bpy_module.types.Operator):
+        bl_idname = "posecap.bind_character"
+        bl_label = "Bind Character for PoseCap"
+        bl_options = {"REGISTER", "UNDO"}
+
+        def execute(self, context: Any) -> set[str]:
+            settings = getattr(context.scene, "posecap", None)
+            armature = _picked_armature(context, settings)
+            if armature is None:
+                self.report({"ERROR"}, _PICK_TARGET_MESSAGE)
+                return {"CANCELLED"}
+            try:
+                preset = _resolve_preset(settings, armature)
+                store_binding(armature, build_pose_binding(armature, preset))
+            except ConversionError as exc:
+                self.report({"ERROR"}, str(exc))
+                return {"CANCELLED"}
+            self.report({"INFO"}, f"Character bound ({preset.label}); original rig unchanged")
+            return {"FINISHED"}
+
+    class POSECAP_OT_UnbindCharacter(bpy_module.types.Operator):
+        bl_idname = "posecap.unbind_character"
+        bl_label = "Unbind Character"
+        bl_options = {"REGISTER", "UNDO"}
+
+        def execute(self, context: Any) -> set[str]:
+            settings = getattr(context.scene, "posecap", None)
+            armature = _picked_armature(context, settings)
+            if armature is None:
+                self.report({"ERROR"}, _PICK_TARGET_MESSAGE)
+                return {"CANCELLED"}
+            clear_binding(armature)
+            self.report({"INFO"}, "Character unbound; original rig remains unchanged")
+            return {"FINISHED"}
+
+    return (POSECAP_OT_ConvertCharacter, POSECAP_OT_BindCharacter, POSECAP_OT_UnbindCharacter)
 
 
 def _picked_armature(context: Any, settings: Any) -> Any | None:

@@ -7,6 +7,7 @@ from posecap_addon.character_setup import (
     SMPLX_BODY_JOINTS,
     ConversionError,
     SkeletonPreset,
+    build_pose_binding,
     convert_armature,
 )
 
@@ -28,6 +29,25 @@ class _IdentityMatrix:
 
     def __matmul__(self, position):
         return position
+
+    def to_quaternion(self):
+        return _Quaternion((1.0, 0.0, 0.0, 0.0))
+
+
+class _Quaternion:
+    def __init__(self, values: tuple[float, float, float, float]) -> None:
+        self.values = values
+
+    def __iter__(self):
+        return iter(self.values)
+
+    def __matmul__(self, other):
+        return other
+
+
+class _RestMatrix:
+    def to_quaternion(self):
+        return _Quaternion((1.0, 0.0, 0.0, 0.0))
 
 
 def _armature_with_arms(*, left_elbow: tuple[float, float, float]) -> SimpleNamespace:
@@ -104,3 +124,49 @@ def test_convert_explains_how_to_bind_a_mesh_when_none_is_deforming() -> None:
     message = str(raised.value)
     assert "ControlRig" in message
     assert "Armature modifier" in message
+
+
+def test_build_pose_binding_reads_rest_frames_without_mutating_the_armature() -> None:
+    names = {joint: joint for joint in SMPLX_BODY_JOINTS}
+    armature = SimpleNamespace(
+        name="CharacterRig",
+        type="ARMATURE",
+        matrix_world=_IdentityMatrix(),
+        data=SimpleNamespace(
+            bones={name: SimpleNamespace(matrix_local=_RestMatrix()) for name in names}
+        ),
+        pose=SimpleNamespace(bones={name: SimpleNamespace(constraints=()) for name in names}),
+    )
+    before_names = tuple(armature.data.bones)
+
+    binding = build_pose_binding(armature, _preset())
+
+    assert tuple(armature.data.bones) == before_names
+    assert set(binding.bones) == set(SMPLX_BODY_JOINTS)
+    assert binding.bones["left_shoulder"].target_bone_name == "left_shoulder"
+    assert binding.bones["left_shoulder"].compensation_quaternion == pytest.approx(
+        [2**-0.5, 2**-0.5, 0.0, 0.0]
+    )
+
+
+def test_build_pose_binding_reports_artist_constraint_without_writing() -> None:
+    names = {joint: joint for joint in SMPLX_BODY_JOINTS}
+    armature = SimpleNamespace(
+        name="CharacterRig",
+        type="ARMATURE",
+        matrix_world=_IdentityMatrix(),
+        data=SimpleNamespace(
+            bones={name: SimpleNamespace(matrix_local=_RestMatrix()) for name in names}
+        ),
+        pose=SimpleNamespace(
+            bones={
+                name: SimpleNamespace(constraints=("artist constraint",))
+                if name == "left_shoulder"
+                else SimpleNamespace(constraints=())
+                for name in names
+            }
+        ),
+    )
+
+    with pytest.raises(ConversionError, match="already has bone constraints"):
+        build_pose_binding(armature, _preset())

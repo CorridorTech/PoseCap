@@ -24,14 +24,19 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 
+import numpy as np
 from posecap_core import (
     ARM_TARGETS,
+    IDENTITY_QUATERNION,
     PROBE_RELATIVE_TOLERANCE,
     SMPLX_BODY_JOINTS,
     UE_MAPPING,
+    BoundBone,
+    PoseBinding,
     PoseCapError,
     SkeletonPreset,
     axis_angle_to_quaternion,
+    compensation_from_rest_orientations,
     detect_skeleton_preset,
     mixamo_preset,
     needs_t_pose_re_rest,
@@ -50,6 +55,7 @@ __all__ = [
     "ConversionError",
     "ConversionResult",
     "SkeletonPreset",
+    "build_pose_binding",
     "convert_armature",
     "detect_skeleton_preset",
     "mixamo_preset",
@@ -71,6 +77,60 @@ class ConversionResult:
     max_probe_error: float
 
 
+# This is the world-frame orientation produced for every mapped bone by the
+# legacy conversion recipe: tail +Z and roll toward -Y. Keeping it here makes
+# a non-destructive bind match that proven source convention without creating
+# or modifying an intermediary armature.
+_SMPLX_SOURCE_REST_ORIENTATION = np.asarray([math.sqrt(0.5), math.sqrt(0.5), 0.0, 0.0])
+
+
+def build_pose_binding(arm_obj, preset: SkeletonPreset) -> PoseBinding:
+    """Read an untouched armature's rests into a live pose-binding map."""
+    if arm_obj is None or getattr(arm_obj, "type", None) != "ARMATURE":
+        raise ConversionError("pick an armature object first")
+    missing_joints = validate_mapping(preset.mapping)
+    if missing_joints:
+        raise ConversionError(f"mapping is missing SMPL-X joints: {', '.join(missing_joints)}")
+    if arm_obj.matrix_world.is_negative:
+        raise ConversionError(
+            "the armature has a mirrored (negative) scale — apply "
+            "Object > Apply > Rotation & Scale before binding"
+        )
+    missing_bones = [name for name in preset.mapping.values() if name not in arm_obj.data.bones]
+    if missing_bones:
+        raise ConversionError(f"the armature is missing expected bones: {', '.join(missing_bones)}")
+    conflicted_bones = [
+        target_name
+        for target_name in preset.mapping.values()
+        if tuple(getattr(arm_obj.pose.bones[target_name], "constraints", ()))
+    ]
+    if conflicted_bones:
+        raise ConversionError(
+            "the selected character already has bone constraints "
+            f"({', '.join(conflicted_bones)}). Remove or bake those constraints before binding"
+        )
+
+    object_orientation = arm_obj.matrix_world.to_quaternion()
+    return PoseBinding(
+        {
+            source_name: BoundBone(
+                target_bone_name=target_name,
+                compensation_quaternion=compensation_from_rest_orientations(
+                    _SMPLX_SOURCE_REST_ORIENTATION,
+                    np.asarray(
+                        tuple(
+                            object_orientation
+                            @ arm_obj.data.bones[target_name].matrix_local.to_quaternion()
+                        )
+                    ),
+                ),
+                neutral_quaternion=IDENTITY_QUATERNION,
+            )
+            for source_name, target_name in preset.mapping.items()
+        }
+    )
+
+
 def convert_armature(
     bpy,
     arm_obj,
@@ -79,12 +139,13 @@ def convert_armature(
     re_rest_t_pose: bool | None = None,
     bone_length: float = 10.0,
     probe_tolerance: float = PROBE_RELATIVE_TOLERANCE,
+    require_deforming_mesh: bool = True,
 ) -> ConversionResult:  # pragma: no cover - exercised inside Blender only
     """Convert one armature in the open file; raises ConversionError on failure."""
     missing_joints = validate_mapping(preset.mapping)
     if missing_joints:
         raise ConversionError(f"mapping is missing SMPL-X joints: {', '.join(missing_joints)}")
-    mesh_objs = _resolve_meshes(bpy, arm_obj, preset.mapping)
+    mesh_objs = _resolve_meshes(bpy, arm_obj, preset.mapping, require_deforming_mesh)
     # The reorient reads the object's rotation to place bones in a fixed world
     # frame; a mirrored (negative-scale) object transform has no pure-rotation
     # quaternion, so fail loudly with a fix instead of silently mis-orienting.
@@ -103,11 +164,13 @@ def convert_armature(
     return _verify(bpy, arm_obj, probe_tolerance)
 
 
-def _resolve_meshes(bpy, arm_obj, mapping):  # pragma: no cover - Blender only
+def _resolve_meshes(
+    bpy, arm_obj, mapping, require_deforming_mesh
+):  # pragma: no cover - Blender only
     if arm_obj is None or getattr(arm_obj, "type", None) != "ARMATURE":
         raise ConversionError("pick an armature object first")
     mesh_objs = [o for o in bpy.data.objects if o.type == "MESH" and _is_deformed_by(o, arm_obj)]
-    if not mesh_objs:
+    if not mesh_objs and require_deforming_mesh:
         candidates = _deforming_armatures(bpy.data.objects)
         if candidates:
             names = ", ".join(sorted(candidate.name for candidate in candidates))

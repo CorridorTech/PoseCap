@@ -1,5 +1,6 @@
 import importlib.util
 import os
+import re
 import shutil
 import subprocess
 import textwrap
@@ -27,6 +28,9 @@ def test_blender_background_register_unregister_and_simulated_frame_apply(
 
     assert completed.returncode == 0, completed.stdout + completed.stderr
     assert "posecap blender conversion smoke ok" in completed.stdout
+    benchmark = re.search(r"posecap native benchmark ([0-9.]+)", completed.stdout)
+    assert benchmark is not None, completed.stdout
+    print(benchmark.group(0))
 
 
 def test_blender_panel_survives_out_of_order_and_repeated_user_workflows(
@@ -63,26 +67,31 @@ def test_blender_conversion_re_rests_a_non_t_pose_custom_mixamo_character(
     if blender is None:
         pytest.skip("set POSECAP_BLENDER or put blender on PATH to run e2e smoke")
 
-    script = tmp_path / "posecap_blender_non_t_pose_conversion.py"
-    script.write_text(_BLENDER_NON_T_POSE_CONVERSION_SCRIPT, encoding="utf-8")
-    completed = subprocess.run(
-        [
-            str(blender),
-            "--background",
-            "--factory-startup",
-            "--python",
-            str(script),
-            "--",
-            str(Path(__file__).parents[2]),
-        ],
-        check=False,
-        capture_output=True,
-        text=True,
-        timeout=120,
+    completed = _run_blender_script(
+        blender,
+        tmp_path,
+        script_source=_BLENDER_NON_T_POSE_CONVERSION_SCRIPT,
+        script_name="posecap_blender_non_t_pose_conversion.py",
     )
 
     assert completed.returncode == 0, completed.stdout + completed.stderr
     assert "posecap non-t-pose conversion regression ok" in completed.stdout
+
+
+def test_blender_bound_character_restores_after_saving_and_reopening(tmp_path: Path) -> None:
+    blender = _blender_executable()
+    if blender is None:
+        pytest.skip("set POSECAP_BLENDER or put blender on PATH to run e2e smoke")
+
+    completed = _run_blender_script(
+        blender,
+        tmp_path,
+        script_source=_BLENDER_BIND_RELOAD_SCRIPT,
+        script_name="posecap_blender_binding_reload.py",
+    )
+
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    assert "posecap binding reload ok" in completed.stdout
 
 
 def _run_blender_script(
@@ -183,7 +192,11 @@ _BLENDER_SMOKE_SCRIPT = textwrap.dedent(
         BODY_JOINT_NAMES,
         LEFT_HAND_JOINT_NAMES,
         RIGHT_HAND_JOINT_NAMES,
+        BoneRotation,
+        PoseApplication,
+        axis_angle_to_quaternion,
         mixamo_preset,
+        ue_preset,
     )
 
     extension_spec = importlib.util.spec_from_file_location(
@@ -343,6 +356,37 @@ _BLENDER_SMOKE_SCRIPT = textwrap.dedent(
         modifier.object = armature
         return armature
 
+    def synthetic_ue_armature():
+        preset = ue_preset()
+        armature_data = bpy.data.armatures.new("SyntheticUE")
+        armature = bpy.data.objects.new("SyntheticUE", armature_data)
+        bpy.context.collection.objects.link(armature)
+        bpy.context.view_layer.objects.active = armature
+        armature.select_set(True)
+        bpy.ops.object.mode_set(mode="EDIT")
+        positions = {
+            preset.mapping["left_shoulder"]: (0.0, 0.0, 0.0),
+            preset.mapping["left_elbow"]: (10.0, 0.0, 0.0),
+            preset.mapping["left_wrist"]: (20.0, 0.0, 0.0),
+            preset.mapping["right_shoulder"]: (0.0, -2.0, 0.0),
+            preset.mapping["right_elbow"]: (-10.0, -2.0, 0.0),
+            preset.mapping["right_wrist"]: (-20.0, -2.0, 0.0),
+        }
+        bones = {}
+        for index, name in enumerate(sorted(preset.mapping.values())):
+            bone = armature_data.edit_bones.new(name)
+            bone.head = Vector(positions.get(name, (float(index), 4.0, 0.0)))
+            bone.tail = bone.head + Vector((0.0, 0.0, 1.0))
+            bones[name] = bone
+        for side in ("left", "right"):
+            shoulder = preset.mapping[f"{side}_shoulder"]
+            elbow = preset.mapping[f"{side}_elbow"]
+            wrist = preset.mapping[f"{side}_wrist"]
+            bones[elbow].parent = bones[shoulder]
+            bones[wrist].parent = bones[elbow]
+        bpy.ops.object.mode_set(mode="OBJECT")
+        return armature
+
     def fbx_roundtrip(armature):
         bpy.ops.object.select_all(action="DESELECT")
         exported = [armature]
@@ -388,6 +432,24 @@ _BLENDER_SMOKE_SCRIPT = textwrap.dedent(
         panel_class.draw(SimpleNamespace(layout=imported_layout), bpy.context)
         assert any(label.startswith("PoseCap ") for label in imported_layout.labels)
         return imported_armatures[0]
+
+    def binding_structure_snapshot(armature):
+        meshes = [
+            obj
+            for obj in bpy.context.scene.objects
+            if obj.type == "MESH"
+            and any(
+                modifier.type == "ARMATURE" and modifier.object == armature
+                for modifier in obj.modifiers
+            )
+        ]
+        return (
+            {
+                bone.name: tuple(tuple(value for value in row) for row in bone.matrix_local)
+                for bone in armature.data.bones
+            },
+            {mesh.name: tuple(group.name for group in mesh.vertex_groups) for mesh in meshes},
+        )
 
     def assert_panel_failure_is_actionable():
         original_local_app_data = os.environ.get("LOCALAPPDATA")
@@ -458,7 +520,114 @@ _BLENDER_SMOKE_SCRIPT = textwrap.dedent(
         synthetic = fbx_roundtrip(synthetic_mixamo_armature())
         bpy.context.view_layer.objects.active = synthetic
         settings.target_armature = synthetic
+
+        character_setup = sys.modules["posecap_extension_smoke.posecap_addon.character_setup"]
+        matrix_retarget = sys.modules[
+            "posecap_extension_smoke.posecap_addon.matrix_retarget"
+        ]
+        benchmark_bound = synthetic_mixamo_armature()
+        benchmark_direct = synthetic_mixamo_armature()
+        benchmark_preset = mixamo_preset("mixamorig:", include_hands=True)
+        benchmark_binding = character_setup.build_pose_binding(benchmark_bound, benchmark_preset)
+        benchmark_writer = matrix_retarget.MatrixRetargetPoseWriter(
+            bpy, benchmark_bound, benchmark_binding
+        )
+        character_setup.convert_armature(bpy, benchmark_direct, benchmark_preset)
+        direct_writer = posecap_extension.BpyArmaturePoseWriter(benchmark_direct)
+        source_plan = PoseApplication(
+            clear_bones=frozenset(),
+            rotations=tuple(
+                BoneRotation(name, axis_angle_to_quaternion((0.0, 0.0, 0.5)))
+                for name in benchmark_binding.bones
+            ),
+        )
+        benchmark_start = time.perf_counter()
+        for _ in range(100):
+            direct_writer.apply(source_plan, insert_keyframes=False)
+            bpy.context.view_layer.update()
+        direct_seconds = time.perf_counter() - benchmark_start
+        benchmark_start = time.perf_counter()
+        for _ in range(100):
+            benchmark_writer.apply(source_plan, insert_keyframes=False)
+            bpy.context.view_layer.update()
+        native_seconds = time.perf_counter() - benchmark_start
+        benchmark_writer.close()
+        print(f"posecap native benchmark {native_seconds / direct_seconds:.3f}")
+        bpy.data.objects.remove(benchmark_bound, do_unlink=True)
+        bpy.data.objects.remove(benchmark_direct, do_unlink=True)
+        bpy.context.view_layer.objects.active = synthetic
+        synthetic.select_set(True)
+        settings.target_armature = synthetic
         settings.character_preset = "AUTO"
+        synthetic_mesh = next(
+            obj
+            for obj in bpy.context.scene.objects
+            if obj.type == "MESH"
+            and any(
+                modifier.type == "ARMATURE" and modifier.object == synthetic
+                for modifier in obj.modifiers
+            )
+        )
+        synthetic_mesh.vertex_groups.new(name="Artist_Weight_Group")
+        binding_before = binding_structure_snapshot(synthetic)
+        assert bpy.ops.posecap.bind_character() == {"FINISHED"}
+        assert "_posecap_binding_v1" in synthetic
+        assert capture_readiness.character_ready(settings)
+        assert binding_structure_snapshot(synthetic) == binding_before
+        binding_state = sys.modules["posecap_extension_smoke.posecap_addon.binding_state"]
+        matrix_retarget = sys.modules[
+            "posecap_extension_smoke.posecap_addon.matrix_retarget"
+        ]
+        bound_stream = SingleFrameStream(
+            PoseFrame(SCHEMA_VERSION, 2, 101.0, "ok", payload())
+        )
+        bound_writer = matrix_retarget.MatrixRetargetPoseWriter(
+            bpy, synthetic, binding_state.load_binding(synthetic)
+        )
+        assert settings.target_armature == synthetic
+        bound_timer = posecap_extension.PoseApplyTimer(
+            bound_stream,
+            bound_writer,
+            insert_keyframes=True,
+            interval_seconds=0.25,
+        )
+        assert bound_timer.tick() == 0.25
+        assert synthetic.pose.bones["mixamorig:Hips"].rotation_mode == "QUATERNION"
+        assert synthetic.animation_data is not None
+        bound_timer.stop()
+        assert not any(obj.name.startswith(".PoseCap Intermediary") for obj in bpy.data.objects)
+        assert bpy.ops.posecap.unbind_character() == {"FINISHED"}
+        assert "_posecap_binding_v1" not in synthetic
+        assert not capture_readiness.character_ready(settings)
+        assert synthetic.animation_data is not None and synthetic.animation_data.action is not None
+        assert not any(
+            constraint.name == "PoseCap temporary retarget"
+            for bone in synthetic.pose.bones
+            for constraint in bone.constraints
+        )
+        assert binding_structure_snapshot(synthetic) == binding_before
+
+        ue = synthetic_ue_armature()
+        ue_before = binding_structure_snapshot(ue)
+        character_setup = sys.modules["posecap_extension_smoke.posecap_addon.character_setup"]
+        ue_binding = character_setup.build_pose_binding(ue, ue_preset())
+        ue_stream = SingleFrameStream(PoseFrame(SCHEMA_VERSION, 3, 102.0, "ok", payload()))
+        ue_timer = posecap_extension.PoseApplyTimer(
+            ue_stream,
+            matrix_retarget.MatrixRetargetPoseWriter(bpy, ue, ue_binding),
+            interval_seconds=0.25,
+        )
+        assert ue_timer.tick() == 0.25
+        ue_shoulder = ue.pose.bones[ue_binding.bones["left_shoulder"].target_bone_name]
+        assert ue_shoulder.rotation_mode == "QUATERNION"
+        ue_timer.stop()
+        assert not any(obj.name.startswith(".PoseCap Intermediary") for obj in bpy.data.objects)
+        assert binding_structure_snapshot(ue) == ue_before
+        bpy.data.objects.remove(ue, do_unlink=True)
+        bpy.context.view_layer.objects.active = synthetic
+        synthetic.select_set(True)
+        settings.target_armature = synthetic
+
         assert bpy.ops.posecap.convert_character() == {"FINISHED"}
         assert not bpy.ops.posecap.start_stream.poll()
         converted_elbow = synthetic.pose.bones["left_elbow"]
@@ -535,20 +704,25 @@ _BLENDER_NON_T_POSE_CONVERSION_SCRIPT = textwrap.dedent(
     import sys
     from pathlib import Path
 
-    repo_root = Path(sys.argv[sys.argv.index("--") + 1])
-    for package in ("core", "contracts"):
-        source_root = str(repo_root / package / "src")
-        if source_root not in sys.path:
-            sys.path.insert(0, source_root)
+    extension_root = Path(sys.argv[sys.argv.index("--") + 1])
+    sys.path.insert(0, str(extension_root))
+    for wheel_path in sorted((extension_root / "wheels").glob("*.whl")):
+        sys.path.insert(0, str(wheel_path))
 
     import bpy
     from mathutils import Euler, Matrix, Vector
+    from posecap_core import BoneRotation, PoseApplication, PoseBinding, axis_angle_to_quaternion
 
-    setup_path = repo_root / "addon" / "posecap_addon" / "character_setup.py"
-    spec = importlib.util.spec_from_file_location("posecap_character_setup", setup_path)
-    character_setup = importlib.util.module_from_spec(spec)
-    sys.modules[spec.name] = character_setup
-    spec.loader.exec_module(character_setup)
+    extension_spec = importlib.util.spec_from_file_location(
+        "posecap_extension_non_t",
+        extension_root / "__init__.py",
+        submodule_search_locations=[str(extension_root)],
+    )
+    posecap_extension = importlib.util.module_from_spec(extension_spec)
+    sys.modules[extension_spec.name] = posecap_extension
+    extension_spec.loader.exec_module(posecap_extension)
+    character_setup = sys.modules["posecap_extension_non_t.posecap_addon.character_setup"]
+    matrix_retarget = sys.modules["posecap_extension_non_t.posecap_addon.matrix_retarget"]
 
     PREFIX = "mixamorig:"
     BASE_WORLD = {
@@ -664,6 +838,51 @@ _BLENDER_NON_T_POSE_CONVERSION_SCRIPT = textwrap.dedent(
     rest_direction = (elbow - shoulder).normalized()
     assert rest_direction.dot(Vector((1.0, 0.0, 0.0))) > 0.999, tuple(rest_direction)
 
+    # The same field fixture is now driven through the temporary PoseCap
+    # source. Matrix transfer must reproduce the converter probes while the
+    # target's rest data remains untouched and the source leaves no trace.
+    arm_obj = build_drooped_mixamo_armature(droop_degrees=70.0)
+    rest_before_bind = {
+        bone.name: tuple(tuple(value for value in row) for row in bone.matrix_local)
+        for bone in arm_obj.data.bones
+    }
+    preset = character_setup.detect_skeleton_preset({bone.name for bone in arm_obj.pose.bones})
+    assert preset is not None
+    binding = character_setup.build_pose_binding(arm_obj, preset)
+    writer = matrix_retarget.MatrixRetargetPoseWriter(bpy, arm_obj, binding)
+    shoulder = arm_obj.pose.bones[PREFIX + "LeftArm"]
+    elbow = arm_obj.pose.bones[PREFIX + "LeftForeArm"]
+    arm_length = (elbow.head - shoulder.head).length * arm_obj.matrix_world.to_scale()[0]
+    expected = character_setup.probe_expectations(arm_length)
+    probes = (("raise_z", (0.0, 0.0, math.pi / 2)), ("swing_y", (0.0, math.pi / 2, 0.0)))
+    for label, axis_angle in probes:
+        writer.apply(
+            PoseApplication(clear_bones=frozenset(binding.bones), rotations=()),
+            insert_keyframes=False,
+        )
+        bpy.context.view_layer.update()
+        before = (arm_obj.matrix_world @ elbow.head).copy()
+        writer.apply(
+            PoseApplication(
+                clear_bones=frozenset(binding.bones),
+                rotations=(BoneRotation("left_shoulder", axis_angle_to_quaternion(axis_angle)),),
+            ),
+            insert_keyframes=False,
+        )
+        bpy.context.view_layer.update()
+        delta = (arm_obj.matrix_world @ elbow.head) - before
+        assert max(abs(delta[i] - expected[label][i]) for i in range(3)) <= 1e-4, (
+            label,
+            tuple(delta),
+            expected[label],
+        )
+    writer.close()
+    assert not any(obj.name.startswith(".PoseCap Intermediary") for obj in bpy.data.objects)
+    assert {
+        bone.name: tuple(tuple(value for value in row) for row in bone.matrix_local)
+        for bone in arm_obj.data.bones
+    } == rest_before_bind
+
     # A forced probe failure resets the pose and speaks user language.
     arm_obj = build_drooped_mixamo_armature(droop_degrees=70.0)
     try:
@@ -705,6 +924,82 @@ _BLENDER_NON_T_POSE_CONVERSION_SCRIPT = textwrap.dedent(
     assert result.max_probe_error <= 0.05 * 0.26, result.probe_lines
 
     print("posecap non-t-pose conversion regression ok")
+    """
+).strip()
+
+
+_BLENDER_BIND_RELOAD_SCRIPT = textwrap.dedent(
+    """
+    from __future__ import annotations
+
+    import importlib.util
+    import sys
+    from pathlib import Path
+
+    extension_root = Path(sys.argv[sys.argv.index("--") + 1])
+    sys.path.insert(0, str(extension_root))
+    for wheel_path in sorted((extension_root / "wheels").glob("*.whl")):
+        sys.path.insert(0, str(wheel_path))
+
+    import bpy
+    from mathutils import Vector
+    from posecap_core import mixamo_preset
+
+    extension_spec = importlib.util.spec_from_file_location(
+        "posecap_extension_reload",
+        extension_root / "__init__.py",
+        submodule_search_locations=[str(extension_root)],
+    )
+    posecap_extension = importlib.util.module_from_spec(extension_spec)
+    sys.modules[extension_spec.name] = posecap_extension
+    extension_spec.loader.exec_module(posecap_extension)
+    character_setup = sys.modules["posecap_extension_reload.posecap_addon.character_setup"]
+    binding_state = sys.modules["posecap_extension_reload.posecap_addon.binding_state"]
+    matrix_retarget = sys.modules["posecap_extension_reload.posecap_addon.matrix_retarget"]
+
+    preset = mixamo_preset("mixamorig:", include_hands=True)
+    armature_data = bpy.data.armatures.new("SavedMixamo")
+    armature = bpy.data.objects.new("SavedMixamo", armature_data)
+    bpy.context.collection.objects.link(armature)
+    bpy.context.view_layer.objects.active = armature
+    armature.select_set(True)
+    bpy.ops.object.mode_set(mode="EDIT")
+    positions = {
+        "mixamorig:LeftArm": (0.0, 0.0, 0.0),
+        "mixamorig:LeftForeArm": (10.0, 0.0, 0.0),
+        "mixamorig:LeftHand": (20.0, 0.0, 0.0),
+        "mixamorig:RightArm": (0.0, -2.0, 0.0),
+        "mixamorig:RightForeArm": (-10.0, -2.0, 0.0),
+        "mixamorig:RightHand": (-20.0, -2.0, 0.0),
+    }
+    bones = {}
+    for index, name in enumerate(sorted(preset.mapping.values())):
+        bone = armature_data.edit_bones.new(name)
+        bone.head = Vector(positions.get(name, (float(index), 4.0, 0.0)))
+        bone.tail = bone.head + Vector((0.0, 0.0, 1.0))
+        bones[name] = bone
+    for child, parent in (
+        ("mixamorig:LeftForeArm", "mixamorig:LeftArm"),
+        ("mixamorig:LeftHand", "mixamorig:LeftForeArm"),
+        ("mixamorig:RightForeArm", "mixamorig:RightArm"),
+        ("mixamorig:RightHand", "mixamorig:RightForeArm"),
+    ):
+        bones[child].parent = bones[parent]
+    bpy.ops.object.mode_set(mode="OBJECT")
+
+    binding_state.store_binding(armature, character_setup.build_pose_binding(armature, preset))
+    saved_path = Path(bpy.app.tempdir) / "posecap-bound-reload.blend"
+    assert bpy.ops.wm.save_as_mainfile(filepath=str(saved_path)) == {"FINISHED"}
+    assert bpy.ops.wm.open_mainfile(filepath=str(saved_path)) == {"FINISHED"}
+
+    restored = bpy.data.objects["SavedMixamo"]
+    binding = binding_state.load_binding(restored)
+    assert binding is not None
+    writer = matrix_retarget.MatrixRetargetPoseWriter(bpy, restored, binding)
+    assert writer.is_valid()
+    writer.close()
+    assert not any(obj.name.startswith(".PoseCap Intermediary") for obj in bpy.data.objects)
+    print("posecap binding reload ok")
     """
 ).strip()
 
