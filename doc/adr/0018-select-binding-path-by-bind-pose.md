@@ -1,6 +1,6 @@
 # ADR-0018: Select binding path by bind pose
 
-**Status:** proposed
+**Status:** accepted
 **Date:** 2026-08-22
 **Deciders:** Alê (maintainer)
 
@@ -34,8 +34,7 @@ T-pose re-resting.
   creates any temporary runtime object.
 * The E2E suite must keep one real local T-pose qualification and the
   synthetic non-T regression fixture.
-* ADR-0017's universal-intermediary wording becomes obsolete if this proposal
-  is accepted.
+* ADR-0017's universal-intermediary wording is superseded.
 
 ## Alternatives Considered
 

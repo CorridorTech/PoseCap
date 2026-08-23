@@ -1,6 +1,6 @@
 # ADR-0017: Use a transient native intermediary for non-destructive binding
 
-**Status:** accepted
+**Status:** superseded by ADR-0018
 
 ## Context
 
