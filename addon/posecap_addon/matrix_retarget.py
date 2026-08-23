@@ -10,7 +10,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-from posecap_core import PoseApplication, PoseBinding, SkeletonPreset
+from posecap_core import PoseApplication, PoseBinding, SkeletonPreset, needs_t_pose_re_rest
 
 from .apply_timer import BpyArmaturePoseWriter
 from .character_setup import convert_armature
@@ -64,6 +64,33 @@ class MatrixRetargetPoseWriter:
             self._bpy.data.armatures.remove(data)
 
 
+def requires_matrix_retarget(target: Any, binding: PoseBinding) -> bool:
+    """Whether this bind pose needs the transient chain-aware evaluator.
+
+    A measured T-pose can use the binding's direct rest compensation.  A
+    non-T bind pose still needs Blender to carry connected-bone translation
+    through the converted temporary source.
+    """
+    preset = _source_preset(binding)
+    try:
+        world = target.matrix_world
+        arm_lines = {
+            side: (
+                tuple(world @ target.pose.bones[preset.mapping[f"{side}_shoulder"]].head),
+                tuple(world @ target.pose.bones[preset.mapping[f"{side}_elbow"]].head),
+            )
+            for side in ("left", "right")
+        }
+    except (AttributeError, KeyError, ReferenceError, TypeError):
+        # A stale or incomplete target must retain the prior conservative
+        # runtime path; normal stream validation will report it to the user.
+        return True
+    return needs_t_pose_re_rest(
+        preset,
+        {"l": arm_lines["left"], "r": arm_lines["right"]},
+    )
+
+
 def _create_source(bpy_module: Any, target: Any, binding: PoseBinding) -> Any:
     source_data = target.data.copy()
     source = bpy_module.data.objects.new(".PoseCap Intermediary", source_data)
@@ -115,7 +142,12 @@ def _source_preset(binding: PoseBinding) -> SkeletonPreset:
                 ),
             }.items()
         },
-        already_t_pose=False,
+        # The intermediary has no durable family label, but every source
+        # armature can be measured before conversion.  Treat a T-pose as a
+        # verified condition rather than forcing a second rest-pose rewrite:
+        # this matches the legacy Mixamo path while still re-resting an
+        # A-pose or custom drooped bind pose.
+        already_t_pose=True,
     )
 
 

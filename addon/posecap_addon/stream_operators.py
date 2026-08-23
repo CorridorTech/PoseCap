@@ -15,7 +15,7 @@ from .binding_state import load_binding
 from .capture_readiness import can_start_stream, capture_setup_issue
 from .engine_process import start_engine_stream
 from .instrumentation import ApplyTimeInstrumentation, configure_addon_logging
-from .matrix_retarget import MatrixRetargetPoseWriter
+from .matrix_retarget import MatrixRetargetPoseWriter, requires_matrix_retarget
 from .pear_root import PathExists, resolve_engine_executable, resolve_pear_root
 from .preferences_panel import AddonPreferences, addon_preferences
 from .recording import pause_playback
@@ -108,11 +108,19 @@ def start_live_stream(context: Any, bpy_module: Any) -> set[str]:
         def redraw() -> None:
             tag_view3d_redraw(bpy_module.context)
 
-        writer = (
-            MatrixRetargetPoseWriter(bpy_module, settings.target_armature, binding, redraw=redraw)
-            if binding is not None
-            else LiveTargetArmaturePoseWriter(settings, redraw=redraw)
+        use_matrix_retarget = binding is not None and requires_matrix_retarget(
+            settings.target_armature, binding
         )
+        if use_matrix_retarget:
+            assert binding is not None
+            writer = MatrixRetargetPoseWriter(
+                bpy_module,
+                settings.target_armature,
+                binding,
+                redraw=redraw,
+            )
+        else:
+            writer = LiveTargetArmaturePoseWriter(settings, redraw=redraw)
         timer = PoseApplyTimer(
             lifecycle_stream,
             writer,
@@ -138,7 +146,7 @@ def start_live_stream(context: Any, bpy_module: Any) -> set[str]:
             supported_capabilities=(
                 None if backend_manifest is None else backend_manifest.capabilities
             ),
-            binding=None,
+            binding=None if use_matrix_retarget else binding,
         )
         session = LiveStreamSession(bpy_module, settings, engine, client, timer)
         bpy_module.app.timers.register(session.timer_callback, first_interval=0.0)

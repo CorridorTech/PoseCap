@@ -78,6 +78,25 @@ def test_blender_conversion_re_rests_a_non_t_pose_custom_mixamo_character(
     assert "posecap non-t-pose conversion regression ok" in completed.stdout
 
 
+def test_blender_bound_external_fbx_matches_the_legacy_visual_result(tmp_path: Path) -> None:
+    """Qualify a maintainer-supplied FBX without making it a repository fixture."""
+    if not os.environ.get("POSECAP_E2E_FBX"):
+        pytest.skip("set POSECAP_E2E_FBX to qualify a local FBX through the binding")
+    blender = _blender_executable()
+    if blender is None:
+        pytest.skip("set POSECAP_BLENDER or put blender on PATH to run e2e smoke")
+
+    completed = _run_blender_script(
+        blender,
+        tmp_path,
+        script_source=_BLENDER_EXTERNAL_BINDING_QUALIFICATION_SCRIPT,
+        script_name="posecap_blender_external_binding.py",
+    )
+
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    assert "posecap external binding qualification ok" in completed.stdout
+
+
 def test_blender_bound_character_restores_after_saving_and_reopening(tmp_path: Path) -> None:
     blender = _blender_executable()
     if blender is None:
@@ -849,6 +868,7 @@ _BLENDER_NON_T_POSE_CONVERSION_SCRIPT = textwrap.dedent(
     preset = character_setup.detect_skeleton_preset({bone.name for bone in arm_obj.pose.bones})
     assert preset is not None
     binding = character_setup.build_pose_binding(arm_obj, preset)
+    assert matrix_retarget.requires_matrix_retarget(arm_obj, binding)
     writer = matrix_retarget.MatrixRetargetPoseWriter(bpy, arm_obj, binding)
     shoulder = arm_obj.pose.bones[PREFIX + "LeftArm"]
     elbow = arm_obj.pose.bones[PREFIX + "LeftForeArm"]
@@ -924,6 +944,110 @@ _BLENDER_NON_T_POSE_CONVERSION_SCRIPT = textwrap.dedent(
     assert result.max_probe_error <= 0.05 * 0.26, result.probe_lines
 
     print("posecap non-t-pose conversion regression ok")
+    """
+).strip()
+
+
+_BLENDER_EXTERNAL_BINDING_QUALIFICATION_SCRIPT = textwrap.dedent(
+    """
+    from __future__ import annotations
+
+    import importlib.util
+    import math
+    import os
+    import sys
+    from pathlib import Path
+
+    extension_root = Path(sys.argv[sys.argv.index("--") + 1])
+    sys.path.insert(0, str(extension_root))
+    for wheel_path in sorted((extension_root / "wheels").glob("*.whl")):
+        sys.path.insert(0, str(wheel_path))
+
+    import bpy
+    from posecap_core import BoneRotation, PoseApplication, apply_binding, axis_angle_to_quaternion
+
+    extension_spec = importlib.util.spec_from_file_location(
+        "posecap_extension_external_fixture",
+        extension_root / "__init__.py",
+        submodule_search_locations=[str(extension_root)],
+    )
+    posecap_extension = importlib.util.module_from_spec(extension_spec)
+    sys.modules[extension_spec.name] = posecap_extension
+    extension_spec.loader.exec_module(posecap_extension)
+    character_setup = sys.modules[
+        "posecap_extension_external_fixture.posecap_addon.character_setup"
+    ]
+    matrix_retarget = sys.modules[
+        "posecap_extension_external_fixture.posecap_addon.matrix_retarget"
+    ]
+
+    fbx_path = Path(os.environ["POSECAP_E2E_FBX"])
+    assert fbx_path.is_file(), fbx_path
+
+    def import_character():
+        before = set(bpy.data.objects)
+        assert bpy.ops.import_scene.fbx(filepath=str(fbx_path)) == {"FINISHED"}
+        bpy.context.view_layer.update()
+        armatures = [
+            obj for obj in bpy.data.objects if obj not in before and obj.type == "ARMATURE"
+        ]
+        assert len(armatures) == 1, [obj.name for obj in armatures]
+        meshes = [obj for obj in bpy.data.objects if obj not in before and obj.type == "MESH"]
+        return armatures[0], meshes
+
+    def evaluated_vertices(meshes):
+        depsgraph = bpy.context.evaluated_depsgraph_get()
+        snapshots = []
+        for mesh_obj in meshes:
+            evaluated = mesh_obj.evaluated_get(depsgraph)
+            mesh = evaluated.to_mesh()
+            try:
+                snapshots.append(
+                    tuple(
+                        tuple(round(value, 6) for value in evaluated.matrix_world @ vertex.co)
+                        for vertex in mesh.vertices
+                    )
+                )
+            finally:
+                evaluated.to_mesh_clear()
+        return tuple(sorted(snapshots, key=len))
+
+    def maximum_vertex_delta(left, right):
+        return max(
+            abs(left_value - right_value)
+            for left_mesh, right_mesh in zip(left, right, strict=True)
+            for left_vertex, right_vertex in zip(left_mesh, right_mesh, strict=True)
+            for left_value, right_value in zip(left_vertex, right_vertex, strict=True)
+        )
+
+    bound, bound_meshes = import_character()
+    converted, converted_meshes = import_character()
+    bound_preset = character_setup.detect_skeleton_preset({bone.name for bone in bound.pose.bones})
+    converted_preset = character_setup.detect_skeleton_preset(
+        {bone.name for bone in converted.pose.bones}
+    )
+    assert bound_preset is not None and converted_preset is not None
+    binding = character_setup.build_pose_binding(bound, bound_preset)
+    assert not matrix_retarget.requires_matrix_retarget(bound, binding)
+    character_setup.convert_armature(bpy, converted, converted_preset)
+    direct_writer = posecap_extension.BpyArmaturePoseWriter(converted)
+    plan = PoseApplication(
+        clear_bones=frozenset(binding.bones),
+        rotations=tuple(
+            BoneRotation(name, axis_angle_to_quaternion((0.15 + index * 0.02, 0.1, -0.2)))
+            for index, name in enumerate(binding.bones)
+        ),
+    )
+    direct_writer.apply(plan, insert_keyframes=False)
+    bpy.context.view_layer.update()
+    direct_vertices = evaluated_vertices(converted_meshes)
+    posecap_extension.BpyArmaturePoseWriter(bound).apply(
+        apply_binding(plan, binding), insert_keyframes=False
+    )
+    bpy.context.view_layer.update()
+    assert maximum_vertex_delta(evaluated_vertices(bound_meshes), direct_vertices) <= 1e-5
+    print("posecap external binding qualification ok")
+    print("posecap external binding qualification ok")
     """
 ).strip()
 

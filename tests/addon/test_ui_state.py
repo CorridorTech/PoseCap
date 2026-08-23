@@ -1631,8 +1631,8 @@ def test_start_stream_configures_apply_time_instrumentation(monkeypatch, tmp_pat
         unregister_blender_ui(bpy)
 
 
-def test_start_stream_restores_the_target_binding_into_the_apply_timer(monkeypatch) -> None:
-    """A saved non-destructive bind must reach both preview and recording."""
+def test_start_stream_routes_a_t_pose_binding_to_the_apply_timer(monkeypatch) -> None:
+    """A T-pose bind uses direct compensation for preview and recording."""
     captured: list[dict[str, object]] = []
     created_bindings: list[object] = []
     binding = object()
@@ -1686,6 +1686,11 @@ def test_start_stream_restores_the_target_binding_into_the_apply_timer(monkeypat
         "load_binding",
         lambda target: binding if target is settings.target_armature else None,
     )
+    monkeypatch.setattr(
+        posecap_addon.stream_operators,
+        "requires_matrix_retarget",
+        lambda _target, _binding: False,
+    )
 
     try:
         start_cls = bpy.utils.registered_class("POSECAP_OT_StartStream")
@@ -1693,8 +1698,8 @@ def test_start_stream_restores_the_target_binding_into_the_apply_timer(monkeypat
     finally:
         unregister_blender_ui(bpy)
 
-    assert created_bindings == [binding]
-    assert captured[0]["binding"] is None
+    assert created_bindings == []
+    assert captured[0]["binding"] is binding
 
 
 def test_start_failure_after_bound_writer_creation_closes_the_intermediary(monkeypatch) -> None:
@@ -1723,6 +1728,11 @@ def test_start_failure_after_bound_writer_creation_closes_the_intermediary(monke
         lambda host, port, **_kwargs: _FakeClient(host, port),
     )
     monkeypatch.setattr(posecap_addon.stream_operators, "load_binding", lambda _target: object())
+    monkeypatch.setattr(
+        posecap_addon.stream_operators,
+        "requires_matrix_retarget",
+        lambda _target, _binding: True,
+    )
     monkeypatch.setattr(
         posecap_addon.stream_operators, "MatrixRetargetPoseWriter", _ClosingMatrixWriter
     )

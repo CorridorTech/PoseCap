@@ -286,6 +286,21 @@ The acceptance work is complete. This task stays `in-progress` only because a
 release is an external publication action that requires maintainer approval;
 no release, branch push, or message to Dean was sent.
 
+### 2026-08-22 — T-pose binding regression correction
+
+A real local Mixamo Y Bot qualification disproved the universal intermediary
+runtime claim: copying its normalized source transforms back onto the
+untouched original rig produced a visibly broken mesh. The same FBX, driven
+through the existing direct `PoseBinding` compensation, matched the legacy
+converted result vertex-for-vertex within `1e-5`.
+
+Capture now chooses the direct compensated writer when the bound shoulders
+measure as a T-pose. A non-T bind continues through the temporary source,
+because the task-0033 probe proves that its connected-bone translation cannot
+be represented by independent target-local rotations. The Blender E2E suite
+checks both choices: the local Y Bot against the legacy output and the
+70-degree non-T Mixamo fixture through the intermediary.
+
 ## Definition of Done
 
 All Acceptance Criteria checked, plus:
