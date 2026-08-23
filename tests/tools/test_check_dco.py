@@ -96,6 +96,69 @@ def test_sign_off_must_match_commit_author(tmp_path: Path) -> None:
     ) in completed.stderr
 
 
+def test_official_dependabot_sign_off_is_accepted(tmp_path: Path) -> None:
+    repository, tracked_file, base = _repository_with_base(tmp_path)
+
+    tracked_file.write_text("dependabot update\n", encoding="utf-8")
+    _git(
+        repository,
+        "-c",
+        "user.name=GitHub",
+        "-c",
+        "user.email=noreply@github.com",
+        "commit",
+        "-am",
+        "ci: update action",
+        "--author",
+        "dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>",
+        "-m",
+        "Signed-off-by: dependabot[bot] <support@github.com>",
+    )
+
+    completed = subprocess.run(
+        [sys.executable, str(CHECK_DCO), base, "HEAD"],
+        cwd=repository,
+        env=_isolated_git_environment(),
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+
+
+def test_dependabot_support_sign_off_rejects_an_impersonator(tmp_path: Path) -> None:
+    repository, tracked_file, base = _repository_with_base(tmp_path)
+
+    tracked_file.write_text("impersonated dependabot update\n", encoding="utf-8")
+    _git(
+        repository,
+        "-c",
+        "user.name=GitHub",
+        "-c",
+        "user.email=noreply@github.com",
+        "commit",
+        "-am",
+        "ci: impersonate dependabot",
+        "--author",
+        "dependabot[bot] <attacker@example.com>",
+        "-m",
+        "Signed-off-by: dependabot[bot] <support@github.com>",
+    )
+
+    completed = subprocess.run(
+        [sys.executable, str(CHECK_DCO), base, "HEAD"],
+        cwd=repository,
+        env=_isolated_git_environment(),
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode == 1
+    assert "Signed-off-by must match dependabot[bot] <attacker@example.com>" in completed.stderr
+
+
 def test_sign_off_name_and_email_must_belong_to_same_identity(tmp_path: Path) -> None:
     repository, tracked_file, base = _repository_with_base(tmp_path)
 
