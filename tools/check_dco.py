@@ -10,6 +10,11 @@ SIGN_OFF = re.compile(
     r"^Signed-off-by:\s+(?P<name>.+)\s+<(?P<email>[^>]+)>\s*$",
     re.IGNORECASE | re.MULTILINE,
 )
+OFFICIAL_DEPENDABOT_AUTHOR = (
+    "dependabot[bot]",
+    "49699333+dependabot[bot]@users.noreply.github.com",
+)
+OFFICIAL_DEPENDABOT_SIGN_OFF = ("dependabot[bot]", "support@github.com")
 
 
 def _git(*arguments: str) -> str:
@@ -20,6 +25,23 @@ def _git(*arguments: str) -> str:
         text=True,
     )
     return completed.stdout
+
+
+def _has_valid_sign_off(
+    sign_offs: list[re.Match[str]], valid_identities: set[tuple[str, str]]
+) -> bool:
+    signed_identities = {
+        (match.group("name").casefold(), match.group("email").casefold()) for match in sign_offs
+    }
+    if signed_identities & valid_identities:
+        return True
+
+    # GitHub's Dependabot signs commits with its support address rather than
+    # the noreply address recorded as the commit author.
+    return (
+        OFFICIAL_DEPENDABOT_AUTHOR in valid_identities
+        and OFFICIAL_DEPENDABOT_SIGN_OFF in signed_identities
+    )
 
 
 def main(arguments: list[str] | None = None) -> int:
@@ -50,10 +72,7 @@ def main(arguments: list[str] | None = None) -> int:
             (author_name.casefold(), author_email.casefold()),
             (committer_name.casefold(), committer_email.casefold()),
         }
-        if not any(
-            (match.group("name").casefold(), match.group("email").casefold()) in valid_identities
-            for match in sign_offs
-        ):
+        if not _has_valid_sign_off(sign_offs, valid_identities):
             errors.append(f"{commit}: Signed-off-by must match {author_name} <{author_email}>")
 
     for error in errors:
