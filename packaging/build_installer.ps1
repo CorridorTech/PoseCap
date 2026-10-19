@@ -92,6 +92,8 @@ foreach ($bootstrapScript in @(
     'install_base.ps1',
     'install_mediapipe.ps1',
     'install_pear.ps1',
+    'pear_runtime.ps1',
+    'switch_pear_runtime.ps1',
     'uninstall_base.ps1'
 )) {
     Copy-Item `
@@ -151,7 +153,7 @@ Downloaded or bundled by the PoseCap installer, each under its own license:
 - PEAR model weights (Hugging Face BestWJH/PEAR_models, pinned revision) -- Apache-2.0.
 - MediaPipe 0.10.35 and Holistic Landmarker task bundle -- Apache-2.0.
 - PyTorch3D 0.7.9 (facebookresearch/pytorch3d, repacked build) -- BSD-3-Clause.
-- PyTorch / Torchvision cu128 wheels -- BSD-style, see pytorch.org.
+- PyTorch / Torchvision cu128 wheels (cu124 when the opt-in RTX 20/30/40 runtime is selected) -- BSD-style, see pytorch.org.
 - YOLOv8x weights via Ultralytics -- AGPL-3.0 (weights fetched at install time).
 - uv (Astral) -- MIT/Apache-2.0.
 - CPython 3.11 (python-build-standalone) -- PSF license.

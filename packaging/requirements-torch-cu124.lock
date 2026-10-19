@@ -1,0 +1,5 @@
+# Opt-in pre-Blackwell PEAR runtime (ADR-0019): the ADR-0007 matrix that
+# sustained ~30 NET FPS on an RTX 3080. Pairs with the PyTorch3D wheel pinned
+# in pytorch3d-cu124.lock.json; never install one without the other.
+torch==2.4.1+cu124
+torchvision==0.19.1+cu124

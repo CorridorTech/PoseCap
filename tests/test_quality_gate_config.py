@@ -290,3 +290,21 @@ def test_release_notice_discloses_every_gpu_support_change() -> None:
     )
     missing = [phrase for phrase in required if phrase not in workflow]
     assert not missing, f"release notice lost required GPU disclosure: {missing}"
+
+
+def test_release_notice_names_the_shortcuts_the_installer_creates() -> None:
+    """ADR-0019: the notice tells RTX 30/40 owners how to recover throughput.
+
+    It names Start menu entries by their exact labels; a renamed shortcut would
+    leave users hunting for an entry that does not exist.
+    """
+    workflow = (REPO_ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
+    template = (REPO_ROOT / "packaging" / "installer" / "posecap.iss.template").read_text(
+        encoding="utf-8"
+    )
+    for label in (
+        "PEAR runtime - RTX 30-40 speed (CUDA 12.4)",
+        "PEAR runtime - default, RTX 50 (CUDA 12.8)",
+    ):
+        assert label in workflow
+        assert f"{{userprograms}}\\PoseCap\\{label}" in template

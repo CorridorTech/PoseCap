@@ -7,6 +7,7 @@ token the renderer replaces. A drifted pin here means a clean machine installs
 something no workstation ever validated.
 """
 
+import json
 import re
 import tomllib
 from pathlib import Path
@@ -106,6 +107,28 @@ def test_runtime_setup_toolkit_default_matches_the_wheel_cuda_tag() -> None:
     toolkit = re.search(r"CUDA\\v(\d+)\.(\d+)", setup)
     assert toolkit is not None
     assert f"{toolkit.group(1)}{toolkit.group(2)}" == cuda_tag
+
+
+def test_opt_in_cu124_runtime_pins_agree_everywhere() -> None:
+    # ADR-0019: the cu124 lock, the PyTorch3D wheel pin, the installer's index
+    # URL, and the runtime setup script's 12.4 option must name one matrix --
+    # a PyTorch3D build only loads under the torch it was compiled against.
+    lock = _read("requirements-torch-cu124.lock")
+    torch = re.search(r"^torch==(\d+\.\d+\.\d+\+cu124)$", lock, re.MULTILINE)
+    torchvision = re.search(r"^torchvision==(\d+\.\d+\.\d+)\+cu124$", lock, re.MULTILINE)
+    assert torch is not None and torchvision is not None
+    pytorch3d = json.loads(_read("pytorch3d-cu124.lock.json"))
+    assert pytorch3d["torch"] == torch.group(1)
+    assert re.fullmatch(r"[0-9a-f]{64}", pytorch3d["sha256"])
+    assert re.fullmatch(r"[0-9a-f]{64}", pytorch3d["source_archive"]["sha256"])
+    assert pytorch3d["source_archive"]["url"].startswith("https://")
+    runtime = _read("installer/pear_runtime.ps1")
+    assert '$PearLegacyIndexUrl = "https://download.pytorch.org/whl/cu124"' in runtime
+    torch_version = torch.group(1).split("+")[0]
+    assert (
+        f'"12.4" = @("torch=={torch_version}", "torchvision=={torchvision.group(1)}")'
+        in _read_runtime_setup()
+    )
 
 
 def test_pear_install_labels_carry_no_cuda_version_literal() -> None:

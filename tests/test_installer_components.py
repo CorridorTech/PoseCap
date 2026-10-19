@@ -681,6 +681,76 @@ def test_payload_packer_rejects_forbidden_binary_hidden_inside_wheel(tmp_path: P
     assert "forbidden binary inside wheel d.whl: assets/SMPLX_NEUTRAL.pkl" in result.stderr
 
 
+def _stage_payload_fixture(source: Path, extra: dict[str, bytes]) -> dict[str, bytes]:
+    files = {
+        "bin/uv.exe": b"uv",
+        "wheels/posecap-contracts.whl": b"contracts",
+        "wheels/posecap-core.whl": b"core",
+        "wheels/posecap-engine.whl": b"engine",
+        "wheels/pytorch3d.whl": b"pytorch3d",
+        "requirements-torch.lock": b"torch==fixture",
+        "requirements-pypi.lock": b"numpy==fixture",
+        **extra,
+    }
+    for relative_path, content in files.items():
+        path = source / relative_path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        if path.suffix == ".whl":
+            with zipfile.ZipFile(path, "w") as wheel:
+                wheel.writestr(f"fixture/{content.decode()}.py", content)
+        else:
+            path.write_bytes(content)
+    return files
+
+
+def test_payload_packer_carries_the_opt_in_cu124_runtime(tmp_path: Path) -> None:
+    files = _stage_payload_fixture(
+        tmp_path / "source",
+        {
+            "requirements-torch-cu124.lock": b"torch==legacy",
+            "wheels/cu124/pytorch3d-legacy.whl": b"legacy",
+        },
+    )
+
+    result = _run_payload_packer(tmp_path / "source", tmp_path / "dist")
+
+    assert result.returncode == 0, result.stderr
+    with zipfile.ZipFile(tmp_path / "dist" / "posecap-pear-bootstrap-1.2.3-win.4.zip") as payload:
+        assert set(payload.namelist()) == set(files)
+
+
+@pytest.mark.parametrize(
+    "extra",
+    [
+        {"requirements-torch-cu124.lock": b"torch==legacy"},
+        {"wheels/cu124/pytorch3d-legacy.whl": b"legacy"},
+    ],
+)
+def test_payload_packer_rejects_half_of_the_cu124_runtime(
+    tmp_path: Path, extra: dict[str, bytes]
+) -> None:
+    _stage_payload_fixture(tmp_path / "source", extra)
+
+    result = _run_payload_packer(tmp_path / "source", tmp_path / "dist")
+
+    assert result.returncode != 0
+    assert "must be staged together" in result.stderr
+
+
+def test_payload_packer_scans_cu124_wheels_for_forbidden_binaries(tmp_path: Path) -> None:
+    source = tmp_path / "source"
+    _stage_payload_fixture(source, {"requirements-torch-cu124.lock": b"torch==legacy"})
+    legacy_wheel = source / "wheels" / "cu124" / "pytorch3d-legacy.whl"
+    legacy_wheel.parent.mkdir(parents=True)
+    with zipfile.ZipFile(legacy_wheel, "w") as wheel:
+        wheel.writestr("assets/SMPLX_NEUTRAL.npz", b"licensed fixture")
+
+    result = _run_payload_packer(source, tmp_path / "dist")
+
+    assert result.returncode != 0
+    assert "forbidden binary inside wheel pytorch3d-legacy.whl" in result.stderr
+
+
 def test_rendered_inno_template_compiles_when_iscc_is_available(tmp_path: Path) -> None:
     iscc = _iscc_path()
     if iscc is None:
@@ -764,6 +834,8 @@ def test_build_stages_every_modular_handler() -> None:
         "install_base.ps1",
         "install_mediapipe.ps1",
         "install_pear.ps1",
+        "pear_runtime.ps1",
+        "switch_pear_runtime.ps1",
         "uninstall_base.ps1",
     ):
         assert f"'{script}'" in build
@@ -1268,7 +1340,9 @@ def test_legacy_monolithic_layout_is_adopted_without_duplicate_environment(
         "bin",
         "wheels",
         "requirements-torch.lock",
+        "requirements-torch-cu124.lock",
         "requirements-pypi.lock",
+        "pear_runtime.json",
         "payloads/pear",
         "python",
         "runtime",

@@ -10,6 +10,7 @@ $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
 Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot "native_command.ps1")
+. (Join-Path $PSScriptRoot "pear_runtime.ps1")
 
 $Uv = Join-Path $InstallDir "bin\uv.exe"
 $Wheels = Join-Path $InstallDir "wheels"
@@ -94,6 +95,25 @@ Invoke-PearStep -Label "Check NVIDIA driver (nvidia-smi)" `
         $smiOutput | Select-Object -First 12 | Out-Host
     }
 
+$RuntimeSpec = $null
+Invoke-PearStep -Label "Select PEAR runtime" `
+    -Fix "Delete '$(Get-PearRuntimePreferencePath -InstallDir $InstallDir)' to return to the default runtime, then re-run setup." `
+    -Action {
+        $runtime = Get-PearRuntimeSelection -InstallDir $InstallDir
+        if ($runtime -eq $PearLegacyRuntime) {
+            $blocking = @(Get-PearLegacyBlockingGpus -SmiOutput (Read-NvidiaGpuCapabilities))
+            if ($blocking.Count -gt 0) {
+                Write-Warning ("The $PearLegacyRuntime runtime cannot drive $($blocking -join '; ') " +
+                    "(RTX 50-series needs $PearDefaultRuntime). Installing the default runtime instead.")
+                Set-PearRuntimeSelection -InstallDir $InstallDir -Runtime $PearDefaultRuntime
+                $runtime = $PearDefaultRuntime
+            }
+        }
+        $script:RuntimeSpec = Get-PearRuntimeSpec -InstallDir $InstallDir -Runtime $runtime `
+            -DefaultIndexUrl $Manifest.torchIndexUrl
+        Write-Host "    runtime: $($script:RuntimeSpec.Runtime)"
+    }
+
 Invoke-PearStep -Label "Install Python 3.11 runtime (app-local, via uv)" `
     -Fix "Check your internet connection and re-run setup. Corporate proxies: set HTTPS_PROXY first." `
     -Action { Invoke-Uv @("python", "install", "--no-bin", "--no-registry", "3.11") }
@@ -112,8 +132,8 @@ Invoke-PearStep -Label "Install PyTorch CUDA wheels (~2.5 GB download)" `
     -Action {
         Invoke-Uv @(
             "pip", "install", "--python", $VenvPython,
-            "--index-url", $Manifest.torchIndexUrl,
-            "-r", (Join-Path $InstallDir "requirements-torch.lock")
+            "--index-url", $RuntimeSpec.IndexUrl,
+            "-r", $RuntimeSpec.LockPath
         )
     }
 
@@ -132,6 +152,10 @@ Invoke-PearStep -Label "Install bundled wheels (PoseCap engine + PyTorch3D)" `
         $bundled = @(Get-ChildItem -Path $Wheels -Filter *.whl | ForEach-Object { $_.FullName })
         if ($bundled.Count -lt 4) {
             throw "expected at least 4 bundled wheels in $Wheels, found $($bundled.Count)"
+        }
+        if ($null -ne $RuntimeSpec.Pytorch3dWheel) {
+            $bundled = @($bundled | Where-Object { (Split-Path -Leaf $_) -notlike "pytorch3d-*.whl" }) +
+                $RuntimeSpec.Pytorch3dWheel
         }
         Invoke-Uv (@("pip", "install", "--python", $VenvPython) + $bundled)
     }
