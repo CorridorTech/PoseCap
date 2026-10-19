@@ -49,7 +49,7 @@ Blender animators who want believable body animation without mocap suits, marker
 |---|---|
 | OS | Windows 10 / 11 |
 | MediaPipe Lite | CPU-first body capture. No GPU required |
-| PEAR | NVIDIA/CUDA, driver R570 or newer; qualified on an RTX 3080. RTX 50-series (Blackwell) supported since v1.0.7; GTX 10-series (Pascal) and older are not |
+| PEAR | NVIDIA/CUDA, driver R570 or newer; qualified on an RTX 3080. RTX 50-series (Blackwell) supported since v1.0.7; GTX 10-series (Pascal) and older are not. RTX 30/40 owners can opt into a faster CUDA 12.4 runtime from the Start menu |
 | Blender | 4.2 LTS minimum, 5.x supported |
 | Python | 3.11 (Blender bundled for the extension; uv-managed venv for the engine bridge) |
 | Camera | Any webcam, including virtual cameras (e.g. Iriun) |

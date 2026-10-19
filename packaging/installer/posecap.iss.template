@@ -66,6 +66,8 @@ Source: "@@MEDIAPIPE_MODEL_URL@@"; DestDir: "{app}\backends\mediapipe\models"; D
 [Icons]
 Name: "{userprograms}\PoseCap\PoseCap Setup (repair)"; Filename: "powershell.exe"; Parameters: "-ExecutionPolicy Bypass -File ""{app}\bootstrap\bootstrap_install.ps1"""; WorkingDir: "{app}"
 Name: "{userprograms}\PoseCap\PoseCap Doctor (PEAR)"; Filename: "powershell.exe"; Parameters: "-ExecutionPolicy Bypass -NoExit -Command ""& '{app}\runtime\venv\Scripts\python.exe' -m posecap_engine.cli doctor --pear-root '{app}\pear'"""; WorkingDir: "{app}"; Components: pear
+Name: "{userprograms}\PoseCap\PEAR runtime - RTX 30-40 speed (CUDA 12.4)"; Filename: "powershell.exe"; Parameters: "-ExecutionPolicy Bypass -NoExit -File ""{app}\bootstrap\switch_pear_runtime.ps1"" -Runtime cu124"; WorkingDir: "{app}"; Components: pear
+Name: "{userprograms}\PoseCap\PEAR runtime - default, RTX 50 (CUDA 12.8)"; Filename: "powershell.exe"; Parameters: "-ExecutionPolicy Bypass -NoExit -File ""{app}\bootstrap\switch_pear_runtime.ps1"" -Runtime cu128"; WorkingDir: "{app}"; Components: pear
 Name: "{userprograms}\PoseCap\PoseCap Doctor (MediaPipe)"; Filename: "powershell.exe"; Parameters: "-ExecutionPolicy Bypass -NoExit -Command ""& '{app}\backends\mediapipe\runtime\Scripts\posecap-mediapipe.exe' doctor --model-path '{app}\backends\mediapipe\models\holistic_landmarker.task'"""; WorkingDir: "{app}"; Components: mediapipe
 
 [Code]
@@ -254,6 +256,7 @@ end;
 [UninstallDelete]
 Type: files; Name: "{app}\blender_override.txt"
 Type: files; Name: "{app}\installed_components.json"
+Type: files; Name: "{app}\pear_runtime.json"
 Type: filesandordirs; Name: "{app}\python"
 Type: filesandordirs; Name: "{app}\runtime"
 Type: filesandordirs; Name: "{app}\backends"

@@ -11,6 +11,8 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 _FORBIDDEN_BINARY_EXTENSIONS = {".npz", ".pkl", ".pt", ".ckpt", ".onnx", ".engine"}
+# Optional opt-in pre-Blackwell runtime (ADR-0019); Windows payloads carry it.
+_CU124_LOCK = "requirements-torch-cu124.lock"
 
 
 def _arguments() -> argparse.Namespace:
@@ -55,22 +57,14 @@ def build_payload(arguments: argparse.Namespace) -> None:
     wheels = tuple((source / "wheels").glob("*.whl"))
     if len(wheels) < 4:
         raise ValueError("PEAR payload requires at least four wheels")
-    for wheel_path in wheels:
+    for wheel_path in wheels + _cu124_wheels(source):
         with zipfile.ZipFile(wheel_path) as wheel:
             for member in wheel.infolist():
                 if Path(member.filename).suffix.lower() in _FORBIDDEN_BINARY_EXTENSIONS:
                     raise ValueError(
                         f"forbidden binary inside wheel {wheel_path.name}: {member.filename}"
                     )
-    files = sorted(path for path in source.rglob("*") if path.is_file())
-    required = set(required_paths)
-    for path in files:
-        relative_path = path.relative_to(source).as_posix()
-        if relative_path in required:
-            continue
-        if path.parent == source / "wheels" and path.suffix == ".whl":
-            continue
-        raise ValueError(f"unexpected PEAR payload path: {relative_path}")
+    files = _allowed_payload_files(source, set(required_paths))
     filename = f"posecap-pear-bootstrap-{arguments.version}.zip"
     arguments.output_dir.mkdir(parents=True, exist_ok=True)
     archive_path = arguments.output_dir / filename
@@ -98,6 +92,28 @@ def build_payload(arguments: argparse.Namespace) -> None:
     }
     manifest_path = arguments.output_dir / f"posecap-pear-bootstrap-{arguments.version}.json"
     manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+
+
+def _allowed_payload_files(source: Path, required: set[str]) -> list[Path]:
+    """Every staged file, refusing anything outside the payload allowlist."""
+    files = sorted(path for path in source.rglob("*") if path.is_file())
+    cu124_wheels = _cu124_wheels(source)
+    for path in files:
+        relative_path = path.relative_to(source).as_posix()
+        if relative_path in required:
+            continue
+        if path.parent == source / "wheels" and path.suffix == ".whl":
+            continue
+        if relative_path == _CU124_LOCK or path in cu124_wheels:
+            continue
+        raise ValueError(f"unexpected PEAR payload path: {relative_path}")
+    if (source / _CU124_LOCK).is_file() != bool(cu124_wheels):
+        raise ValueError(f"{_CU124_LOCK} and wheels/cu124/*.whl must be staged together (ADR-0019)")
+    return files
+
+
+def _cu124_wheels(source: Path) -> tuple[Path, ...]:
+    return tuple((source / "wheels" / "cu124").glob("*.whl"))
 
 
 def _uv_relative_path(source: Path) -> str:

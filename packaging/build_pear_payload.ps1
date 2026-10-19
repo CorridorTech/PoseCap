@@ -86,6 +86,41 @@ Remove-Item `
     -Force -LiteralPath (Join-Path $resolvedStaging 'wheels\.gitignore') `
     -ErrorAction SilentlyContinue
 
+# Opt-in pre-Blackwell runtime (ADR-0019): the cu124 matrix is frozen, so its
+# PyTorch3D wheel is the field-proven v1.0.6-win.4 build, re-verified by hash
+# on every payload build instead of being recompiled.
+$cu124Lock = Get-Content (Join-Path $ScriptRoot 'pytorch3d-cu124.lock.json') -Raw -Encoding UTF8 |
+    ConvertFrom-Json
+$cu124Download = Join-Path $resolvedWorkRoot 'pytorch3d-cu124-source.zip'
+$haveVerifiedDownload = (Test-Path -LiteralPath $cu124Download -PathType Leaf) -and
+    (Get-FileHash -Algorithm SHA256 -LiteralPath $cu124Download).Hash -eq $cu124Lock.source_archive.sha256
+if (-not $haveVerifiedDownload) {
+    Write-Host "==> download cu124 PyTorch3D source archive"
+    Invoke-WebRequest -Uri $cu124Lock.source_archive.url -OutFile $cu124Download
+    $downloadHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $cu124Download).Hash
+    if ($downloadHash -ne $cu124Lock.source_archive.sha256) {
+        throw "cu124 PyTorch3D source archive hash mismatch: $downloadHash"
+    }
+}
+$cu124WheelDir = Join-Path $resolvedStaging 'wheels\cu124'
+New-Item -ItemType Directory -Force -Path $cu124WheelDir | Out-Null
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+$cu124Archive = [System.IO.Compression.ZipFile]::OpenRead($cu124Download)
+try {
+    $entry = $cu124Archive.GetEntry([string]$cu124Lock.member)
+    if ($null -eq $entry) { throw "cu124 source archive has no member $($cu124Lock.member)" }
+    $cu124Wheel = Join-Path $cu124WheelDir $entry.Name
+    [System.IO.Compression.ZipFileExtensions]::ExtractToFile($entry, $cu124Wheel, $true)
+}
+finally { $cu124Archive.Dispose() }
+$wheelHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $cu124Wheel).Hash
+if ($wheelHash -ne $cu124Lock.sha256) {
+    throw "cu124 PyTorch3D wheel hash mismatch: $wheelHash"
+}
+Copy-Item `
+    (Join-Path $ScriptRoot 'requirements-torch-cu124.lock') `
+    (Join-Path $resolvedStaging 'requirements-torch-cu124.lock')
+
 Copy-Item `
     (Join-Path $ScriptRoot 'requirements-torch.lock') `
     (Join-Path $resolvedStaging 'requirements-torch.lock')

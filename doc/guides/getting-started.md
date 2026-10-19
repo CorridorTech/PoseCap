@@ -35,7 +35,7 @@ free licensing sign-up; everything else is one click or fully automatic.</sub>
 |---|---|
 | **OS** | Windows 10 or 11 |
 | **MediaPipe Lite** | CPU-first body capture; no GPU or model-provider account required |
-| **PEAR** | NVIDIA/CUDA, driver R570 or newer; qualified on an RTX 3080. RTX 50-series (Blackwell) supported since v1.0.7; GTX 10-series (Pascal) and older are not |
+| **PEAR** | NVIDIA/CUDA, driver R570 or newer; qualified on an RTX 3080. RTX 50-series (Blackwell) supported since v1.0.7; GTX 10-series (Pascal) and older are not. RTX 30/40 owners can opt into a faster runtime ([see below](#faster-pear-on-rtx-3040-cards)) |
 | **Blender** | 4.2 LTS or newer (5.x supported) — install it first from [blender.org](https://www.blender.org/download/) |
 | **Camera** | Any webcam, or a video file to test with |
 
@@ -213,3 +213,15 @@ now have a character you can drive from any webcam.
 
 Any time you want to confirm your setup is healthy, run the Doctor for your selected
 backend from **Start Menu → PoseCap**. Every check for that backend should be green.
+
+### Faster PEAR on RTX 30/40 cards
+
+PEAR installs a CUDA 12.8 runtime by default, because RTX 50-series cards need it.
+On RTX 30/40 cards that runtime is slower: live capture on an RTX 3080 measured
+about a third slower than on the older CUDA 12.4 runtime. To get the faster runtime back without installing an older PoseCap,
+close Blender and run **Start Menu → PoseCap → PEAR runtime - RTX 30-40 speed
+(CUDA 12.4)**. It downloads about 2.5 GB and keeps your models and settings.
+
+Your choice survives PoseCap updates and repairs. To return to the default, run
+**PEAR runtime - default, RTX 50 (CUDA 12.8)**. The CUDA 12.4 runtime refuses to
+install on RTX 50-series cards, which it cannot drive.

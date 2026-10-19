@@ -1,0 +1,11 @@
+{
+  "description": "PyTorch3D 0.7.9 built against torch 2.4.1+cu124, taken verbatim from the field-proven v1.0.6-win.4 PEAR payload (ADR-0019).",
+  "torch": "2.4.1+cu124",
+  "source_archive": {
+    "url": "https://github.com/CorridorTech/PoseCap/releases/download/v1.0.6-win.4/posecap-pear-bootstrap-1.0.6-win.4.zip",
+    "sha256": "96779adfaa45d01f10d08c70914975b9ca4b1e4365c2b8e2fefa8ce759814068",
+    "size_bytes": 31629318
+  },
+  "member": "wheels/pytorch3d-0.7.9-cp311-cp311-win_amd64.whl",
+  "sha256": "7d78e5a359617e458da5c53f3afe9913543b53148f0aad24cf439310996b1b84"
+}
